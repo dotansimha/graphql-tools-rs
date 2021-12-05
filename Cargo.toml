@@ -1,8 +1,13 @@
 [package]
 name = "graphql-tools"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Tools for working with GraphQL in Rust, based on graphql-parser Document."
+license = "MIT/Apache-2.0"
+readme = "README.md"
+keywords = ["graphql", "tools", "gql", "validation", "ast"]
+homepage = "https://github.com/dotansimha/graphql-tools-rs"
+documentation = "https://github.com/dotansimha/graphql-tools-rs"
+authors = ["Dotan Simha <dotansimha@gmail.com>"]
 
 [dependencies]
