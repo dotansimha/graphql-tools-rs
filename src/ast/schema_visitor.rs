@@ -1,4 +1,4 @@
-use graphql_parser::schema::{Document, Definition, SchemaDefinition, DirectiveDefinition, TypeDefinition, ObjectType, ScalarType, EnumType, Field, EnumValue, UnionType, InputObjectType, InterfaceType};
+use graphql_parser::schema::{Document, InputValue, Definition, SchemaDefinition, DirectiveDefinition, TypeDefinition, ObjectType, ScalarType, EnumType, Field, EnumValue, UnionType, InputObjectType, InterfaceType};
 
 pub trait SchemaVisitor<'a> {
   fn visit_schema_document(&mut self, document: &'a Document<String>) {
@@ -19,6 +19,7 @@ pub trait SchemaVisitor<'a> {
 
               for field in &object.fields {
                 self.enter_object_type_field(field, object);
+                // TODO: More advanced setup for fields: arguments, lists, null/non-null, directives
                 self.leave_object_type_field(field, object);
               }
 
@@ -44,6 +45,12 @@ pub trait SchemaVisitor<'a> {
             }
             TypeDefinition::InputObject(input_object) => {
               self.enter_input_object_type(input_object);
+
+              for field in &input_object.fields {
+                self.enter_input_object_type_field(field, input_object);
+                self.leave_input_object_type_field(field, input_object);
+              }
+
               self.leave_input_object_type(input_object);
             }
             TypeDefinition::Interface(interface) => {
@@ -101,6 +108,9 @@ pub trait SchemaVisitor<'a> {
   fn enter_input_object_type(&mut self, _node: &'a InputObjectType<String>) {}
   fn leave_input_object_type(&mut self, _node: &'a InputObjectType<String>) {}
 
+  fn enter_input_object_type_field(&mut self, _node: &'a InputValue<String>, _input_type: &'a InputObjectType<String>) {}
+  fn leave_input_object_type_field(&mut self, _node: &'a InputValue<String>, _input_type: &'a InputObjectType<String>) {}
+
   fn enter_union_type(&mut self, _node: &'a UnionType<String>) {}
   fn leave_union_type(&mut self, _node: &'a UnionType<String>) {}
 
@@ -114,16 +124,125 @@ pub trait SchemaVisitor<'a> {
   fn leave_enum_value(&mut self, _node: &'a EnumValue<String>, _enum: &'a EnumType<String>) {}
 }
 
-
 #[test]
 fn visit_schema() {
   use graphql_parser::schema::{parse_schema};
-  let schema_ast = parse_schema("type Query { foo: String! }").expect("Failed to parse schema");
+  let schema_ast = parse_schema(r#"
+    scalar Date
 
-  struct TestVisitor;
+    type Query {
+      user(id: ID!): User!
+      users(filter: UsersFilter): [User!]!
+      now: Date
+    }
 
-  impl<'a> SchemaVisitor<'a> for TestVisitor {}
+    input UsersFilter {
+      name: String
+    }
 
-  let mut visitor = TestVisitor {};
+    type User implements Node {
+      id: ID!
+      name: String!
+      role: Role!
+    }
+
+    interface Node {
+      id: ID!
+    }
+
+    type Test {
+      foo: String!
+    }
+
+    enum Role {
+      USER
+      ADMIN
+    }
+
+    union TestUnion = Test | User
+
+    "#).expect("Failed to parse schema");
+
+  struct TestVisitor {
+    collected_object_type: Vec<String>,
+    collected_scalar_type: Vec<String>,
+    collected_union_type: Vec<String>,
+    collected_input_type: Vec<String>,
+    collected_enum_type: Vec<String>,
+    collected_enum_value: Vec<String>,
+    collected_interface_type: Vec<String>,
+    collected_object_type_field: Vec<String>,
+    collected_interface_type_field: Vec<String>,
+    collected_input_type_fields: Vec<String>,
+  }
+
+  impl<'a> SchemaVisitor<'a> for TestVisitor {
+    fn enter_object_type(&mut self, _node: &'a ObjectType<String>) {
+      self.collected_object_type.push(_node.name.clone());
+    }
+
+    fn enter_object_type_field(&mut self, _node: &'a Field<String>, _type_: &'a ObjectType<String>) {
+      let field_id = format!("{}.{}", _type_.name.as_str(), _node.name.as_str());
+      self.collected_object_type_field.push(field_id);
+    }
+
+    fn enter_interface_type(&mut self, _node: &'a InterfaceType<String>) {
+      self.collected_interface_type.push(_node.name.clone());
+    }
+
+    fn enter_interface_type_field(&mut self, _node: &'a Field<String>, _type_: &'a InterfaceType<String>) {
+      self.collected_interface_type_field.push(_node.name.clone());
+    }
+
+    fn enter_scalar_type(&mut self, _node: &'a ScalarType<String>) {
+      self.collected_scalar_type.push(_node.name.clone());
+    }
+
+    fn enter_union_type(&mut self, _node: &'a UnionType<String>) {
+      self.collected_union_type.push(_node.name.clone());
+    }
+
+    fn enter_enum_type(&mut self, _node: &'a EnumType<String>) {
+      self.collected_enum_type.push(_node.name.clone());
+    }
+
+    fn enter_enum_value(&mut self, _node: &'a EnumValue<String>, _enum: &'a EnumType<String>) {
+      let enum_value_id = format!("{}.{}", _enum.name.as_str(), _node.name.as_str());
+      self.collected_enum_value.push(enum_value_id);
+    }
+
+    fn enter_input_object_type(&mut self, _node: &'a InputObjectType<String>) {
+      self.collected_input_type.push(_node.name.clone());
+    }
+
+    fn enter_input_object_type_field(&mut self, _node: &'a InputValue<String>, _input_type: &'a InputObjectType<String>) {
+      let field_id = format!("{}.{}", _input_type.name.as_str(), _node.name.as_str());
+      self.collected_input_type_fields.push(field_id);
+    }
+  }
+
+  let mut visitor = TestVisitor {
+    collected_object_type: Vec::new(),
+    collected_interface_type: Vec::new(),
+    collected_object_type_field: Vec::new(),
+    collected_interface_type_field: Vec::new(),
+    collected_scalar_type: Vec::new(),
+    collected_union_type: Vec::new(),
+    collected_enum_type: Vec::new(),
+    collected_enum_value: Vec::new(),
+    collected_input_type: Vec::new(),
+    collected_input_type_fields: Vec::new(),
+  };
+
   visitor.visit_schema_document(&schema_ast);
+
+  assert_eq!(visitor.collected_object_type, vec!["Query", "User", "Test"]);
+  assert_eq!(visitor.collected_object_type_field, vec!["Query.user", "Query.users", "Query.now", "User.id", "User.name", "User.role", "Test.foo"]);
+  assert_eq!(visitor.collected_interface_type, vec!["Node"]);
+  assert_eq!(visitor.collected_union_type, vec!["TestUnion"]);
+  assert_eq!(visitor.collected_scalar_type, vec!["Date"]);
+  assert_eq!(visitor.collected_enum_type, vec!["Role"]);
+  assert_eq!(visitor.collected_enum_value, vec!["Role.USER", "Role.ADMIN"]);
+  assert_eq!(visitor.collected_input_type, vec!["UsersFilter"]);
+  assert_eq!(visitor.collected_input_type_fields, vec!["UsersFilter.name"]);
 }
