@@ -176,6 +176,12 @@ fn visit_schema() {
     collected_input_type_fields: Vec<String>,
   }
 
+  impl<'a> TestVisitor {
+    fn collect_visited_info(&mut self, document: &'a Document<String>) {
+      self.visit_schema_document(document);
+    }
+  }
+
   impl<'a> SchemaVisitor<'a> for TestVisitor {
     fn enter_object_type(&mut self, _node: &'a ObjectType<String>) {
       self.collected_object_type.push(_node.name.clone());
@@ -234,7 +240,7 @@ fn visit_schema() {
     collected_input_type_fields: Vec::new(),
   };
 
-  visitor.visit_schema_document(&schema_ast);
+  visitor.collect_visited_info(&schema_ast);
 
   assert_eq!(visitor.collected_object_type, vec!["Query", "User", "Test"]);
   assert_eq!(visitor.collected_object_type_field, vec!["Query.user", "Query.users", "Query.now", "User.id", "User.name", "User.role", "Test.foo"]);
