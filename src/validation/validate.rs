@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::{
     rules::{OverlappingFieldsCanBeMerged, ValidationRule},
     utils::{LocateFragments, ValidationContext},
@@ -7,12 +9,11 @@ fn validate<'a>(
     schema: &'a graphql_parser::schema::Document<'a, String>,
     operation: &'a graphql_parser::query::Document<'a, String>,
 ) {
-    let default_rules = vec![OverlappingFieldsCanBeMerged {}];
-
     let mut fragments_locator = LocateFragments {
-        located_fragments: Vec::new(),
+        located_fragments: HashMap::new(),
     };
-    fragments_locator.locate_fragments(operation);
+
+    fragments_locator.locate_fragments(&operation);
 
     let validation_context = ValidationContext {
         schema,
@@ -20,8 +21,12 @@ fn validate<'a>(
         fragments: fragments_locator.located_fragments,
     };
 
-    for mut rule in default_rules {
-        rule.validate(&validation_context);
+    let rules = vec![OverlappingFieldsCanBeMerged {
+        ctx: &validation_context,
+    }];
+
+    for mut rule in rules {
+        rule.validate();
     }
 }
 

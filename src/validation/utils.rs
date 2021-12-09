@@ -1,20 +1,23 @@
-use crate::ast::QueryVisitor;
+use std::collections::HashMap;
 
-pub struct FragmentRef<'a>(
-    String,
-    &'a graphql_parser::query::FragmentDefinition<'a, String>,
-);
+use crate::ast::QueryVisitor;
+use thiserror::Error;
 
 pub struct ValidationContext<'a> {
     pub operation: &'a graphql_parser::query::Document<'a, String>,
     pub schema: &'a graphql_parser::schema::Document<'a, String>,
-    pub fragments: Vec<FragmentRef<'a>>,
+    pub fragments: HashMap<String, &'a graphql_parser::query::FragmentDefinition<'a, String>>,
 }
 
-pub struct ValidationError {}
+#[derive(Error, Debug)]
+#[error("GraphQL Validation Error: {}", _0)]
+pub struct ValidationError(String);
+
+pub trait ValidationRuleQueryVisitor {}
 
 pub struct LocateFragments<'a> {
-    pub located_fragments: Vec<FragmentRef<'a>>,
+    pub located_fragments:
+        HashMap<String, &'a graphql_parser::query::FragmentDefinition<'a, String>>,
 }
 
 impl<'a> QueryVisitor<'a> for LocateFragments<'a> {
@@ -22,8 +25,7 @@ impl<'a> QueryVisitor<'a> for LocateFragments<'a> {
         &mut self,
         _node: &'a graphql_parser::query::FragmentDefinition<'a, String>,
     ) {
-        self.located_fragments
-            .push(FragmentRef::<'a>(_node.name.clone(), _node));
+        self.located_fragments.insert(_node.name.clone(), _node);
     }
 }
 
