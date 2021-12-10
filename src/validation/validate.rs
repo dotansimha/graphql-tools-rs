@@ -9,25 +9,23 @@ fn validate<'a>(
     schema: &'a graphql_parser::schema::Document<'a, String>,
     operation: &'a graphql_parser::query::Document<'a, String>,
 ) {
-    let mut fragments_locator = LocateFragments {
-        located_fragments: HashMap::new(),
-    };
+    // let mut fragments_locator = LocateFragments {
+    //     located_fragments: HashMap::new(),
+    // };
 
-    fragments_locator.locate_fragments(&operation);
+    // fragments_locator.locate_fragments(&operation);
 
-    let validation_context = ValidationContext {
-        schema,
-        operation,
-        fragments: fragments_locator.located_fragments,
-    };
+    let validation_context = ValidationContext::new(&operation, &schema);
 
-    let rules = vec![OverlappingFieldsCanBeMerged {
-        ctx: &validation_context,
-    }];
+    // let rules = vec![OverlappingFieldsCanBeMerged {}];
 
-    for mut rule in rules {
-        rule.validate();
-    }
+    let mut a = OverlappingFieldsCanBeMerged {};
+
+    a.validate(&validation_context);
+
+    // for mut rule in rules {
+    //     rule.validate(&validation_context);
+    // }
 }
 
 #[test]
