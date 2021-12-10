@@ -1,52 +1,53 @@
 use std::collections::HashMap;
 
 use super::{
+    locate_fragments::LocateFragments,
     rules::{OverlappingFieldsCanBeMerged, ValidationRule},
-    utils::{LocateFragments, ValidationContext},
+    utils::ValidationContext,
 };
 
-fn validate<'a>(
-    schema: &'a graphql_parser::schema::Document<'a, String>,
-    operation: &'a graphql_parser::query::Document<'a, String>,
-) {
-    // let mut fragments_locator = LocateFragments {
-    //     located_fragments: HashMap::new(),
-    // };
+use crate::static_graphql::{query, schema};
 
-    // fragments_locator.locate_fragments(&operation);
+fn validate(schema: &schema::Document, operation: &query::Document) {
+    let mut fragments_locator = LocateFragments {
+        located_fragments: HashMap::new(),
+    };
 
-    let validation_context = ValidationContext::new(&operation, &schema);
+    fragments_locator.locate_fragments(&operation);
 
-    // let rules = vec![OverlappingFieldsCanBeMerged {}];
+    let mut validation_context = ValidationContext {
+        operation: operation.clone(),
+        schema: schema.clone(),
+        fragments: fragments_locator.located_fragments,
+        validation_errors: Vec::new(),
+    };
 
-    let mut a = OverlappingFieldsCanBeMerged {};
+    let rules = vec![OverlappingFieldsCanBeMerged {}];
 
-    a.validate(&validation_context);
-
-    // for mut rule in rules {
-    //     rule.validate(&validation_context);
-    // }
+    for mut rule in rules {
+        rule.validate(&mut validation_context);
+    }
 }
 
 #[test]
 fn test_validate_valid_query() {
-    let schema_ast = graphql_parser::parse_schema::<String>(
-        "
-    type Query {
-      foo: String
-    }
-    ",
-    )
-    .expect("Failed to parse schema");
+    // let schema_ast = graphql_parser::parse_schema::<String>(
+    //     "
+    // type Query {
+    //   foo: String
+    // }
+    // ",
+    // )
+    // .expect("Failed to parse schema");
 
-    let operation_ast = graphql_parser::parse_query::<String>(
-        "
-    query test {
-      foo
-    }
-    ",
-    )
-    .expect("Failed to parse query");
+    // let operation_ast = graphql_parser::parse_query::<String>(
+    //     "
+    // query test {
+    //   foo
+    // }
+    // ",
+    // )
+    // .expect("Failed to parse query");
 
-    validate(&schema_ast, &operation_ast);
+    // validate(&schema_ast, &operation_ast);
 }

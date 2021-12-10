@@ -1,7 +1,7 @@
 use crate::validation::utils::ValidationContext;
 
-pub trait ValidationRule<'a> {
-    fn validate(&mut self, _ctx: &'a ValidationContext<'a>) {
+pub trait ValidationRule {
+    fn validate(&mut self, _ctx: &mut ValidationContext) {
         unimplemented!("Missing ValidationRule:validate implementation");
     }
 }

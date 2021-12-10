@@ -1,49 +1,17 @@
-use std::collections::HashMap;
+use crate::static_graphql::{query, schema};
+use graphql_parser::Pos;
+use std::{collections::HashMap, fmt::Debug};
 
-use crate::ast::{DefaultVisitorContext, QueryVisitor};
-use thiserror::Error;
-
-pub struct ValidationContext<'a> {
-    pub operation: graphql_parser::query::Document<'a, String>,
-    pub schema: graphql_parser::schema::Document<'a, String>,
-    // pub fragments: HashMap<String, &'a graphql_parser::query::FragmentDefinition<'a, String>>,
+#[derive(Debug)]
+pub struct ValidationContext {
+    pub operation: query::Document,
+    pub schema: schema::Document,
+    pub fragments: HashMap<String, crate::static_graphql::query::FragmentDefinition>,
+    pub validation_errors: Vec<ValidationError>,
 }
 
-impl<'a> ValidationContext<'a> {
-    pub fn new(
-        operation: &'a graphql_parser::query::Document<'a, String>,
-        schema: &'a graphql_parser::schema::Document<'a, String>,
-    ) -> Self {
-        ValidationContext {
-            operation: operation.clone(),
-            schema: schema.clone(),
-        }
-    }
-}
-
-#[derive(Error, Debug)]
-#[error("GraphQL Validation Error: {}", _0)]
-pub struct ValidationError(String);
-
-pub trait ValidationRuleQueryVisitor {}
-
-pub struct LocateFragments<'a> {
-    pub located_fragments:
-        HashMap<String, &'a graphql_parser::query::FragmentDefinition<'a, String>>,
-}
-
-impl<'a> QueryVisitor<'a> for LocateFragments<'a> {
-    fn enter_fragment_definition(
-        &mut self,
-        _node: &'a graphql_parser::query::FragmentDefinition<'a, String>,
-        _ctx: &DefaultVisitorContext,
-    ) {
-        self.located_fragments.insert(_node.name.clone(), _node);
-    }
-}
-
-impl<'a> LocateFragments<'a> {
-    pub fn locate_fragments(&mut self, operation: &'a graphql_parser::query::Document<'a, String>) {
-        self.visit_document(operation, &DefaultVisitorContext {});
-    }
+#[derive(Debug)]
+pub struct ValidationError {
+    pub(crate) locations: Vec<Pos>,
+    pub(crate) message: String,
 }
