@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::{
     locate_fragments::LocateFragments,
     rules::ValidationRule,

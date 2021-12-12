@@ -85,7 +85,6 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
                     {
                       match fragment.type_condition {
                         TypeCondition::On(type_condition) => self.find_in_selection_set(&fragment.selection_set, Some(type_condition.clone())),
-                        _ => self.find_in_selection_set(&fragment.selection_set, None),
                       }
                     }
                 }
