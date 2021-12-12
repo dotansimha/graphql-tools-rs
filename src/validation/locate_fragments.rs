@@ -1,27 +1,36 @@
 use std::collections::HashMap;
 
-use crate::{
-    ast::{DefaultVisitorContext, QueryVisitor},
-    static_graphql::query,
-};
+use crate::{ast::QueryVisitor, static_graphql::query};
 
 pub struct LocateFragments {
-    pub located_fragments: HashMap<String, crate::static_graphql::query::FragmentDefinition>,
+  located_fragments: HashMap<String, crate::static_graphql::query::FragmentDefinition>,
 }
 
-impl QueryVisitor for LocateFragments {
+impl QueryVisitor<LocateFragments> for LocateFragments {
     fn enter_fragment_definition(
-        &mut self,
+        &self,
         _node: &query::FragmentDefinition,
-        _ctx: &mut DefaultVisitorContext,
+        _ctx: &mut LocateFragments,
     ) {
         let clone = _node.clone().to_owned();
-        self.located_fragments.insert(_node.name.clone(), clone);
+        _ctx.located_fragments.insert(_node.name.clone(), clone);
     }
 }
 
 impl LocateFragments {
-    pub fn locate_fragments(&mut self, operation: &query::Document) {
-        self.visit_document(operation, &mut DefaultVisitorContext {});
+    pub fn new() -> Self {
+      Self {
+        located_fragments: HashMap::new(),
+      }
+    }
+
+    pub fn locate_fragments(&mut self, operation: &query::Document) -> HashMap<String, query::FragmentDefinition> {
+        let mut visitor = LocateFragments {
+            located_fragments: HashMap::new(),
+        };
+
+        self.visit_document(operation, &mut visitor);
+
+        visitor.located_fragments
     }
 }
