@@ -95,8 +95,6 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
 
 impl QueryVisitor<ValidationContext> for OverlappingFieldsCanBeMerged {
     fn enter_selection_set(&self, node: &SelectionSet, ctx: &mut ValidationContext) {
-      println!("enter_selection_set called!!!  items: {:?}", node.items);
-
         let mut finder = FindOverlappingFieldsThatCanBeMerged {
             discoverd_fields: HashMap::new(),
             ctx,

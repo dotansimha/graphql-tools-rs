@@ -12,6 +12,6 @@ pub struct ValidationContext {
 
 #[derive(Debug)]
 pub struct ValidationError {
-    pub(crate) locations: Vec<Pos>,
-    pub(crate) message: String,
+    pub locations: Vec<Pos>,
+    pub message: String,
 }
