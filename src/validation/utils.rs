@@ -10,6 +10,12 @@ pub struct ValidationContext {
     pub validation_errors: Vec<ValidationError>,
 }
 
+impl ValidationContext {
+  pub fn report_error(&mut self, error: ValidationError) {
+    self.validation_errors.push(error);
+  }
+}
+
 #[derive(Debug)]
 pub struct ValidationError {
     pub locations: Vec<Pos>,

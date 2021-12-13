@@ -21,17 +21,17 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
 
         if let Some(existing) = self.discoverd_fields.get(&field_identifier) {
             if !existing.name.eq(&field.name) {
-                self.ctx.validation_errors.push(ValidationError {
-                    locations: vec![field.position, existing.position],
-                    message: format!(
-                        "Fields \"{}\" conflict because \"{}\" and \"{}\" are different fields. Use different aliases on the fields to fetch both if this was intentional.",
-                        base_field_name, existing.name, field.name 
-                    ),
-                });
+              self.ctx.report_error(ValidationError {
+                  locations: vec![field.position, existing.position],
+                  message: format!(
+                      "Fields \"{}\" conflict because \"{}\" and \"{}\" are different fields. Use different aliases on the fields to fetch both if this was intentional.",
+                      base_field_name, existing.name, field.name 
+                  ),
+              })
             }
 
             if existing.arguments.len() != field.arguments.len() {
-                self.ctx.validation_errors.push(ValidationError {
+              self.ctx.report_error(ValidationError {
                 locations: vec![field.position, existing.position],
                 message: format!(
                     "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
@@ -49,7 +49,7 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
                   match arg_record_in_new_field {
                       Some((_other_name, other_value)) if other_value.eq(arg_value) => {}
                       _ => {
-                          self.ctx.validation_errors.push(ValidationError {
+                        self.ctx.report_error(ValidationError {
                           locations: vec![field.position, existing.position],
                           message: format!(
                               "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",

@@ -28,7 +28,7 @@ pub mod static_graphql {
     static_graphql!(schema, schema, {
       Field, Directive, InterfaceType, ObjectType, Value, TypeDefinition,
       EnumType, Type, Document, ScalarType, InputValue, DirectiveDefinition,
-      UnionType, InputObjectType, EnumValue,
+      UnionType, InputObjectType, EnumValue, SchemaDefinition,
     });
 }
 

@@ -1,7 +1,12 @@
 
 /// Utilities validating GraphQL documents/operations
 pub mod rule;
+pub mod defaults;
 pub mod overlapping_fields_can_be_merged;
+pub mod lone_anonymous_operation;
 
 pub use self::rule::*;
+pub use self::defaults::*;
 pub use self::overlapping_fields_can_be_merged::*;
+pub use self::lone_anonymous_operation::*;
+
