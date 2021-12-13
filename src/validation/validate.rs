@@ -47,8 +47,7 @@ fn test_validate_valid_query() {
     query test {
       foo
     }
-    "
-        .to_owned(),
+    ",
         &mut default_plan,
     );
 
@@ -66,8 +65,7 @@ fn test_validate_valid_fragment() {
           name
           nickname
         }
-    "
-        .to_owned(),
+    ",
         &mut default_plan,
     );
 

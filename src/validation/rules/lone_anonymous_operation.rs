@@ -4,8 +4,13 @@ use crate::static_graphql::query::*;
 use crate::validation::utils::ValidationError;
 use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 
-pub struct LoneAnonymousOperation {
-}
+/// Lone Anonymous Operation
+/// 
+/// A GraphQL document is only valid if when it contains an anonymous operation
+/// (the query short-hand) that it contains only that one operation definition.
+/// 
+/// https://spec.graphql.org/draft/#sec-Lone-Anonymous-Operation
+pub struct LoneAnonymousOperation;
 
 impl QueryVisitor<ValidationContext> for LoneAnonymousOperation {
   fn enter_document(&self, _node: &Document, visitor_context: &mut ValidationContext) {
@@ -18,8 +23,6 @@ impl QueryVisitor<ValidationContext> for LoneAnonymousOperation {
         _ => false,
       }
     }).count();
-
-    println!("operations_count: {}, _node: {:?}", operations_count, _node);
 
     for definition in &_node.definitions {
       match definition {
@@ -76,7 +79,7 @@ fn no_operations() {
         "fragment fragA on Type {
           field
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -92,7 +95,7 @@ fn one_anon_operation() {
         "{
           field
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -111,7 +114,7 @@ fn mutiple_named() {
         query Bar {
           field
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -130,7 +133,7 @@ fn anon_operation_with_fragment() {
         fragment Foo on Type {
           field
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -149,7 +152,7 @@ fn multiple_anon_operations() {
         {
           fieldB
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -170,7 +173,7 @@ fn anon_operation_with_mutation() {
         mutation Foo {
           fieldB
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -191,7 +194,7 @@ fn anon_operation_with_subscription() {
         subscription Foo {
           fieldB
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 

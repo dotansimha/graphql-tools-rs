@@ -4,6 +4,13 @@ use crate::validation::utils::ValidationError;
 use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 use std::collections::HashMap;
 
+/// Overlapping fields can be merged
+///
+/// A selection set is only valid if all fields (including spreading any
+/// fragments) either correspond to distinct response names or can be merged
+/// without ambiguity.
+///
+/// See https://spec.graphql.org/draft/#sec-Field-Selection-Merging
 pub struct OverlappingFieldsCanBeMerged;
 
 struct FindOverlappingFieldsThatCanBeMerged<'a> {
@@ -120,7 +127,7 @@ fn unique_fields() {
           name
           nickname
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -137,7 +144,7 @@ fn identical_fields() {
           name
           name
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -154,7 +161,7 @@ fn identical_fields_and_identical_args() {
           doesKnowCommand(dogCommand: SIT)
           doesKnowCommand(dogCommand: SIT)
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -171,7 +178,7 @@ fn identical_fields_and_identical_directives() {
           name @include(if: true)
           name @include(if: true)
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -188,7 +195,7 @@ fn different_args_different_aliases() {
           knowsSit: doesKnowCommand(dogCommand: SIT)
           knowsDown: doesKnowCommand(dogCommand: DOWN)
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -205,7 +212,7 @@ fn different_directives_different_aliases() {
           nameIfTrue: name @include(if: true)
           nameIfFalse: name @include(if: false)
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -222,7 +229,7 @@ fn different_skip_include_directives() {
           name @include(if: true)
           name @include(if: false)
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -239,7 +246,7 @@ fn same_alias_different_field_target() {
           fido: name
           fido: nickname
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -262,7 +269,7 @@ fn same_alias_non_overlapping_field_target() {
             name: nickname
           }
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -280,7 +287,7 @@ fn alias_masking_direct_access() {
           name: nickname
           name
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -299,7 +306,7 @@ fn different_args_second_adds() {
           doesKnowCommand
           doesKnowCommand(dogCommand: HEEL)
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -318,7 +325,7 @@ fn different_args_declared_on_first() {
           doesKnowCommand(dogCommand: SIT)
           doesKnowCommand
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -337,7 +344,7 @@ fn different_arg_values() {
           doesKnowCommand(dogCommand: SIT)
           doesKnowCommand(dogCommand: HEEL)
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -356,7 +363,7 @@ fn conflicting_arg_names() {
           isAtLocation(x: 0)
           isAtLocation(y: 0)
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -380,7 +387,7 @@ fn allow_different_args_when_possible_with_different_args() {
             name
           }
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -404,7 +411,7 @@ fn conflict_in_fragment_spread() {
         fragment B on Type {
           x: b
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -429,7 +436,7 @@ fn deep_conflict() {
             x: b
           }
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
@@ -465,7 +472,7 @@ fn report_each_conflict_once() {
         fragment B on Type {
           x: b
         }"
-        .to_owned(),
+        ,
         &mut plan,
     );
 
