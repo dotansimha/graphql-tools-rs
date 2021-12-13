@@ -1,5 +1,7 @@
 ## `graphql-tools` (Rust)
 
+> **Note: this crate is still under development (see roadmap below)**
+
 The [`graphql_tools` crate](https://crates.io/crates/graphql-tools) implements tooling around GraphQL for Rust libraries. Most of the tools are based on `trait`s and `struct`s implemented in [`graphql_parser` crate](https://crates.io/crates/graphql-parser).
 
 The goal of this library is to create a common layer of tools that has similar/improved APIs to [`graphql-js` reference implementation](https://github.com/graphql/graphql-js) and [`graphql-tools` from the JS/TS ecosystem](https://github.com/ardatan/graphql-tools).
