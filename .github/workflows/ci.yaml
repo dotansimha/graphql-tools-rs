@@ -1,5 +1,8 @@
-name: PR Checks
+name: ci
 on:
+  push:
+    branches:
+      - master
   pull_request:
     branches:
       - master
