@@ -1,7 +1,8 @@
-//! Graphql Tools
+//! graphql-tools
 //! ==============
 //!
-//!
+//! This library implements tooling around GraphQL for Rust libraries. 
+//! Most of the tools are based on `trait`s and `struct`s implemented in `graphql_parser` crate.
 //!
 
 pub mod ast;
