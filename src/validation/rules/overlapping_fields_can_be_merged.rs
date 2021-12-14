@@ -20,15 +20,15 @@ struct FindOverlappingFieldsThatCanBeMerged<'a> {
 
 impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
     fn store_finding(&mut self, field: &Field, parent_type_name: Option<String>) {
-      let base_field_name = field.alias.as_ref().unwrap_or(&field.name).clone();
-      let field_identifier = match parent_type_name {
-        Some(ref type_name) => format!("{}.{}", type_name, base_field_name.clone()),
-        None => base_field_name.clone()
-      };
+        let base_field_name = field.alias.as_ref().unwrap_or(&field.name).clone();
+        let field_identifier = match parent_type_name {
+            Some(ref type_name) => format!("{}.{}", type_name, base_field_name.clone()),
+            None => base_field_name.clone(),
+        };
 
         if let Some(existing) = self.discoverd_fields.get(&field_identifier) {
             if !existing.name.eq(&field.name) {
-              self.ctx.report_error(ValidationError {
+                self.ctx.report_error(ValidationError {
                   locations: vec![field.position, existing.position],
                   message: format!(
                       "Fields \"{}\" conflict because \"{}\" and \"{}\" are different fields. Use different aliases on the fields to fetch both if this was intentional.",
@@ -38,7 +38,7 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
             }
 
             if existing.arguments.len() != field.arguments.len() {
-              self.ctx.report_error(ValidationError {
+                self.ctx.report_error(ValidationError {
                 locations: vec![field.position, existing.position],
                 message: format!(
                     "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
@@ -46,41 +46,49 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
                 ),
               });
             } else {
-              for (arg_name, arg_value) in &existing.arguments {
-                  let arg_record_in_new_field = field
-                      .arguments
-                      .to_owned()
-                      .into_iter()
-                      .find(|(arg_name_in_new_field, _)| arg_name_in_new_field == arg_name);
+                for (arg_name, arg_value) in &existing.arguments {
+                    let arg_record_in_new_field = field
+                        .arguments
+                        .to_owned()
+                        .into_iter()
+                        .find(|(arg_name_in_new_field, _)| arg_name_in_new_field == arg_name);
 
-                  match arg_record_in_new_field {
-                      Some((_other_name, other_value)) if other_value.eq(arg_value) => {}
-                      _ => {
-                        self.ctx.report_error(ValidationError {
+                    match arg_record_in_new_field {
+                        Some((_other_name, other_value)) if other_value.eq(arg_value) => {}
+                        _ => {
+                            self.ctx.report_error(ValidationError {
                           locations: vec![field.position, existing.position],
                           message: format!(
                               "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
                               field.name
                           ),
                         });
-                      }
-                  }
-              }
+                        }
+                    }
+                }
             }
         } else {
-            self.discoverd_fields.insert(field_identifier, field.clone());
+            self.discoverd_fields
+                .insert(field_identifier, field.clone());
         }
     }
 
-    pub fn find_in_selection_set(&mut self, selection_set: &SelectionSet, parent_type_name: Option<String>) {
+    pub fn find_in_selection_set(
+        &mut self,
+        selection_set: &SelectionSet,
+        parent_type_name: Option<String>,
+    ) {
         for selection in &selection_set.items {
             match selection {
                 Selection::Field(field) => self.store_finding(field, parent_type_name.to_owned()),
                 Selection::InlineFragment(inline_fragment) => {
-                  match inline_fragment.type_condition {
-                    Some(TypeCondition::On(ref type_condition)) => self.find_in_selection_set(&inline_fragment.selection_set, Some(type_condition.clone())),
-                    _ => self.find_in_selection_set(&inline_fragment.selection_set, None),
-                  }
+                    match inline_fragment.type_condition {
+                        Some(TypeCondition::On(ref type_condition)) => self.find_in_selection_set(
+                            &inline_fragment.selection_set,
+                            Some(type_condition.clone()),
+                        ),
+                        _ => self.find_in_selection_set(&inline_fragment.selection_set, None),
+                    }
                 }
 
                 Selection::FragmentSpread(fragment_spread) => {
@@ -90,9 +98,12 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
                         .get(&fragment_spread.fragment_name)
                         .cloned()
                     {
-                      match fragment.type_condition {
-                        TypeCondition::On(type_condition) => self.find_in_selection_set(&fragment.selection_set, Some(type_condition.clone())),
-                      }
+                        match fragment.type_condition {
+                            TypeCondition::On(type_condition) => self.find_in_selection_set(
+                                &fragment.selection_set,
+                                Some(type_condition.clone()),
+                            ),
+                        }
                     }
                 }
             }
@@ -126,8 +137,7 @@ fn unique_fields() {
         "fragment uniqueFields on Dog {
           name
           nickname
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -143,8 +153,7 @@ fn identical_fields() {
         "fragment mergeIdenticalFields on Dog {
           name
           name
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -160,8 +169,7 @@ fn identical_fields_and_identical_args() {
         "fragment mergeIdenticalFieldsWithIdenticalArgs on Dog {
           doesKnowCommand(dogCommand: SIT)
           doesKnowCommand(dogCommand: SIT)
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -177,8 +185,7 @@ fn identical_fields_and_identical_directives() {
         "fragment mergeSameFieldsWithSameDirectives on Dog {
           name @include(if: true)
           name @include(if: true)
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -194,8 +201,7 @@ fn different_args_different_aliases() {
         "fragment differentArgsWithDifferentAliases on Dog {
           knowsSit: doesKnowCommand(dogCommand: SIT)
           knowsDown: doesKnowCommand(dogCommand: DOWN)
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -211,8 +217,7 @@ fn different_directives_different_aliases() {
         "fragment differentDirectivesWithDifferentAliases on Dog {
           nameIfTrue: name @include(if: true)
           nameIfFalse: name @include(if: false)
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -228,8 +233,7 @@ fn different_skip_include_directives() {
         "fragment differentDirectivesWithDifferentAliases on Dog {
           name @include(if: true)
           name @include(if: false)
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -245,8 +249,7 @@ fn same_alias_different_field_target() {
         "fragment sameAliasesWithDifferentFieldTargets on Dog {
           fido: name
           fido: nickname
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -268,8 +271,7 @@ fn same_alias_non_overlapping_field_target() {
           ... on Cat {
             name: nickname
           }
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -286,8 +288,7 @@ fn alias_masking_direct_access() {
         "fragment aliasMaskingDirectFieldAccess on Dog {
           name: nickname
           name
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -305,8 +306,7 @@ fn different_args_second_adds() {
         "fragment conflictingArgs on Dog {
           doesKnowCommand
           doesKnowCommand(dogCommand: HEEL)
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -324,8 +324,7 @@ fn different_args_declared_on_first() {
         "fragment conflictingArgs on Dog {
           doesKnowCommand(dogCommand: SIT)
           doesKnowCommand
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -343,8 +342,7 @@ fn different_arg_values() {
         "fragment conflictingArgs on Dog {
           doesKnowCommand(dogCommand: SIT)
           doesKnowCommand(dogCommand: HEEL)
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -362,8 +360,7 @@ fn conflicting_arg_names() {
         "fragment conflictingArgs on Dog {
           isAtLocation(x: 0)
           isAtLocation(y: 0)
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -371,7 +368,6 @@ fn conflicting_arg_names() {
     assert_eq!(messages.len(), 1);
     assert_eq!(messages, vec!["Fields \"isAtLocation\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional."]);
 }
-
 
 #[test]
 fn allow_different_args_when_possible_with_different_args() {
@@ -386,8 +382,7 @@ fn allow_different_args_when_possible_with_different_args() {
           ... on Cat {
             name
           }
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -410,8 +405,7 @@ fn conflict_in_fragment_spread() {
         }
         fragment B on Type {
           x: b
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -435,8 +429,7 @@ fn deep_conflict() {
           field {
             x: b
           }
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -471,8 +464,7 @@ fn report_each_conflict_once() {
         }
         fragment B on Type {
           x: b
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -484,4 +476,3 @@ fn report_each_conflict_once() {
       "Fields \"x\" conflict because \"a\" and \"b\" are different fields. Use different aliases on the fields to fetch both if this was intentional."
     ]);
 }
-

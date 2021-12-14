@@ -5,4 +5,3 @@ pub trait ValidationRule: Send + Sync {
         unimplemented!("Missing ValidationRule:validate implementation");
     }
 }
-

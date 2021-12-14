@@ -7,7 +7,7 @@ use super::DefaultVisitorContext;
 
 /// A trait for implenenting a visitor for GraphQL operations.
 /// It allow your custom function to be called when an AST node is found.
-/// 
+///
 /// You can pass custom <T> as context if you need to store data / access external variables.
 pub trait QueryVisitor<T = DefaultVisitorContext> {
     fn visit_document(&self, node: &Document, visitor_context: &mut T) {

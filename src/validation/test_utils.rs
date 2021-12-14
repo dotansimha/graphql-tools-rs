@@ -154,8 +154,7 @@ pub fn test_operation_with_schema(
     schema: &'static str,
     plan: &mut ValidationPlan,
 ) -> Vec<ValidationError> {
-    let schema_ast = graphql_parser::parse_schema(schema)
-    .expect("Failed to parse schema");
+    let schema_ast = graphql_parser::parse_schema(schema).expect("Failed to parse schema");
 
     let operation_ast = graphql_parser::parse_query(operation)
         .unwrap()

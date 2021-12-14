@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{ast::QueryVisitor, static_graphql::query};
 
 pub struct LocateFragments {
-  located_fragments: HashMap<String, crate::static_graphql::query::FragmentDefinition>,
+    located_fragments: HashMap<String, crate::static_graphql::query::FragmentDefinition>,
 }
 
 impl QueryVisitor<LocateFragments> for LocateFragments {
@@ -19,12 +19,15 @@ impl QueryVisitor<LocateFragments> for LocateFragments {
 
 impl LocateFragments {
     pub fn new() -> Self {
-      Self {
-        located_fragments: HashMap::new(),
-      }
+        Self {
+            located_fragments: HashMap::new(),
+        }
     }
 
-    pub fn locate_fragments(&mut self, operation: &query::Document) -> HashMap<String, query::FragmentDefinition> {
+    pub fn locate_fragments(
+        &mut self,
+        operation: &query::Document,
+    ) -> HashMap<String, query::FragmentDefinition> {
         let mut visitor = LocateFragments {
             located_fragments: HashMap::new(),
         };

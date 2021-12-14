@@ -1,59 +1,75 @@
-
-use super::{ValidationRule};
+use super::ValidationRule;
 use crate::static_graphql::query::*;
 use crate::static_graphql::schema::TypeDefinition;
 use crate::validation::utils::ValidationError;
 use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 
 /// Fragments on composite type
-/// 
+///
 /// Fragments use a type condition to determine if they apply, since fragments
 /// can only be spread into a composite type (object, interface, or union), the
 /// type condition must also be a composite type.
-/// 
+///
 /// https://spec.graphql.org/draft/#sec-Fragments-On-Composite-Types
 pub struct FragmentsOnCompositeTypes;
 
 impl QueryVisitor<ValidationContext> for FragmentsOnCompositeTypes {
-  fn enter_inline_fragment(&self, _node: &InlineFragment, _visitor_context: &mut ValidationContext) {
-    if let Some(TypeCondition::On(type_condition)) = &_node.type_condition {
-      let gql_type = _visitor_context.find_schema_definition_by_name(type_condition.to_owned());
-      
-      if let Some(gql_type) = gql_type {
-        match gql_type {
-          TypeDefinition::Object(_) | TypeDefinition::Interface(_) | TypeDefinition::Union(_) => {},
-          _ => {
-            _visitor_context.report_error(ValidationError {
-              locations: vec![_node.position],
-              message: format!("Fragment cannot condition on non composite type \"{}\".", type_condition)
-            })
-          }
-        }
-      }
-    }
-  }
-  
-  fn enter_fragment_definition(&self, _node: &FragmentDefinition, _visitor_context: &mut ValidationContext) {
-    let TypeCondition::On(type_condition) = &_node.type_condition;
+    fn enter_inline_fragment(
+        &self,
+        _node: &InlineFragment,
+        _visitor_context: &mut ValidationContext,
+    ) {
+        if let Some(TypeCondition::On(type_condition)) = &_node.type_condition {
+            let gql_type =
+                _visitor_context.find_schema_definition_by_name(type_condition.to_owned());
 
-    if let Some(gql_type) = _visitor_context.find_schema_definition_by_name(type_condition.to_owned()) {
-      match gql_type {
-        TypeDefinition::Object(_) | TypeDefinition::Interface(_) | TypeDefinition::Union(_) => {},
-        _ => {
-          _visitor_context.report_error(ValidationError {
-            locations: vec![_node.position],
-            message: format!("Fragment \"{}\" cannot condition on non composite type \"{}\".", _node.name, type_condition)
-          })
+            if let Some(gql_type) = gql_type {
+                match gql_type {
+                    TypeDefinition::Object(_)
+                    | TypeDefinition::Interface(_)
+                    | TypeDefinition::Union(_) => {}
+                    _ => _visitor_context.report_error(ValidationError {
+                        locations: vec![_node.position],
+                        message: format!(
+                            "Fragment cannot condition on non composite type \"{}\".",
+                            type_condition
+                        ),
+                    }),
+                }
+            }
         }
-      }
     }
-  }
+
+    fn enter_fragment_definition(
+        &self,
+        _node: &FragmentDefinition,
+        _visitor_context: &mut ValidationContext,
+    ) {
+        let TypeCondition::On(type_condition) = &_node.type_condition;
+
+        if let Some(gql_type) =
+            _visitor_context.find_schema_definition_by_name(type_condition.to_owned())
+        {
+            match gql_type {
+                TypeDefinition::Object(_)
+                | TypeDefinition::Interface(_)
+                | TypeDefinition::Union(_) => {}
+                _ => _visitor_context.report_error(ValidationError {
+                    locations: vec![_node.position],
+                    message: format!(
+                        "Fragment \"{}\" cannot condition on non composite type \"{}\".",
+                        _node.name, type_condition
+                    ),
+                }),
+            }
+        }
+    }
 }
 
 impl ValidationRule for FragmentsOnCompositeTypes {
-  fn validate(&self, ctx: &mut ValidationContext) {
-    self.visit_document(&ctx.operation.clone(), ctx)
-  }
+    fn validate(&self, ctx: &mut ValidationContext) {
+        self.visit_document(&ctx.operation.clone(), ctx)
+    }
 }
 
 #[test]
@@ -64,8 +80,7 @@ fn object_is_valid_fragment_type() {
     let errors = test_operation_without_schema(
         "fragment validFragment on Dog {
           barks
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -80,8 +95,7 @@ fn interface_is_valid_fragment_type() {
     let errors = test_operation_without_schema(
         "fragment validFragment on Pet {
           name
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -98,8 +112,7 @@ fn object_is_valid_inline_fragment_type() {
           ... on Dog {
             barks
           }
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -116,8 +129,7 @@ fn interface_is_valid_inline_fragment_type() {
           ... on Canine {
             name
           }
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -134,8 +146,7 @@ fn inline_fragment_without_type_is_valid() {
           ... {
             name
           }
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -150,8 +161,7 @@ fn union_is_valid_fragment_type() {
     let errors = test_operation_without_schema(
         "fragment validFragment on CatOrDog {
           __typename
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -173,9 +183,10 @@ fn scalar_is_invalid_fragment_type() {
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 1);
-    assert_eq!(messages, vec![
-      "Fragment \"scalarFragment\" cannot condition on non composite type \"Boolean\"."
-    ]);
+    assert_eq!(
+        messages,
+        vec!["Fragment \"scalarFragment\" cannot condition on non composite type \"Boolean\"."]
+    );
 }
 
 #[test]
@@ -193,9 +204,10 @@ fn enum_is_invalid_fragment_type() {
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 1);
-    assert_eq!(messages, vec![
-      "Fragment \"scalarFragment\" cannot condition on non composite type \"FurColor\"."
-    ]);
+    assert_eq!(
+        messages,
+        vec!["Fragment \"scalarFragment\" cannot condition on non composite type \"FurColor\"."]
+    );
 }
 
 #[test]
@@ -213,9 +225,10 @@ fn input_object_is_invalid_fragment_type() {
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 1);
-    assert_eq!(messages, vec![
-      "Fragment \"inputFragment\" cannot condition on non composite type \"ComplexInput\"."
-    ]);
+    assert_eq!(
+        messages,
+        vec!["Fragment \"inputFragment\" cannot condition on non composite type \"ComplexInput\"."]
+    );
 }
 
 #[test]
@@ -235,7 +248,8 @@ fn scalar_is_invalid_inline_fragment_type() {
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 1);
-    assert_eq!(messages, vec![
-      "Fragment cannot condition on non composite type \"String\"."
-    ]);
+    assert_eq!(
+        messages,
+        vec!["Fragment cannot condition on non composite type \"String\"."]
+    );
 }

@@ -1,73 +1,78 @@
-
-use super::{ValidationRule};
+use super::ValidationRule;
 use crate::static_graphql::query::*;
 use crate::validation::utils::ValidationError;
 use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 
 /// Lone Anonymous Operation
-/// 
+///
 /// A GraphQL document is only valid if when it contains an anonymous operation
 /// (the query short-hand) that it contains only that one operation definition.
-/// 
+///
 /// https://spec.graphql.org/draft/#sec-Lone-Anonymous-Operation
 pub struct LoneAnonymousOperation;
 
 impl QueryVisitor<ValidationContext> for LoneAnonymousOperation {
-  fn enter_document(&self, _node: &Document, visitor_context: &mut ValidationContext) {
-    let operations_count = _node.definitions.iter().filter(|n| {
-      match n {
-        Definition::Operation(OperationDefinition::SelectionSet(_)) => true,
-        Definition::Operation(OperationDefinition::Query(_)) => true,
-        Definition::Operation(OperationDefinition::Mutation(_)) => true,
-        Definition::Operation(OperationDefinition::Subscription(_)) => true,
-        _ => false,
-      }
-    }).count();
+    fn enter_document(&self, _node: &Document, visitor_context: &mut ValidationContext) {
+        let operations_count = _node
+            .definitions
+            .iter()
+            .filter(|n| match n {
+                Definition::Operation(OperationDefinition::SelectionSet(_)) => true,
+                Definition::Operation(OperationDefinition::Query(_)) => true,
+                Definition::Operation(OperationDefinition::Mutation(_)) => true,
+                Definition::Operation(OperationDefinition::Subscription(_)) => true,
+                _ => false,
+            })
+            .count();
 
-    for definition in &_node.definitions {
-      match definition {
-        Definition::Operation(OperationDefinition::SelectionSet(_)) => {
-          if operations_count > 1 {
-            visitor_context.report_error(ValidationError{
-              message: "This anonymous operation must be the only defined operation.".to_string(),
-              locations: vec![], 
-            })
-          }
-        },
-        Definition::Operation(OperationDefinition::Query(query)) => {
-          if query.name == None && operations_count > 1 {
-            visitor_context.report_error(ValidationError{
-              message: "This anonymous operation must be the only defined operation.".to_string(),
-              locations: vec![query.position.clone()], 
-            })
-          }
-        },
-        Definition::Operation(OperationDefinition::Mutation(mutation)) => {
-          if mutation.name == None && operations_count > 1 {
-            visitor_context.report_error(ValidationError{
-              message: "This anonymous operation must be the only defined operation.".to_string(),
-              locations: vec![mutation.position.clone()], 
-            })
-          }
-        },
-        Definition::Operation(OperationDefinition::Subscription(subscription)) => {
-          if subscription.name == None && operations_count > 1 {
-            visitor_context.report_error(ValidationError{
-              message: "This anonymous operation must be the only defined operation.".to_string(),
-              locations: vec![subscription.position.clone()], 
-            })
-          }
-        },
-        _ => {},
-      };
+        for definition in &_node.definitions {
+            match definition {
+                Definition::Operation(OperationDefinition::SelectionSet(_)) => {
+                    if operations_count > 1 {
+                        visitor_context.report_error(ValidationError {
+                            message: "This anonymous operation must be the only defined operation."
+                                .to_string(),
+                            locations: vec![],
+                        })
+                    }
+                }
+                Definition::Operation(OperationDefinition::Query(query)) => {
+                    if query.name == None && operations_count > 1 {
+                        visitor_context.report_error(ValidationError {
+                            message: "This anonymous operation must be the only defined operation."
+                                .to_string(),
+                            locations: vec![query.position.clone()],
+                        })
+                    }
+                }
+                Definition::Operation(OperationDefinition::Mutation(mutation)) => {
+                    if mutation.name == None && operations_count > 1 {
+                        visitor_context.report_error(ValidationError {
+                            message: "This anonymous operation must be the only defined operation."
+                                .to_string(),
+                            locations: vec![mutation.position.clone()],
+                        })
+                    }
+                }
+                Definition::Operation(OperationDefinition::Subscription(subscription)) => {
+                    if subscription.name == None && operations_count > 1 {
+                        visitor_context.report_error(ValidationError {
+                            message: "This anonymous operation must be the only defined operation."
+                                .to_string(),
+                            locations: vec![subscription.position.clone()],
+                        })
+                    }
+                }
+                _ => {}
+            };
+        }
     }
-  }
 }
 
 impl ValidationRule for LoneAnonymousOperation {
-  fn validate(&self, ctx: &mut ValidationContext) {
-    self.visit_document(&ctx.operation.clone(), ctx)
-  }
+    fn validate(&self, ctx: &mut ValidationContext) {
+        self.visit_document(&ctx.operation.clone(), ctx)
+    }
 }
 
 #[test]
@@ -78,8 +83,7 @@ fn no_operations() {
     let errors = test_operation_without_schema(
         "fragment fragA on Type {
           field
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -94,8 +98,7 @@ fn one_anon_operation() {
     let errors = test_operation_without_schema(
         "{
           field
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -113,8 +116,7 @@ fn mutiple_named() {
         }
         query Bar {
           field
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -132,8 +134,7 @@ fn anon_operation_with_fragment() {
         }
         fragment Foo on Type {
           field
-        }"
-        ,
+        }",
         &mut plan,
     );
 
@@ -151,14 +152,19 @@ fn multiple_anon_operations() {
         }
         {
           fieldB
-        }"
-        ,
+        }",
         &mut plan,
     );
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 2);
-    assert_eq!(messages, vec!["This anonymous operation must be the only defined operation.", "This anonymous operation must be the only defined operation."]);
+    assert_eq!(
+        messages,
+        vec![
+            "This anonymous operation must be the only defined operation.",
+            "This anonymous operation must be the only defined operation."
+        ]
+    );
 }
 
 #[test]
@@ -172,14 +178,16 @@ fn anon_operation_with_mutation() {
         }
         mutation Foo {
           fieldB
-        }"
-        ,
+        }",
         &mut plan,
     );
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 1);
-    assert_eq!(messages, vec!["This anonymous operation must be the only defined operation."]);
+    assert_eq!(
+        messages,
+        vec!["This anonymous operation must be the only defined operation."]
+    );
 }
 
 #[test]
@@ -193,13 +201,14 @@ fn anon_operation_with_subscription() {
         }
         subscription Foo {
           fieldB
-        }"
-        ,
+        }",
         &mut plan,
     );
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 1);
-    assert_eq!(messages, vec!["This anonymous operation must be the only defined operation."]);
+    assert_eq!(
+        messages,
+        vec!["This anonymous operation must be the only defined operation."]
+    );
 }
-
