@@ -35,7 +35,7 @@ impl ValidationRule for KnownFragmentNamesRule {
 }
 
 #[test]
-fn object_is_valid_fragment_type() {
+fn valid_fragment() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(KnownFragmentNamesRule {}));
@@ -70,7 +70,7 @@ fn object_is_valid_fragment_type() {
 
 
 #[test]
-fn scalar_is_invalid_inline_fragment_type() {
+fn invalid_fragment() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(KnownFragmentNamesRule {}));
