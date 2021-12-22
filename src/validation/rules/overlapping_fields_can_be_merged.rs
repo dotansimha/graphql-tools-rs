@@ -13,12 +13,19 @@ use std::collections::HashMap;
 /// See https://spec.graphql.org/draft/#sec-Field-Selection-Merging
 pub struct OverlappingFieldsCanBeMerged;
 
-struct FindOverlappingFieldsThatCanBeMerged<'a> {
+struct FindOverlappingFieldsThatCanBeMergedHelper<'a> {
     discoverd_fields: HashMap<String, Field>,
-    ctx: &'a mut ValidationContext,
+    validation_context: &'a mut ValidationContext<'a>,
 }
 
-impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
+impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
+    fn new(validation_context: &'a mut ValidationContext<'a>) -> Self {
+        FindOverlappingFieldsThatCanBeMergedHelper {
+            discoverd_fields: HashMap::new(),
+            validation_context,
+        }
+    }
+
     fn store_finding(&mut self, field: &Field, parent_type_name: Option<String>) {
         let base_field_name = field.alias.as_ref().unwrap_or(&field.name).clone();
         let field_identifier = match parent_type_name {
@@ -28,7 +35,7 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
 
         if let Some(existing) = self.discoverd_fields.get(&field_identifier) {
             if !existing.name.eq(&field.name) {
-                self.ctx.report_error(ValidationError {
+                self.validation_context.report_error(ValidationError {
                   locations: vec![field.position, existing.position],
                   message: format!(
                       "Fields \"{}\" conflict because \"{}\" and \"{}\" are different fields. Use different aliases on the fields to fetch both if this was intentional.",
@@ -38,7 +45,7 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
             }
 
             if existing.arguments.len() != field.arguments.len() {
-                self.ctx.report_error(ValidationError {
+                self.validation_context.report_error(ValidationError {
                 locations: vec![field.position, existing.position],
                 message: format!(
                     "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
@@ -56,7 +63,7 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
                     match arg_record_in_new_field {
                         Some((_other_name, other_value)) if other_value.eq(arg_value) => {}
                         _ => {
-                            self.ctx.report_error(ValidationError {
+                            self.validation_context.report_error(ValidationError {
                           locations: vec![field.position, existing.position],
                           message: format!(
                               "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
@@ -93,7 +100,7 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
 
                 Selection::FragmentSpread(fragment_spread) => {
                     if let Some(fragment) = self
-                        .ctx
+                        .validation_context
                         .fragments
                         .get(&fragment_spread.fragment_name)
                         .cloned()
@@ -111,19 +118,15 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
     }
 }
 
-impl QueryVisitor<ValidationContext> for OverlappingFieldsCanBeMerged {
-    fn enter_selection_set(&self, node: &SelectionSet, ctx: &mut ValidationContext) {
-        let mut finder = FindOverlappingFieldsThatCanBeMerged {
-            discoverd_fields: HashMap::new(),
-            ctx,
-        };
-
-        finder.find_in_selection_set(&node, None);
+impl<'a> QueryVisitor<'a, ValidationContext<'a>> for OverlappingFieldsCanBeMerged {
+    fn enter_selection_set(&self, node: &SelectionSet, ctx: &'a mut ValidationContext<'a>) {
+      let mut finder = FindOverlappingFieldsThatCanBeMergedHelper::new(ctx);
+      finder.find_in_selection_set(&node, None);
     }
 }
 
-impl ValidationRule for OverlappingFieldsCanBeMerged {
-    fn validate(&self, ctx: &mut ValidationContext) {
+impl<'a> ValidationRule<'a> for OverlappingFieldsCanBeMerged {
+    fn validate(&self, ctx: &'a mut ValidationContext<'a>) {
         self.visit_document(&ctx.operation.clone(), ctx)
     }
 }

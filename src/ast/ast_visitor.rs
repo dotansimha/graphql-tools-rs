@@ -6,8 +6,10 @@ pub enum ASTKind {
     Operation(query::Document),
 }
 
-pub trait ASTVisitor<T = DefaultVisitorContext>: QueryVisitor<T> + SchemaVisitor<T> {
-    fn visit_ast(&mut self, ast: ASTKind, visitor_context: &mut T) {
+pub trait ASTVisitor<'a, T = DefaultVisitorContext>:
+    QueryVisitor<'a, T> + SchemaVisitor<T>
+{
+    fn visit_ast(&mut self, ast: ASTKind, visitor_context: &'a mut T) {
         match ast {
             ASTKind::Schema(schema) => self.visit_schema_document(&schema, visitor_context),
             ASTKind::Operation(operation) => self.visit_document(&operation, visitor_context),

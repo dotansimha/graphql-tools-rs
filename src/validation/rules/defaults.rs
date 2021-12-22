@@ -1,11 +1,11 @@
 use crate::validation::validate::ValidationPlan;
 
 use super::{
-    FragmentsOnCompositeTypes, KnownFragmentNamesRule, LoneAnonymousOperation,
-    OverlappingFieldsCanBeMerged, NoUnusedFragments,
+    FragmentsOnCompositeTypes, KnownFragmentNamesRule, LoneAnonymousOperation, NoUnusedFragments,
+    OverlappingFieldsCanBeMerged,
 };
 
-pub fn default_rules_validation_plan() -> ValidationPlan {
+pub fn default_rules_validation_plan<'a>() -> ValidationPlan<'a> {
     let mut plan = ValidationPlan { rules: vec![] };
 
     plan.add_rule(Box::new(LoneAnonymousOperation {}));

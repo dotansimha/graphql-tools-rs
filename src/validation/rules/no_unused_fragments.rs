@@ -1,6 +1,6 @@
 use super::ValidationRule;
 use crate::static_graphql::query::*;
-use crate::validation::utils::ValidationError;
+use crate::validation::utils::{ValidationError, ValidationErrorContext};
 use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 
 /// No unused fragments
@@ -11,7 +11,7 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// See https://spec.graphql.org/draft/#sec-Fragments-Must-Be-Used
 pub struct NoUnusedFragments;
 
-impl<'a> QueryVisitor<NoUnusedFragmentsHelper<'a>> for NoUnusedFragments {
+impl<'a> QueryVisitor<'a, NoUnusedFragmentsHelper<'a>> for NoUnusedFragments {
     fn enter_fragment_spread(
         &self,
         _node: &FragmentSpread,
@@ -38,7 +38,7 @@ impl<'a> QueryVisitor<NoUnusedFragmentsHelper<'a>> for NoUnusedFragments {
             .iter()
             .for_each(move |unused_fragment_name| {
                 _visitor_context
-                    .validation_context
+                    .error_context
                     .report_error(ValidationError {
                         locations: vec![],
                         message: format!("Fragment \"{}\" is never used.", unused_fragment_name),
@@ -48,24 +48,27 @@ impl<'a> QueryVisitor<NoUnusedFragmentsHelper<'a>> for NoUnusedFragments {
 }
 
 struct NoUnusedFragmentsHelper<'a> {
+    error_context: ValidationErrorContext<'a>,
     fragments_in_use: Vec<String>,
-    validation_context: &'a mut ValidationContext,
+    validation_context: &'a ValidationContext<'a>,
 }
 
 impl<'a> NoUnusedFragmentsHelper<'a> {
-    fn new(validation_context: &'a mut ValidationContext) -> Self {
+    fn new(validation_context: &'a ValidationContext<'a>) -> Self {
         NoUnusedFragmentsHelper {
+            error_context: ValidationErrorContext::new(validation_context),
             fragments_in_use: Vec::new(),
             validation_context,
         }
     }
 }
 
-impl ValidationRule for NoUnusedFragments {
-    fn validate(&self, ctx: &mut ValidationContext) {
-        let operation = ctx.operation.clone();
-        let mut helper = NoUnusedFragmentsHelper::new(ctx);
-        self.visit_document(&operation, &mut helper)
+impl<'a> ValidationRule<'a> for NoUnusedFragments {
+    fn validate(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
+        let mut helper = NoUnusedFragmentsHelper::new(&ctx);
+        self.visit_document(&ctx.operation.clone(), &mut helper);
+
+        helper.error_context.errors
     }
 }
 

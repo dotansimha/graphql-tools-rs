@@ -5,7 +5,7 @@ use super::validate::validate;
 use super::validate::ValidationPlan;
 
 #[cfg(test)]
-pub fn create_default_ruleset_plan() -> ValidationPlan {
+pub fn create_default_ruleset_plan<'a>() -> ValidationPlan<'a> {
     let mut plan = ValidationPlan { rules: Vec::new() };
     plan.add_rule(Box::new(OverlappingFieldsCanBeMerged {}));
 
@@ -110,7 +110,7 @@ schema {
 directive @onField on FIELD";
 
 #[cfg(test)]
-pub fn create_plan_from_rule(rule: Box<dyn ValidationRule>) -> ValidationPlan {
+pub fn create_plan_from_rule<'a>(rule: Box<dyn ValidationRule<'a>>) -> ValidationPlan<'a> {
     let mut rules = Vec::new();
     rules.push(rule);
 
@@ -128,9 +128,9 @@ pub fn get_messages(validation_errors: &Vec<ValidationError>) -> Vec<&String> {
 }
 
 #[cfg(test)]
-pub fn test_operation_without_schema(
-    operation: &'static str,
-    plan: &mut ValidationPlan,
+pub fn test_operation_without_schema<'a>(
+    operation: &'a str,
+    plan: &'a mut ValidationPlan<'a>,
 ) -> Vec<ValidationError> {
     let schema_ast = graphql_parser::parse_schema(
         "
@@ -149,10 +149,10 @@ type Query {
 }
 
 #[cfg(test)]
-pub fn test_operation_with_schema(
+pub fn test_operation_with_schema<'a>(
     operation: &'static str,
     schema: &'static str,
-    plan: &mut ValidationPlan,
+    plan: &'a mut ValidationPlan<'a>,
 ) -> Vec<ValidationError> {
     let schema_ast = graphql_parser::parse_schema(schema).expect("Failed to parse schema");
 

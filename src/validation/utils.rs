@@ -1,27 +1,43 @@
-use crate::static_graphql::{query, schema};
+use crate::{
+    ast::TypeInfoRegistry,
+    static_graphql::{query, schema},
+};
 use graphql_parser::Pos;
 use std::{collections::HashMap, fmt::Debug};
 
 #[derive(Debug)]
-pub struct ValidationContext {
+pub struct ValidationContext<'a> {
     pub operation: query::Document,
     pub schema: schema::Document,
     pub fragments: HashMap<String, query::FragmentDefinition>,
-    pub validation_errors: Vec<ValidationError>,
+    pub type_info_registry: Option<TypeInfoRegistry<'a>>,
 }
 
-impl ValidationContext {
-    /// Reports a GraphQL validatioמ error on specified locations
-    pub fn report_error(&mut self, error: ValidationError) {
-        self.validation_errors.push(error);
-    }
-
+impl<'a> ValidationContext<'a> {
     /// Utilities for getting a specific source schema definition by it's name
     pub fn find_schema_definition_by_name(
         &mut self,
         name: String,
     ) -> Option<&schema::TypeDefinition> {
         find_schema_definition_by_name(&self.schema, name)
+    }
+}
+
+pub struct ValidationErrorContext<'a> {
+    pub ctx: &'a ValidationContext<'a>,
+    pub errors: Vec<ValidationError>,
+}
+
+impl<'a> ValidationErrorContext<'a> {
+    pub fn new(ctx: &'a ValidationContext<'a>) -> ValidationErrorContext<'a> {
+        ValidationErrorContext {
+            ctx,
+            errors: vec![],
+        }
+    }
+
+    pub fn report_error(&mut self, error: ValidationError) {
+        self.errors.push(error);
     }
 }
 
