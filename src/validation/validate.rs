@@ -9,12 +9,12 @@ use crate::{
     static_graphql::{query, schema},
 };
 
-pub struct ValidationPlan<'a> {
-    pub rules: Vec<Box<dyn ValidationRule<'a>>>,
+pub struct ValidationPlan {
+    pub rules: Vec<Box<dyn ValidationRule>>,
 }
 
-impl<'a> ValidationPlan<'a> {
-    pub fn add_rule(&mut self, rule: Box<dyn ValidationRule<'a>>) {
+impl<'a> ValidationPlan {
+    pub fn add_rule(&mut self, rule: Box<dyn ValidationRule>) {
         self.rules.push(rule);
     }
 }
@@ -22,7 +22,7 @@ impl<'a> ValidationPlan<'a> {
 pub fn validate<'a>(
     schema: &'a schema::Document,
     operation: &'a query::Document,
-    validation_plan: &'a ValidationPlan<'a>,
+    validation_plan: &'a ValidationPlan,
 ) -> Vec<ValidationError> {
     let mut fragments_locator = LocateFragments::new();
     let fragments = fragments_locator.locate_fragments(&operation);

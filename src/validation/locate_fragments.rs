@@ -6,7 +6,7 @@ pub struct LocateFragments {
     located_fragments: HashMap<String, crate::static_graphql::query::FragmentDefinition>,
 }
 
-impl QueryVisitor<'_, LocateFragments> for LocateFragments {
+impl QueryVisitor<LocateFragments> for LocateFragments {
     fn enter_fragment_definition(
         &self,
         _node: &query::FragmentDefinition,

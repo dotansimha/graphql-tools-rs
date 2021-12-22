@@ -11,7 +11,7 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// See https://spec.graphql.org/draft/#sec-Fragments-Must-Be-Used
 pub struct NoUnusedFragments;
 
-impl<'a> QueryVisitor<'a, NoUnusedFragmentsHelper<'a>> for NoUnusedFragments {
+impl<'a> QueryVisitor<NoUnusedFragmentsHelper<'a>> for NoUnusedFragments {
     fn enter_fragment_spread(
         &self,
         _node: &FragmentSpread,
@@ -63,8 +63,8 @@ impl<'a> NoUnusedFragmentsHelper<'a> {
     }
 }
 
-impl<'a> ValidationRule<'a> for NoUnusedFragments {
-    fn validate(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
+impl ValidationRule for NoUnusedFragments {
+    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
         let mut helper = NoUnusedFragmentsHelper::new(&ctx);
         self.visit_document(&ctx.operation.clone(), &mut helper);
 

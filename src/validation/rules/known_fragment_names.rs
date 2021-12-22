@@ -11,7 +11,7 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// See https://spec.graphql.org/draft/#sec-Fragment-spread-target-defined
 pub struct KnownFragmentNamesRule;
 
-impl QueryVisitor<'_, ValidationErrorContext<'_>> for KnownFragmentNamesRule {
+impl QueryVisitor<ValidationErrorContext<'_>> for KnownFragmentNamesRule {
     fn enter_fragment_spread(
         &self,
         _node: &FragmentSpread,
@@ -29,9 +29,9 @@ impl QueryVisitor<'_, ValidationErrorContext<'_>> for KnownFragmentNamesRule {
     }
 }
 
-impl<'a> ValidationRule<'a> for KnownFragmentNamesRule {
-    fn validate(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let error_context = ValidationErrorContext::new(ctx);
+impl ValidationRule for KnownFragmentNamesRule {
+    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
+        let mut error_context = ValidationErrorContext::new(ctx);
         self.visit_document(&ctx.operation.clone(), &mut error_context);
 
         error_context.errors

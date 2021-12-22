@@ -5,7 +5,7 @@ use super::{
     OverlappingFieldsCanBeMerged,
 };
 
-pub fn default_rules_validation_plan<'a>() -> ValidationPlan<'a> {
+pub fn default_rules_validation_plan() -> ValidationPlan {
     let mut plan = ValidationPlan { rules: vec![] };
 
     plan.add_rule(Box::new(LoneAnonymousOperation {}));

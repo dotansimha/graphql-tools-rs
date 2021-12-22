@@ -11,7 +11,7 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// https://spec.graphql.org/draft/#sec-Lone-Anonymous-Operation
 pub struct LoneAnonymousOperation;
 
-impl QueryVisitor<'_, ValidationErrorContext<'_>> for LoneAnonymousOperation {
+impl QueryVisitor<ValidationErrorContext<'_>> for LoneAnonymousOperation {
     fn enter_document(&self, _node: &Document, visitor_context: &mut ValidationErrorContext) {
         let operations_count = _node
             .definitions
@@ -69,9 +69,9 @@ impl QueryVisitor<'_, ValidationErrorContext<'_>> for LoneAnonymousOperation {
     }
 }
 
-impl<'a> ValidationRule<'a> for LoneAnonymousOperation {
-    fn validate(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let error_context = ValidationErrorContext::new(ctx);
+impl ValidationRule for LoneAnonymousOperation {
+    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
+        let mut error_context = ValidationErrorContext::new(ctx);
         self.visit_document(&ctx.operation.clone(), &mut error_context);
 
         error_context.errors

@@ -15,10 +15,7 @@ pub struct ValidationContext<'a> {
 
 impl<'a> ValidationContext<'a> {
     /// Utilities for getting a specific source schema definition by it's name
-    pub fn find_schema_definition_by_name(
-        &mut self,
-        name: String,
-    ) -> Option<&schema::TypeDefinition> {
+    pub fn find_schema_definition_by_name(&self, name: String) -> Option<&schema::TypeDefinition> {
         find_schema_definition_by_name(&self.schema, name)
     }
 }

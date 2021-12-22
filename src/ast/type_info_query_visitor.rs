@@ -136,7 +136,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
 
             match definition {
                 query::Definition::Fragment(fragment) => {
-                    let query::TypeCondition::On(type_condition) = fragment.type_condition;
+                    let query::TypeCondition::On(type_condition) = fragment.type_condition.clone();
                     let frag_type = type_info_registry
                         .type_by_name
                         .get(&type_condition)
@@ -144,7 +144,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
 
                     match frag_type {
                         schema::TypeDefinition::Object(object) => {
-                            type_info.enter_type(object.clone());
+                            // type_info.enter_type(object.clone());
                         }
                         _ => {}
                     }
