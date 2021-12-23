@@ -38,8 +38,9 @@ impl<'a> QueryVisitor<NoFragmentsCycleHelper<'a>> for NoFragmentsCycle {
 	}
 }
 
-fn get_fragment_spreads(node: SelectionSet) -> Vec<FragmentSpread> {
-	return node
+fn get_fragment_spreads(fragment: &FragmentDefinition) -> Vec<FragmentSpread> {
+	return fragment
+		.selection_set
 		.items
 		.iter()
 		.filter_map(|selection| match selection {
@@ -48,6 +49,10 @@ fn get_fragment_spreads(node: SelectionSet) -> Vec<FragmentSpread> {
 		})
 		.collect();
 }
+
+// FragmentDefinition -> FragmentDefinitionNode
+// FragmentSpread -> FragmentSpreadNode
+// InlierFragment -> InlineFragmentNode
 
 // getFragmentSpreads(
 // 	node: SelectionSetNode,
@@ -81,13 +86,20 @@ fn detect_cycles(fragment: FragmentDefinition, ctx: &mut NoFragmentsCycleHelper)
 
 	ctx.visited_fragments.insert(fragment.name.clone(), true);
 
-	let spread_nodes = get_fragment_spreads(fragment.selection_set.clone());
+	let spread_nodes = get_fragment_spreads(&fragment);
 	if spread_nodes.len() == 0 {
 		return;
 	}
 
 	ctx.spread_path_index_by_name
 		.insert(fragment.name.clone(), ctx.spread_path.len());
+
+	for spread_node in spread_nodes {
+		let spread_name = spread_node.fragment_name.as_str();
+		let cycle_index = ctx.spread_path_index_by_name.get(spread_name);
+
+		ctx.spread_path.push(fragment.clone());
+	}
 }
 
 impl<'a> NoFragmentsCycleHelper<'a> {
