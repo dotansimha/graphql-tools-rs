@@ -1,168 +1,8 @@
-use std::collections::HashMap;
-
-use crate::{
-    static_graphql::{
-        query::{self, Type},
-        schema,
-    },
-    validation::utils::find_object_type_by_name,
+use super::{get_named_type, CompositeType, DefaultVisitorContext, TypeInfo, TypeInfoRegistry};
+use crate::static_graphql::{
+    query::{self, Type},
+    schema::{self},
 };
-
-use super::{CompositeType, DefaultVisitorContext};
-
-#[derive(Debug)]
-pub struct TypeInfoRegistry<'a> {
-    pub query_type: &'a schema::ObjectType,
-    pub mutation_type: Option<&'a schema::ObjectType>,
-    pub subscription_type: Option<&'a schema::ObjectType>,
-    pub type_by_name: HashMap<String, &'a schema::TypeDefinition>,
-}
-
-fn find_schema_definition(schema: &schema::Document) -> Option<&schema::SchemaDefinition> {
-    schema
-        .definitions
-        .iter()
-        .find_map(|definition| match definition {
-            schema::Definition::SchemaDefinition(schema_definition) => Some(schema_definition),
-            _ => None,
-        })
-}
-
-fn get_named_type(t: &Type) -> String {
-    match t {
-        Type::NamedType(name) => name.clone(),
-        Type::ListType(inner_type) => get_named_type(inner_type),
-        Type::NonNullType(inner_type) => get_named_type(inner_type),
-    }
-}
-
-impl<'a> TypeInfoRegistry<'a> {
-    pub fn new(schema: &'a schema::Document) -> Self {
-        let schema_definition = find_schema_definition(&schema);
-        let query_type = find_object_type_by_name(
-            &schema,
-            match schema_definition {
-                Some(schema_definition) => schema_definition
-                    .query
-                    .clone()
-                    .unwrap_or("Query".to_string()),
-                None => "Query".to_string(),
-            },
-        )
-        .expect("Schema does not contain a Query root type");
-        let mutation_type = find_object_type_by_name(
-            &schema,
-            match schema_definition {
-                Some(schema_definition) => schema_definition
-                    .query
-                    .clone()
-                    .unwrap_or("Mutation".to_string()),
-                None => "Mutation".to_string(),
-            },
-        );
-        let subscription_type = find_object_type_by_name(
-            &schema,
-            match schema_definition {
-                Some(schema_definition) => schema_definition
-                    .query
-                    .clone()
-                    .unwrap_or("Subscription".to_string()),
-                None => "Subscription".to_string(),
-            },
-        );
-
-        let type_by_name =
-            HashMap::from_iter(schema.definitions.iter().filter_map(
-                |definition| match definition {
-                    schema::Definition::TypeDefinition(type_definition) => match type_definition {
-                        schema::TypeDefinition::Object(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                        schema::TypeDefinition::Scalar(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                        schema::TypeDefinition::Interface(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                        schema::TypeDefinition::InputObject(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                        schema::TypeDefinition::Enum(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                        schema::TypeDefinition::Union(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                        _ => None,
-                    },
-                    _ => None,
-                },
-            ));
-
-        return TypeInfoRegistry {
-            mutation_type,
-            query_type,
-            subscription_type,
-            type_by_name,
-        };
-    }
-
-    // fn get_composite_type_by_name(name: )
-}
-
-pub struct TypeInfo {
-    pub type_stack: Vec<schema::Type>,
-    pub parent_type_stack: Vec<CompositeType>,
-    pub input_type_stack: Vec<schema::InputObjectType>,
-    pub field_def_stack: Vec<schema::Field>,
-}
-
-impl TypeInfo {
-    pub fn new() -> Self {
-        return TypeInfo {
-            type_stack: Vec::new(),
-            parent_type_stack: Vec::new(),
-            input_type_stack: Vec::new(),
-            field_def_stack: Vec::new(),
-        };
-    }
-
-    fn get_type(&self) -> Option<schema::Type> {
-        self.type_stack.last().cloned()
-    }
-
-    fn enter_type(&mut self, object: schema::Type) {
-        self.type_stack.push(object);
-    }
-
-    fn leave_type(&mut self) {
-        self.type_stack.pop();
-    }
-
-    fn get_parent_type(&self) -> Option<CompositeType> {
-        self.parent_type_stack.last().cloned()
-    }
-
-    fn enter_parent_type(&mut self, object: CompositeType) {
-        self.parent_type_stack.push(object);
-    }
-
-    fn leave_parent_type(&mut self) {
-        self.parent_type_stack.pop();
-    }
-
-    fn get_field_def(&self) -> Option<schema::Field> {
-        self.field_def_stack.last().cloned()
-    }
-
-    fn enter_field_def(&mut self, field: schema::Field) {
-        self.field_def_stack.push(field);
-    }
-
-    fn leave_field_def(&mut self) {
-        self.field_def_stack.pop();
-    }
-}
 
 /// A trait for implenenting a visitor for GraphQL operations.
 /// Similar to QueryVisitor, but exposes an additional `type_info` method based on the GraphQL schema.
@@ -184,17 +24,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
             match definition {
                 query::Definition::Fragment(fragment) => {
                     let query::TypeCondition::On(type_condition) = fragment.type_condition.clone();
-                    let frag_type = type_info_registry
-                        .type_by_name
-                        .get(&type_condition)
-                        .unwrap();
-
-                    match frag_type {
-                        schema::TypeDefinition::Object(object) => {
-                            type_info.enter_type(Type::NamedType(object.name.clone()));
-                        }
-                        _ => {}
-                    }
+                    type_info.enter_type(schema::Type::NamedType(type_condition.clone()));
 
                     self.enter_fragment_definition(fragment, visitor_context);
                     self.__visit_selection_set(
@@ -217,6 +47,14 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             self.enter_query(query, visitor_context);
 
                             for variable in &query.variable_definitions {
+                                if let Some(schema::TypeDefinition::InputObject(t)) =
+                                    type_info_registry
+                                        .type_by_name
+                                        .get(&get_named_type(&variable.var_type))
+                                {
+                                    type_info.enter_input_type(t.clone());
+                                }
+
                                 self.enter_variable_definition(
                                     variable,
                                     operation,
@@ -229,6 +67,8 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                     visitor_context,
                                     &mut type_info,
                                 );
+
+                                type_info.leave_input_type();
                             }
 
                             self.__visit_selection_set(
@@ -371,21 +211,38 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                     type_info.enter_field_def(field_def.clone());
                     self.enter_field(field, visitor_context, type_info);
 
-                    for (name, argument) in &field.arguments {
+                    for (argument_name, argument_type) in &field.arguments {
+                        let found_schema_arg = field_def
+                            .arguments
+                            .iter()
+                            .find(|arg| arg.name.eq(argument_name))
+                            .expect("failed to find argument on field");
+                        type_info.enter_argument(found_schema_arg.clone());
+                        let arg_named_type = get_named_type(&found_schema_arg.value_type);
+
+                        if let Some(schema::TypeDefinition::InputObject(t)) =
+                            type_info_registry.type_by_name.get(&arg_named_type)
+                        {
+                            type_info.enter_input_type(t.clone());
+                        }
+
                         self.enter_field_argument(
-                            name,
-                            argument,
+                            argument_name,
+                            argument_type,
                             field,
                             visitor_context,
                             type_info,
                         );
                         self.leave_field_argument(
-                            name,
-                            argument,
+                            argument_name,
+                            argument_type,
                             field,
                             visitor_context,
                             type_info,
                         );
+
+                        type_info.leave_argument();
+                        type_info.leave_input_type();
                     }
 
                     self.__visit_selection_set(
@@ -403,6 +260,13 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                     self.leave_fragment_spread(fragment_spread, visitor_context, type_info);
                 }
                 query::Selection::InlineFragment(inline_fragment) => {
+                    match &inline_fragment.type_condition {
+                        Some(query::TypeCondition::On(type_condition)) => {
+                            type_info.enter_type(schema::Type::NamedType(type_condition.clone()));
+                        }
+                        _ => {}
+                    }
+
                     self.enter_inline_fragment(inline_fragment, visitor_context, type_info);
                     self.__visit_selection_set(
                         &inline_fragment.selection_set,
@@ -411,6 +275,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                         type_info,
                     );
                     self.leave_inline_fragment(inline_fragment, visitor_context, type_info);
+                    type_info.leave_type();
                 }
             }
 

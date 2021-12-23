@@ -18,7 +18,7 @@ struct FindOverlappingFieldsThatCanBeMergedHelper {
 }
 
 impl FindOverlappingFieldsThatCanBeMergedHelper {
-    fn new(validation_context: &mut ValidationErrorContext) -> Self {
+    fn new(_validation_context: &mut ValidationErrorContext) -> Self {
         FindOverlappingFieldsThatCanBeMergedHelper {
             discoverd_fields: HashMap::new(),
             // validation_context,
@@ -97,7 +97,7 @@ impl FindOverlappingFieldsThatCanBeMergedHelper {
                     }
                 }
 
-                Selection::FragmentSpread(fragment_spread) => {
+                Selection::FragmentSpread(_fragment_spread) => {
                     // if let Some(fragment) = self
                     //     .validation_context
                     //     .ctx

@@ -17,7 +17,7 @@ impl AstNodeWithFields for InterfaceType {
 }
 
 impl AstNodeWithFields for UnionType {
-    fn find_field(&self, name: String) -> Option<&Field> {
+    fn find_field(&self, _name: String) -> Option<&Field> {
         None
     }
 }

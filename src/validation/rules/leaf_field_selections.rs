@@ -15,7 +15,7 @@ pub struct LeafFieldSelections;
 impl TypeInfoQueryVisitor<ValidationContext<'_>> for LeafFieldSelections {}
 
 impl ValidationRule for LeafFieldSelections {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
+    fn validate<'a>(&self, _ctx: &ValidationContext) -> Vec<ValidationError> {
         return vec![];
         // self.visit_document(
         //     &ctx.operation.clone(),
