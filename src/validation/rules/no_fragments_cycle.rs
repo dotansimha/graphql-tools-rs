@@ -1,11 +1,11 @@
-use graphql_parser::query::Selection;
-
 use super::ValidationRule;
+use crate::validation::utils::ValidationError;
 use crate::{
 	ast::QueryVisitor,
-	static_graphql::query::{FragmentDefinition, FragmentSpread, SelectionSet},
+	static_graphql::query::{FragmentDefinition, FragmentSpread},
 	validation::utils::ValidationContext,
 };
+use graphql_parser::query::Selection;
 use std::collections::HashMap;
 
 /// No fragment cycles
@@ -23,58 +23,42 @@ struct NoFragmentsCycleHelper<'a> {
 	// Array of AST nodes used to produce meaningful errors
 	spread_path: Vec<FragmentDefinition>,
 	// Position in the spread path
+	fragment_spreads: Vec<FragmentSpread>,
 	spread_path_index_by_name: HashMap<String, usize>,
 	validation_context: &'a mut ValidationContext,
 }
 
 impl<'a> QueryVisitor<NoFragmentsCycleHelper<'a>> for NoFragmentsCycle {
-	fn enter_fragment_definition(
+	fn enter_fragment_spread(
+		&self,
+		_node: &FragmentSpread,
+		_visitor_context: &mut NoFragmentsCycleHelper<'a>,
+	) {
+		_visitor_context.fragment_spreads.push(_node.clone());
+	}
+	// fn enter_fragment_definition(
+	// 	&self,
+	// 	_node: &FragmentDefinition,
+	// 	_visitor_context: &mut NoFragmentsCycleHelper<'a>,
+	// ) {
+	// 	let node = _node.clone();
+	// 	detect_cycles(node, _visitor_context);
+	// 	false;
+	// }
+	fn leave_fragment_definition(
 		&self,
 		_node: &FragmentDefinition,
 		_visitor_context: &mut NoFragmentsCycleHelper<'a>,
 	) {
 		let node = _node.clone();
-		detect_cycles(node, _visitor_context)
+		detect_cycles(node, _visitor_context);
+		false;
 	}
-}
-
-fn get_fragment_spreads(fragment: &FragmentDefinition) -> Vec<FragmentSpread> {
-	return fragment
-		.selection_set
-		.items
-		.iter()
-		.filter_map(|selection| match selection {
-			Selection::FragmentSpread(fragment_spread) => Some(fragment_spread.clone()),
-			_ => None,
-		})
-		.collect();
 }
 
 // FragmentDefinition -> FragmentDefinitionNode
 // FragmentSpread -> FragmentSpreadNode
 // InlierFragment -> InlineFragmentNode
-
-// getFragmentSpreads(
-// 	node: SelectionSetNode,
-//       ): ReadonlyArray<FragmentSpreadNode> {
-// 	let spreads = this._fragmentSpreads.get(node);
-// 	if (!spreads) {
-// 	  spreads = [];
-// 	  const setsToVisit: Array<SelectionSetNode> = [node];
-// 	  let set: SelectionSetNode | undefined;
-// 	  while ((set = setsToVisit.pop())) {
-// 	    for (const selection of set.selections) {
-// 	      if (selection.kind === Kind.FRAGMENT_SPREAD) {
-// 		spreads.push(selection);
-// 	      } else if (selection.selectionSet) {
-// 		setsToVisit.push(selection.selectionSet);
-// 	      }
-// 	    }
-// 	  }
-// 	  this._fragmentSpreads.set(node, spreads);
-// 	}
-// 	return spreads;
-//       }
 
 // This does a straight-forward DFS to find cycles.
 // It does not terminate when a cycle was found but continues to explore
@@ -85,20 +69,40 @@ fn detect_cycles(fragment: FragmentDefinition, ctx: &mut NoFragmentsCycleHelper)
 	}
 
 	ctx.visited_fragments.insert(fragment.name.clone(), true);
+	// let spreads = get_fragment_spreads(&fragment);
+	// get all the fragment spreads in the selection set
+	// let spreads: Vec<Selection<String>> = fragment.selection_set.items.iter().collect();
 
-	let spread_nodes = get_fragment_spreads(&fragment);
-	if spread_nodes.len() == 0 {
+	let spreads = ctx.fragment_spreads.clone();
+
+	if spreads.len() == 0 {
 		return;
 	}
 
 	ctx.spread_path_index_by_name
 		.insert(fragment.name.clone(), ctx.spread_path.len());
 
-	for spread_node in spread_nodes {
-		let spread_name = spread_node.fragment_name.as_str();
-		let cycle_index = ctx.spread_path_index_by_name.get(spread_name);
-
+	for spread_node in spreads {
+		let spread_name = spread_node.fragment_name.clone();
+		let cycle_index = ctx.spread_path_index_by_name.get(spread_name.as_str());
 		ctx.spread_path.push(fragment.clone());
+
+		if cycle_index == None {
+			let fragment_spread =
+				ctx.validation_context.fragments.get(spread_name.as_str());
+			if fragment_spread.is_some() {
+				detect_cycles(fragment_spread.unwrap().clone(), ctx);
+			}
+		} else {
+			ctx.validation_context.report_error(ValidationError {
+				locations: [ctx.spread_path[0].position.clone()].to_vec(),
+				message: format!(
+					"Fragment \"{}\" cannot be spread here as it would produce a cycle",
+					spread_name
+				),
+			})
+		}
+		ctx.spread_path.pop();
 	}
 }
 
@@ -108,6 +112,7 @@ impl<'a> NoFragmentsCycleHelper<'a> {
 			visited_fragments: HashMap::new(),
 			spread_path: Vec::new(),
 			spread_path_index_by_name: HashMap::new(),
+			fragment_spreads: Vec::new(),
 			validation_context,
 		}
 	}
@@ -133,11 +138,12 @@ fn single_reference_is_valid() {
 		&mut plan,
 	);
 
-	assert_eq!(get_messages(&errors).len(), 0);
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 0);
 }
 
 #[test]
-fn spreading_indirectly_within_inline_fragment() {
+fn no_spreading_indirectly_within_inline_fragment() {
 	use crate::validation::test_utils::*;
 
 	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
@@ -156,5 +162,6 @@ fn spreading_indirectly_within_inline_fragment() {
 		&mut plan,
 	);
 
-	assert_eq!(get_messages(&errors).len(), 1);
+	let mes = get_messages(&errors);
+	assert_eq!(mes.len(), 1);
 }
