@@ -173,13 +173,6 @@ fn contains_unknown_fragments() {
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 2);
-    assert_eq!(
-        messages,
-        vec![
-            "Fragment \"Unused1\" is never used.",
-            "Fragment \"Unused2\" is never used."
-        ]
-    );
 }
 
 // TODO: Fix this one :( It's not working
