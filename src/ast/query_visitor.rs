@@ -9,8 +9,8 @@ use super::DefaultVisitorContext;
 /// It allow your custom function to be called when an AST node is found.
 ///
 /// You can pass custom <T> as context if you need to store data / access external variables.
-pub trait QueryVisitor<T = DefaultVisitorContext> {
-    fn visit_document(&self, node: &Document, visitor_context: &mut T) {
+pub trait QueryVisitor<'a, T = DefaultVisitorContext> {
+    fn visit_document(&self, node: &Document, visitor_context: &'a mut T) {
         self.enter_document(node, visitor_context);
 
         for definition in &node.definitions {
@@ -99,7 +99,7 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         self.leave_document(node, visitor_context);
     }
 
-    fn __visit_selection_set(&self, _node: &SelectionSet, visitor_context: &mut T) {
+    fn __visit_selection_set(&self, _node: &SelectionSet, visitor_context: &'a mut T) {
         self.enter_selection_set(_node, visitor_context);
 
         for selection in &_node.items {
@@ -134,57 +134,59 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         self.leave_selection_set(_node, visitor_context);
     }
 
-    fn enter_document(&self, _node: &Document, _visitor_context: &mut T) {}
-    fn leave_document(&self, _node: &Document, _visitor_context: &mut T) {}
+    fn enter_document(&self, _node: &Document, _visitor_context: &'a mut T) {}
+    fn leave_document(&self, _node: &Document, _visitor_context: &'a mut T) {}
 
-    fn enter_definition(&self, _node: &Definition, _visitor_context: &mut T) {}
-    fn leave_definition(&self, _node: &Definition, _visitor_context: &mut T) {}
+    fn enter_definition(&self, _node: &Definition, _visitor_context: &'a mut T) {}
+    fn leave_definition(&self, _node: &Definition, _visitor_context: &'a mut T) {}
 
-    fn enter_fragment_definition(&self, _node: &FragmentDefinition, _visitor_context: &mut T) {}
-    fn leave_fragment_definition(&self, _node: &FragmentDefinition, _visitor_context: &mut T) {}
+    fn enter_fragment_definition(&self, _node: &FragmentDefinition, _visitor_context: &'a mut T) {}
+    fn leave_fragment_definition(&self, _node: &FragmentDefinition, _visitor_context: &'a mut T) {}
 
-    fn enter_operation_definition(&self, _node: &OperationDefinition, _visitor_context: &mut T) {}
-    fn leave_operation_definition(&self, _node: &OperationDefinition, _visitor_context: &mut T) {}
+    fn enter_operation_definition(&self, _node: &OperationDefinition, _visitor_context: &'a mut T) {
+    }
+    fn leave_operation_definition(&self, _node: &OperationDefinition, _visitor_context: &'a mut T) {
+    }
 
-    fn enter_query(&self, _node: &Query, _visitor_context: &mut T) {}
-    fn leave_query(&self, _node: &Query, _visitor_context: &mut T) {}
+    fn enter_query(&self, _node: &Query, _visitor_context: &'a mut T) {}
+    fn leave_query(&self, _node: &Query, _visitor_context: &'a mut T) {}
 
-    fn enter_mutation(&self, _node: &Mutation, _visitor_context: &mut T) {}
-    fn leave_mutation(&self, _node: &Mutation, _visitor_context: &mut T) {}
+    fn enter_mutation(&self, _node: &Mutation, _visitor_context: &'a mut T) {}
+    fn leave_mutation(&self, _node: &Mutation, _visitor_context: &'a mut T) {}
 
-    fn enter_subscription(&self, _node: &Subscription, _visitor_context: &mut T) {}
-    fn leave_subscription(&self, _node: &Subscription, _visitor_context: &mut T) {}
+    fn enter_subscription(&self, _node: &Subscription, _visitor_context: &'a mut T) {}
+    fn leave_subscription(&self, _node: &Subscription, _visitor_context: &'a mut T) {}
 
-    fn enter_selection_set(&self, _node: &SelectionSet, _visitor_context: &mut T) {}
-    fn leave_selection_set(&self, _node: &SelectionSet, _visitor_context: &mut T) {}
+    fn enter_selection_set(&self, _node: &SelectionSet, _visitor_context: &'a mut T) {}
+    fn leave_selection_set(&self, _node: &SelectionSet, _visitor_context: &'a mut T) {}
 
     fn enter_variable_definition(
         &self,
         _node: &VariableDefinition,
         _parent_operation: &OperationDefinition,
-        _visitor_context: &mut T,
+        _visitor_context: &'a mut T,
     ) {
     }
     fn leave_variable_definition(
         &self,
         _node: &VariableDefinition,
         _parent_operation: &OperationDefinition,
-        _visitor_context: &mut T,
+        _visitor_context: &'a mut T,
     ) {
     }
 
-    fn enter_selection(&self, _node: &Selection, _visitor_context: &mut T) {}
-    fn leave_selection(&self, _node: &Selection, _visitor_context: &mut T) {}
+    fn enter_selection(&self, _node: &Selection, _visitor_context: &'a mut T) {}
+    fn leave_selection(&self, _node: &Selection, _visitor_context: &'a mut T) {}
 
-    fn enter_field(&self, _node: &Field, _visitor_context: &mut T) {}
-    fn leave_field(&self, _node: &Field, _visitor_context: &mut T) {}
+    fn enter_field(&self, _node: &Field, _visitor_context: &'a mut T) {}
+    fn leave_field(&self, _node: &Field, _visitor_context: &'a mut T) {}
 
     fn enter_field_argument(
         &self,
         _name: &String,
         _value: &Value,
         _parent_field: &Field,
-        _visitor_context: &mut T,
+        _visitor_context: &'a mut T,
     ) {
     }
     fn leave_field_argument(
@@ -192,15 +194,15 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         _name: &String,
         _value: &Value,
         _parent_field: &Field,
-        _visitor_context: &mut T,
+        _visitor_context: &'a mut T,
     ) {
     }
 
-    fn enter_fragment_spread(&self, _node: &FragmentSpread, _visitor_context: &mut T) {}
-    fn leave_fragment_spread(&self, _node: &FragmentSpread, _visitor_context: &mut T) {}
+    fn enter_fragment_spread(&self, _node: &FragmentSpread, _visitor_context: &'a mut T) {}
+    fn leave_fragment_spread(&self, _node: &FragmentSpread, _visitor_context: &'a mut T) {}
 
-    fn enter_inline_fragment(&self, _node: &InlineFragment, _visitor_context: &mut T) {}
-    fn leave_inline_fragment(&self, _node: &InlineFragment, _visitor_context: &mut T) {}
+    fn enter_inline_fragment(&self, _node: &InlineFragment, _visitor_context: &'a mut T) {}
+    fn leave_inline_fragment(&self, _node: &InlineFragment, _visitor_context: &'a mut T) {}
 }
 
 #[test]
@@ -244,7 +246,7 @@ fn visit_test_all_nodes() {
         }
     }
 
-    impl<'a> QueryVisitor<TestVisitorCollected> for TestVisitor {
+    impl<'a> QueryVisitor<'a, TestVisitorCollected> for TestVisitor {
         fn enter_query(&self, _node: &Query, _ctx: &mut TestVisitorCollected) {
             _ctx.collected_queries
                 .push(_node.name.as_ref().unwrap().to_string());

@@ -13,15 +13,16 @@ use std::collections::HashMap;
 /// See https://spec.graphql.org/draft/#sec-Field-Selection-Merging
 pub struct OverlappingFieldsCanBeMerged;
 
-struct FindOverlappingFieldsThatCanBeMergedHelper {
+struct FindOverlappingFieldsThatCanBeMergedHelper<'a> {
     discoverd_fields: HashMap<String, Field>,
+    validation_context: &'a mut ValidationErrorContext<'a>,
 }
 
-impl FindOverlappingFieldsThatCanBeMergedHelper {
-    fn new(validation_context: &mut ValidationErrorContext) -> Self {
+impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
+    fn new(validation_context: &'a mut ValidationErrorContext<'a>) -> Self {
         FindOverlappingFieldsThatCanBeMergedHelper {
             discoverd_fields: HashMap::new(),
-            // validation_context,
+            validation_context,
         }
     }
 
@@ -118,8 +119,8 @@ impl FindOverlappingFieldsThatCanBeMergedHelper {
     }
 }
 
-impl QueryVisitor<ValidationErrorContext<'_>> for OverlappingFieldsCanBeMerged {
-    fn enter_selection_set(&self, node: &SelectionSet, ctx: &mut ValidationErrorContext) {
+impl<'a> QueryVisitor<'a, ValidationErrorContext<'a>> for OverlappingFieldsCanBeMerged {
+    fn enter_selection_set(&self, node: &SelectionSet, ctx: &'a mut ValidationErrorContext<'a>) {
         let mut finder = FindOverlappingFieldsThatCanBeMergedHelper::new(ctx);
         finder.find_in_selection_set(&node, None);
     }

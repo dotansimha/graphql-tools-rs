@@ -13,7 +13,7 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// https://spec.graphql.org/draft/#sec-Fragments-On-Composite-Types
 pub struct FragmentsOnCompositeTypes;
 
-impl QueryVisitor<ValidationErrorContext<'_>> for FragmentsOnCompositeTypes {
+impl<'a> QueryVisitor<'a, ValidationErrorContext<'a>> for FragmentsOnCompositeTypes {
     fn enter_inline_fragment(
         &self,
         _node: &InlineFragment,
