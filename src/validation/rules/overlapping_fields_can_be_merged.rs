@@ -15,14 +15,16 @@ pub struct OverlappingFieldsCanBeMerged;
 
 struct FindOverlappingFieldsThatCanBeMergedHelper<'a> {
     discoverd_fields: HashMap<String, Field>,
-    validation_context: &'a mut ValidationErrorContext<'a>,
+    validation_context: &'a ValidationErrorContext<'a>,
+    selection_set_errors: Vec<ValidationError>,
 }
 
 impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
-    fn new(validation_context: &'a mut ValidationErrorContext<'a>) -> Self {
-        FindOverlappingFieldsThatCanBeMergedHelper {
+    fn new(ctx: &'a ValidationErrorContext<'a>) -> Self {
+        Self {
             discoverd_fields: HashMap::new(),
-            validation_context,
+            selection_set_errors: Vec::new(),
+            validation_context: ctx,
         }
     }
 
@@ -35,23 +37,23 @@ impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
 
         if let Some(existing) = self.discoverd_fields.get(&field_identifier) {
             if !existing.name.eq(&field.name) {
-                //   self.validation_context.report_error(ValidationError {
-                //     locations: vec![field.position, existing.position],
-                //     message: format!(
-                //         "Fields \"{}\" conflict because \"{}\" and \"{}\" are different fields. Use different aliases on the fields to fetch both if this was intentional.",
-                //         base_field_name, existing.name, field.name
-                //     ),
-                // })
+                self.selection_set_errors.push(ValidationError {
+                    locations: vec![field.position, existing.position],
+                    message: format!(
+                        "Fields \"{}\" conflict because \"{}\" and \"{}\" are different fields. Use different aliases on the fields to fetch both if this was intentional.",
+                        base_field_name, existing.name, field.name
+                    ),
+                })
             }
 
             if existing.arguments.len() != field.arguments.len() {
-                // self.validation_context.report_error(ValidationError {
-                // locations: vec![field.position, existing.position],
-                // message: format!(
-                //     "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
-                //     field.name
-                // ),
-                // });
+                self.selection_set_errors.push(ValidationError {
+                locations: vec![field.position, existing.position],
+                message: format!(
+                    "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
+                    field.name
+                ),
+                });
             } else {
                 for (arg_name, arg_value) in &existing.arguments {
                     let arg_record_in_new_field = field
@@ -63,13 +65,13 @@ impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
                     match arg_record_in_new_field {
                         Some((_other_name, other_value)) if other_value.eq(arg_value) => {}
                         _ => {
-                            //   self.validation_context.report_error(ValidationError {
-                            // locations: vec![field.position, existing.position],
-                            // message: format!(
-                            //     "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
-                            //     field.name
-                            // ),
-                            // });
+                            self.selection_set_errors.push(ValidationError {
+                            locations: vec![field.position, existing.position],
+                            message: format!(
+                                "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
+                                field.name
+                            ),
+                            });
                         }
                     }
                 }
@@ -99,30 +101,34 @@ impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
                 }
 
                 Selection::FragmentSpread(fragment_spread) => {
-                    // if let Some(fragment) = self
-                    //     .validation_context
-                    //     .ctx
-                    //     .fragments
-                    //     .get(&fragment_spread.fragment_name)
-                    //     .cloned()
-                    // {
-                    //     match fragment.type_condition {
-                    //         TypeCondition::On(type_condition) => self.find_in_selection_set(
-                    //             &fragment.selection_set,
-                    //             Some(type_condition.clone()),
-                    //         ),
-                    //     }
-                    // }
+                    if let Some(fragment) = self
+                        .validation_context
+                        .ctx
+                        .fragments
+                        .get(&fragment_spread.fragment_name)
+                        .cloned()
+                    {
+                        match fragment.type_condition {
+                            TypeCondition::On(type_condition) => self.find_in_selection_set(
+                                &fragment.selection_set,
+                                Some(type_condition.clone()),
+                            ),
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-impl<'a> QueryVisitor<'a, ValidationErrorContext<'a>> for OverlappingFieldsCanBeMerged {
-    fn enter_selection_set(&self, node: &SelectionSet, ctx: &'a mut ValidationErrorContext<'a>) {
+impl<'a> QueryVisitor<ValidationErrorContext<'a>> for OverlappingFieldsCanBeMerged {
+    fn enter_selection_set(&self, node: &SelectionSet, ctx: &mut ValidationErrorContext<'a>) {
         let mut finder = FindOverlappingFieldsThatCanBeMergedHelper::new(ctx);
         finder.find_in_selection_set(&node, None);
+
+        for error in finder.selection_set_errors {
+            ctx.errors.push(error);
+        }
     }
 }
 

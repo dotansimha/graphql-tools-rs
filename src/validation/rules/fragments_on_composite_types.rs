@@ -13,11 +13,11 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// https://spec.graphql.org/draft/#sec-Fragments-On-Composite-Types
 pub struct FragmentsOnCompositeTypes;
 
-impl<'a> QueryVisitor<'a, ValidationErrorContext<'a>> for FragmentsOnCompositeTypes {
+impl<'a> QueryVisitor<ValidationErrorContext<'a>> for FragmentsOnCompositeTypes {
     fn enter_inline_fragment(
         &self,
         _node: &InlineFragment,
-        _visitor_context: &mut ValidationErrorContext,
+        _visitor_context: &mut ValidationErrorContext<'a>,
     ) {
         if let Some(TypeCondition::On(type_condition)) = &_node.type_condition {
             let gql_type = _visitor_context
@@ -44,7 +44,7 @@ impl<'a> QueryVisitor<'a, ValidationErrorContext<'a>> for FragmentsOnCompositeTy
     fn enter_fragment_definition(
         &self,
         _node: &FragmentDefinition,
-        _visitor_context: &mut ValidationErrorContext,
+        _visitor_context: &mut ValidationErrorContext<'a>,
     ) {
         let TypeCondition::On(type_condition) = &_node.type_condition;
 
