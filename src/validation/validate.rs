@@ -13,7 +13,15 @@ pub struct ValidationPlan {
     pub rules: Vec<Box<dyn ValidationRule>>,
 }
 
-impl<'a> ValidationPlan {
+impl ValidationPlan {
+    pub fn new() -> Self {
+        Self { rules: vec![] }
+    }
+
+    pub fn from(rules: Vec<Box<dyn ValidationRule>>) -> Self {
+        Self { rules }
+    }
+
     pub fn add_rule(&mut self, rule: Box<dyn ValidationRule>) {
         self.rules.push(rule);
     }
