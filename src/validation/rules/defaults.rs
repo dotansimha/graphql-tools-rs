@@ -1,8 +1,8 @@
 use crate::validation::validate::ValidationPlan;
 
 use super::{
-    FragmentsOnCompositeTypes, KnownFragmentNamesRule, LoneAnonymousOperation,
-    OverlappingFieldsCanBeMerged, NoUnusedFragments,
+    FragmentsOnCompositeTypes, KnownFragmentNamesRule, LeafFieldSelections, LoneAnonymousOperation,
+    NoUnusedFragments, OverlappingFieldsCanBeMerged,
 };
 
 pub fn default_rules_validation_plan() -> ValidationPlan {
@@ -13,6 +13,7 @@ pub fn default_rules_validation_plan() -> ValidationPlan {
     plan.add_rule(Box::new(FragmentsOnCompositeTypes {}));
     plan.add_rule(Box::new(OverlappingFieldsCanBeMerged {}));
     plan.add_rule(Box::new(NoUnusedFragments {}));
+    plan.add_rule(Box::new(LeafFieldSelections {}));
 
     plan
 }

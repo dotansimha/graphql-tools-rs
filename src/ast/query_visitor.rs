@@ -162,14 +162,14 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         &self,
         _node: &VariableDefinition,
         _parent_operation: &OperationDefinition,
-        _visitor_context: &T,
+        _visitor_context: &mut T,
     ) {
     }
     fn leave_variable_definition(
         &self,
         _node: &VariableDefinition,
         _parent_operation: &OperationDefinition,
-        _visitor_context: &T,
+        _visitor_context: &mut T,
     ) {
     }
 
@@ -184,7 +184,7 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         _name: &String,
         _value: &Value,
         _parent_field: &Field,
-        _visitor_context: &T,
+        _visitor_context: &mut T,
     ) {
     }
     fn leave_field_argument(
@@ -192,7 +192,7 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         _name: &String,
         _value: &Value,
         _parent_field: &Field,
-        _visitor_context: &T,
+        _visitor_context: &mut T,
     ) {
     }
 

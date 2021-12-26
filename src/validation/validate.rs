@@ -4,37 +4,44 @@ use super::{
     utils::{ValidationContext, ValidationError},
 };
 
-use crate::static_graphql::{query, schema};
+use crate::{
+    ast::TypeInfoRegistry,
+    static_graphql::{query, schema},
+};
 
 pub struct ValidationPlan {
     pub rules: Vec<Box<dyn ValidationRule>>,
 }
 
-impl ValidationPlan {
+impl<'a> ValidationPlan {
     pub fn add_rule(&mut self, rule: Box<dyn ValidationRule>) {
         self.rules.push(rule);
     }
 }
 
-pub fn validate(
-    schema: &schema::Document,
-    operation: &query::Document,
-    validation_plan: &ValidationPlan,
+pub fn validate<'a>(
+    schema: &'a schema::Document,
+    operation: &'a query::Document,
+    validation_plan: &'a ValidationPlan,
 ) -> Vec<ValidationError> {
     let mut fragments_locator = LocateFragments::new();
     let fragments = fragments_locator.locate_fragments(&operation);
-    let mut validation_context = ValidationContext {
+
+    let type_info_registry = TypeInfoRegistry::new(schema);
+    let validation_context = ValidationContext {
         operation: operation.clone(),
         schema: schema.clone(),
         fragments,
-        validation_errors: Vec::new(),
+        type_info_registry: Some(type_info_registry),
     };
 
-    for rule in &validation_plan.rules {
-        rule.validate(&mut validation_context);
-    }
+    let validation_errors = validation_plan
+        .rules
+        .iter()
+        .flat_map(|rule| rule.validate(&validation_context))
+        .collect::<Vec<_>>();
 
-    validation_context.validation_errors
+    validation_errors
 }
 
 #[test]

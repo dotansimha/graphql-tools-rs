@@ -1,6 +1,7 @@
 pub mod defaults;
 pub mod fragments_on_composite_types;
 pub mod known_fragment_names;
+pub mod leaf_field_selections;
 pub mod lone_anonymous_operation;
 pub mod no_unused_fragments;
 pub mod overlapping_fields_can_be_merged;
@@ -10,6 +11,7 @@ pub mod rule;
 pub use self::defaults::*;
 pub use self::fragments_on_composite_types::*;
 pub use self::known_fragment_names::*;
+pub use self::leaf_field_selections::*;
 pub use self::lone_anonymous_operation::*;
 pub use self::no_unused_fragments::*;
 pub use self::overlapping_fields_can_be_merged::*;

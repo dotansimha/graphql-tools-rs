@@ -1,55 +1,94 @@
+use crate::{
+    ast::TypeInfoRegistry,
+    static_graphql::{query, schema},
+};
 use graphql_parser::Pos;
-use graphql_parser::{query, schema};
 use std::{collections::HashMap, fmt::Debug};
 
 #[derive(Debug)]
-pub struct ValidationContext {
-    pub operation: query::Document<'static, String>,
-    pub schema: schema::Document<'static, String>,
-    pub fragments: HashMap<String, crate::static_graphql::query::FragmentDefinition>,
-    pub validation_errors: Vec<ValidationError>,
+pub struct ValidationContext<'a> {
+    pub operation: query::Document,
+    pub schema: schema::Document,
+    pub fragments: HashMap<String, query::FragmentDefinition>,
+    pub type_info_registry: Option<TypeInfoRegistry<'a>>,
 }
 
-impl ValidationContext {
-    pub fn report_error(&mut self, error: ValidationError) {
-        self.validation_errors.push(error);
+impl<'a> ValidationContext<'a> {
+    /// Utilities for getting a specific source schema definition by it's name
+    pub fn find_schema_definition_by_name(&self, name: String) -> Option<&schema::TypeDefinition> {
+        find_schema_definition_by_name(&self.schema, name)
     }
+}
 
-    pub fn find_schema_definition_by_name(
-        &mut self,
-        name: String,
-    ) -> Option<&schema::TypeDefinition<'static, String>> {
-        println!("looking for {} in schema: {}", name, self.schema);
+pub struct ValidationErrorContext<'a> {
+    pub ctx: &'a ValidationContext<'a>,
+    pub errors: Vec<ValidationError>,
+}
 
-        for definition in &self.schema.definitions {
-            match definition {
-                schema::Definition::TypeDefinition(type_definition) => match type_definition {
-                    schema::TypeDefinition::Object(object) if object.name.eq(&name) => {
-                        return Some(type_definition)
-                    }
-                    schema::TypeDefinition::Scalar(object) if object.name.eq(&name) => {
-                        return Some(type_definition)
-                    }
-                    schema::TypeDefinition::Interface(object) if object.name.eq(&name) => {
-                        return Some(type_definition)
-                    }
-                    schema::TypeDefinition::InputObject(object) if object.name.eq(&name) => {
-                        return Some(type_definition)
-                    }
-                    schema::TypeDefinition::Enum(object) if object.name.eq(&name) => {
-                        return Some(type_definition)
-                    }
-                    schema::TypeDefinition::Union(object) if object.name.eq(&name) => {
-                        return Some(type_definition)
-                    }
-                    _ => {}
-                },
-                _ => {}
-            }
+impl<'a> ValidationErrorContext<'a> {
+    pub fn new(ctx: &'a ValidationContext<'a>) -> ValidationErrorContext<'a> {
+        ValidationErrorContext {
+            ctx,
+            errors: vec![],
         }
-
-        None
     }
+
+    pub fn report_error(&mut self, error: ValidationError) {
+        self.errors.push(error);
+    }
+}
+
+pub fn find_schema_definition_by_name(
+    schema: &schema::Document,
+    name: String,
+) -> Option<&schema::TypeDefinition> {
+    for definition in &schema.definitions {
+        match definition {
+            schema::Definition::TypeDefinition(type_definition) => match type_definition {
+                schema::TypeDefinition::Object(object) if object.name.eq(&name) => {
+                    return Some(type_definition)
+                }
+                schema::TypeDefinition::Scalar(object) if object.name.eq(&name) => {
+                    return Some(type_definition)
+                }
+                schema::TypeDefinition::Interface(object) if object.name.eq(&name) => {
+                    return Some(type_definition)
+                }
+                schema::TypeDefinition::InputObject(object) if object.name.eq(&name) => {
+                    return Some(type_definition)
+                }
+                schema::TypeDefinition::Enum(object) if object.name.eq(&name) => {
+                    return Some(type_definition)
+                }
+                schema::TypeDefinition::Union(object) if object.name.eq(&name) => {
+                    return Some(type_definition)
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    None
+}
+
+pub fn find_object_type_by_name(
+    schema: &schema::Document,
+    name: String,
+) -> Option<&schema::ObjectType> {
+    for definition in &schema.definitions {
+        match definition {
+            schema::Definition::TypeDefinition(type_definition) => match type_definition {
+                schema::TypeDefinition::Object(object) if object.name.eq(&name) => {
+                    return Some(object)
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    None
 }
 
 #[derive(Debug)]

@@ -1,6 +1,6 @@
 use super::ValidationRule;
 use crate::static_graphql::query::*;
-use crate::validation::utils::ValidationError;
+use crate::validation::utils::{ValidationError, ValidationErrorContext};
 use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 
 /// Known fragment names
@@ -11,13 +11,13 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// See https://spec.graphql.org/draft/#sec-Fragment-spread-target-defined
 pub struct KnownFragmentNamesRule;
 
-impl QueryVisitor<ValidationContext> for KnownFragmentNamesRule {
+impl<'a> QueryVisitor<ValidationErrorContext<'a>> for KnownFragmentNamesRule {
     fn enter_fragment_spread(
         &self,
         _node: &FragmentSpread,
-        _visitor_context: &mut ValidationContext,
+        _visitor_context: &mut ValidationErrorContext<'a>,
     ) {
-        let fragment_def = _visitor_context.fragments.get(&_node.fragment_name);
+        let fragment_def = _visitor_context.ctx.fragments.get(&_node.fragment_name);
 
         match fragment_def {
             None => _visitor_context.report_error(ValidationError {
@@ -30,8 +30,11 @@ impl QueryVisitor<ValidationContext> for KnownFragmentNamesRule {
 }
 
 impl ValidationRule for KnownFragmentNamesRule {
-    fn validate(&self, ctx: &mut ValidationContext) {
-        self.visit_document(&ctx.operation.clone(), ctx)
+    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
+        let mut error_context = ValidationErrorContext::new(ctx);
+        self.visit_document(&ctx.operation.clone(), &mut error_context);
+
+        error_context.errors
     }
 }
 

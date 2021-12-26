@@ -1,7 +1,7 @@
 use super::ValidationRule;
 use crate::static_graphql::query::*;
 use crate::static_graphql::schema::TypeDefinition;
-use crate::validation::utils::ValidationError;
+use crate::validation::utils::{ValidationError, ValidationErrorContext};
 use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 
 /// Fragments on composite type
@@ -13,15 +13,16 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// https://spec.graphql.org/draft/#sec-Fragments-On-Composite-Types
 pub struct FragmentsOnCompositeTypes;
 
-impl QueryVisitor<ValidationContext> for FragmentsOnCompositeTypes {
+impl<'a> QueryVisitor<ValidationErrorContext<'a>> for FragmentsOnCompositeTypes {
     fn enter_inline_fragment(
         &self,
         _node: &InlineFragment,
-        _visitor_context: &mut ValidationContext,
+        _visitor_context: &mut ValidationErrorContext<'a>,
     ) {
         if let Some(TypeCondition::On(type_condition)) = &_node.type_condition {
-            let gql_type =
-                _visitor_context.find_schema_definition_by_name(type_condition.to_owned());
+            let gql_type = _visitor_context
+                .ctx
+                .find_schema_definition_by_name(type_condition.to_owned());
 
             if let Some(gql_type) = gql_type {
                 match gql_type {
@@ -43,12 +44,13 @@ impl QueryVisitor<ValidationContext> for FragmentsOnCompositeTypes {
     fn enter_fragment_definition(
         &self,
         _node: &FragmentDefinition,
-        _visitor_context: &mut ValidationContext,
+        _visitor_context: &mut ValidationErrorContext<'a>,
     ) {
         let TypeCondition::On(type_condition) = &_node.type_condition;
 
-        if let Some(gql_type) =
-            _visitor_context.find_schema_definition_by_name(type_condition.to_owned())
+        if let Some(gql_type) = _visitor_context
+            .ctx
+            .find_schema_definition_by_name(type_condition.to_owned())
         {
             match gql_type {
                 TypeDefinition::Object(_)
@@ -67,8 +69,11 @@ impl QueryVisitor<ValidationContext> for FragmentsOnCompositeTypes {
 }
 
 impl ValidationRule for FragmentsOnCompositeTypes {
-    fn validate(&self, ctx: &mut ValidationContext) {
-        self.visit_document(&ctx.operation.clone(), ctx)
+    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
+        let mut error_context = ValidationErrorContext::new(ctx);
+        self.visit_document(&ctx.operation.clone(), &mut error_context);
+
+        error_context.errors
     }
 }
 

@@ -1,6 +1,6 @@
 use super::ValidationRule;
 use crate::static_graphql::query::*;
-use crate::validation::utils::ValidationError;
+use crate::validation::utils::{ValidationError, ValidationErrorContext};
 use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 use std::collections::HashMap;
 
@@ -13,12 +13,21 @@ use std::collections::HashMap;
 /// See https://spec.graphql.org/draft/#sec-Field-Selection-Merging
 pub struct OverlappingFieldsCanBeMerged;
 
-struct FindOverlappingFieldsThatCanBeMerged<'a> {
+struct FindOverlappingFieldsThatCanBeMergedHelper<'a> {
     discoverd_fields: HashMap<String, Field>,
-    ctx: &'a mut ValidationContext,
+    validation_context: &'a ValidationErrorContext<'a>,
+    selection_set_errors: Vec<ValidationError>,
 }
 
-impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
+impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
+    fn new(ctx: &'a ValidationErrorContext<'a>) -> Self {
+        Self {
+            discoverd_fields: HashMap::new(),
+            selection_set_errors: Vec::new(),
+            validation_context: ctx,
+        }
+    }
+
     fn store_finding(&mut self, field: &Field, parent_type_name: Option<String>) {
         let base_field_name = field.alias.as_ref().unwrap_or(&field.name).clone();
         let field_identifier = match parent_type_name {
@@ -28,23 +37,23 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
 
         if let Some(existing) = self.discoverd_fields.get(&field_identifier) {
             if !existing.name.eq(&field.name) {
-                self.ctx.report_error(ValidationError {
-                  locations: vec![field.position, existing.position],
-                  message: format!(
-                      "Fields \"{}\" conflict because \"{}\" and \"{}\" are different fields. Use different aliases on the fields to fetch both if this was intentional.",
-                      base_field_name, existing.name, field.name 
-                  ),
-              })
+                self.selection_set_errors.push(ValidationError {
+                    locations: vec![field.position, existing.position],
+                    message: format!(
+                        "Fields \"{}\" conflict because \"{}\" and \"{}\" are different fields. Use different aliases on the fields to fetch both if this was intentional.",
+                        base_field_name, existing.name, field.name
+                    ),
+                })
             }
 
             if existing.arguments.len() != field.arguments.len() {
-                self.ctx.report_error(ValidationError {
+                self.selection_set_errors.push(ValidationError {
                 locations: vec![field.position, existing.position],
                 message: format!(
                     "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
                     field.name
                 ),
-              });
+                });
             } else {
                 for (arg_name, arg_value) in &existing.arguments {
                     let arg_record_in_new_field = field
@@ -56,13 +65,13 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
                     match arg_record_in_new_field {
                         Some((_other_name, other_value)) if other_value.eq(arg_value) => {}
                         _ => {
-                            self.ctx.report_error(ValidationError {
-                          locations: vec![field.position, existing.position],
-                          message: format!(
-                              "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
-                              field.name
-                          ),
-                        });
+                            self.selection_set_errors.push(ValidationError {
+                            locations: vec![field.position, existing.position],
+                            message: format!(
+                                "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
+                                field.name
+                            ),
+                            });
                         }
                     }
                 }
@@ -93,6 +102,7 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
 
                 Selection::FragmentSpread(fragment_spread) => {
                     if let Some(fragment) = self
+                        .validation_context
                         .ctx
                         .fragments
                         .get(&fragment_spread.fragment_name)
@@ -111,20 +121,23 @@ impl<'a> FindOverlappingFieldsThatCanBeMerged<'a> {
     }
 }
 
-impl QueryVisitor<ValidationContext> for OverlappingFieldsCanBeMerged {
-    fn enter_selection_set(&self, node: &SelectionSet, ctx: &mut ValidationContext) {
-        let mut finder = FindOverlappingFieldsThatCanBeMerged {
-            discoverd_fields: HashMap::new(),
-            ctx,
-        };
-
+impl<'a> QueryVisitor<ValidationErrorContext<'a>> for OverlappingFieldsCanBeMerged {
+    fn enter_selection_set(&self, node: &SelectionSet, ctx: &mut ValidationErrorContext<'a>) {
+        let mut finder = FindOverlappingFieldsThatCanBeMergedHelper::new(ctx);
         finder.find_in_selection_set(&node, None);
+
+        for error in finder.selection_set_errors {
+            ctx.errors.push(error);
+        }
     }
 }
 
 impl ValidationRule for OverlappingFieldsCanBeMerged {
-    fn validate(&self, ctx: &mut ValidationContext) {
-        self.visit_document(&ctx.operation.clone(), ctx)
+    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
+        let mut error_context = ValidationErrorContext::new(ctx);
+        self.visit_document(&ctx.operation.clone(), &mut error_context);
+
+        error_context.errors
     }
 }
 

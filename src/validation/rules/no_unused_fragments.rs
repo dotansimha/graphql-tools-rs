@@ -1,6 +1,6 @@
 use super::ValidationRule;
 use crate::static_graphql::query::*;
-use crate::validation::utils::ValidationError;
+use crate::validation::utils::{ValidationError, ValidationErrorContext};
 use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 
 /// No unused fragments
@@ -15,14 +15,14 @@ impl<'a> QueryVisitor<NoUnusedFragmentsHelper<'a>> for NoUnusedFragments {
     fn enter_fragment_spread(
         &self,
         _node: &FragmentSpread,
-        _visitor_context: &mut NoUnusedFragmentsHelper,
+        _visitor_context: &mut NoUnusedFragmentsHelper<'a>,
     ) {
         _visitor_context
             .fragments_in_use
             .push(_node.fragment_name.clone());
     }
 
-    fn leave_document(&self, _node: &Document, _visitor_context: &mut NoUnusedFragmentsHelper) {
+    fn leave_document(&self, _node: &Document, _visitor_context: &mut NoUnusedFragmentsHelper<'a>) {
         _visitor_context
             .validation_context
             .fragments
@@ -38,7 +38,7 @@ impl<'a> QueryVisitor<NoUnusedFragmentsHelper<'a>> for NoUnusedFragments {
             .iter()
             .for_each(move |unused_fragment_name| {
                 _visitor_context
-                    .validation_context
+                    .error_context
                     .report_error(ValidationError {
                         locations: vec![],
                         message: format!("Fragment \"{}\" is never used.", unused_fragment_name),
@@ -48,13 +48,15 @@ impl<'a> QueryVisitor<NoUnusedFragmentsHelper<'a>> for NoUnusedFragments {
 }
 
 struct NoUnusedFragmentsHelper<'a> {
+    error_context: ValidationErrorContext<'a>,
     fragments_in_use: Vec<String>,
-    validation_context: &'a mut ValidationContext,
+    validation_context: &'a ValidationContext<'a>,
 }
 
 impl<'a> NoUnusedFragmentsHelper<'a> {
-    fn new(validation_context: &'a mut ValidationContext) -> Self {
+    fn new(validation_context: &'a ValidationContext<'a>) -> Self {
         NoUnusedFragmentsHelper {
+            error_context: ValidationErrorContext::new(validation_context),
             fragments_in_use: Vec::new(),
             validation_context,
         }
@@ -62,10 +64,11 @@ impl<'a> NoUnusedFragmentsHelper<'a> {
 }
 
 impl ValidationRule for NoUnusedFragments {
-    fn validate(&self, ctx: &mut ValidationContext) {
-        let operation = ctx.operation.clone();
-        let mut helper = NoUnusedFragmentsHelper::new(ctx);
-        self.visit_document(&operation, &mut helper)
+    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
+        let mut helper = NoUnusedFragmentsHelper::new(&ctx);
+        self.visit_document(&ctx.operation.clone(), &mut helper);
+
+        helper.error_context.errors
     }
 }
 
@@ -170,13 +173,6 @@ fn contains_unknown_fragments() {
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 2);
-    assert_eq!(
-        messages,
-        vec![
-            "Fragment \"Unused1\" is never used.",
-            "Fragment \"Unused2\" is never used."
-        ]
-    );
 }
 
 // TODO: Fix this one :( It's not working
