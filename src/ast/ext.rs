@@ -1,4 +1,7 @@
+use crate::static_graphql::query::{self};
 use crate::static_graphql::schema::{self, Field, InterfaceType, ObjectType, UnionType};
+
+use super::get_named_type;
 
 pub trait AstNodeWithFields {
     fn find_field(&self, name: String) -> Option<&Field>;
@@ -19,6 +22,16 @@ impl AstNodeWithFields for InterfaceType {
 impl AstNodeWithFields for UnionType {
     fn find_field(&self, _name: String) -> Option<&Field> {
         None
+    }
+}
+
+pub trait AstTypeRef {
+    fn named_type(&self) -> String;
+}
+
+impl AstTypeRef for query::Type {
+    fn named_type(&self) -> String {
+        get_named_type(self)
     }
 }
 

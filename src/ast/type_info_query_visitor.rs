@@ -4,6 +4,8 @@ use crate::static_graphql::{
     schema::{self},
 };
 
+use crate::ast::ext::AstTypeRef;
+
 /// A trait for implenenting a visitor for GraphQL operations.
 /// Similar to QueryVisitor, but exposes an additional `type_info` method based on the GraphQL schema.
 ///
@@ -177,113 +179,126 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         type_info_registry: &TypeInfoRegistry,
         type_info: &mut TypeInfo,
     ) {
-        let current_type_name = type_info
-            .get_type()
-            .expect("Found a field without a parent type available.");
-        let named_type_name = get_named_type(&current_type_name);
-        let schema_type = type_info_registry
-            .type_by_name
-            .get(&named_type_name)
-            .expect("Found a selection set without a parent type available.");
-        let as_composite_type = CompositeType::from_type_definition(schema_type);
+        if let Some(base_type) = type_info.get_type() {
+            let named_type_name = base_type.named_type();
 
-        match as_composite_type {
-            Some(t) => {
-                type_info.enter_parent_type(t);
-            }
-            None => {}
-        }
+            if let Some(type_by_name) = type_info_registry.type_by_name.get(&named_type_name) {
+                if let Some(t) = CompositeType::from_type_definition(type_by_name) {
+                    type_info.enter_parent_type(t);
 
-        self.enter_selection_set(_node, visitor_context, type_info);
+                    self.enter_selection_set(_node, visitor_context, type_info);
 
-        for selection in &_node.items {
-            self.enter_selection(selection, visitor_context, type_info);
+                    for selection in &_node.items {
+                        self.enter_selection(selection, visitor_context, type_info);
 
-            match selection {
-                query::Selection::Field(field) => {
-                    let parent_type = type_info
-                        .get_parent_type()
-                        .expect("Found a field without a parent type available.");
-                    if let Some(field_def) = parent_type.find_field(field.name.clone()) {
-                        type_info.enter_type(field_def.field_type.clone());
-                        type_info.enter_field_def(field_def.clone());
+                        match selection {
+                            query::Selection::Field(field) => {
+                                let parent_type = type_info
+                                    .get_parent_type()
+                                    .expect("Found a field without a parent type available.");
+                                if let Some(field_def) = parent_type.find_field(field.name.clone())
+                                {
+                                    type_info.enter_type(field_def.field_type.clone());
+                                    type_info.enter_field_def(field_def.clone());
 
-                        self.enter_field(field, visitor_context, type_info);
+                                    self.enter_field(field, visitor_context, type_info);
 
-                        for (argument_name, argument_type) in &field.arguments {
-                            let found_schema_arg = field_def
-                                .arguments
-                                .iter()
-                                .find(|arg| arg.name.eq(argument_name))
-                                .expect("failed to find argument on field");
-                            type_info.enter_argument(found_schema_arg.clone());
-                            let arg_named_type = get_named_type(&found_schema_arg.value_type);
+                                    for (argument_name, argument_type) in &field.arguments {
+                                        let found_schema_arg = field_def
+                                            .arguments
+                                            .iter()
+                                            .find(|arg| arg.name.eq(argument_name))
+                                            .expect("failed to find argument on field");
+                                        type_info.enter_argument(found_schema_arg.clone());
+                                        let arg_named_type =
+                                            get_named_type(&found_schema_arg.value_type);
 
-                            if let Some(schema::TypeDefinition::InputObject(t)) =
-                                type_info_registry.type_by_name.get(&arg_named_type)
-                            {
-                                type_info.enter_input_type(t.clone());
+                                        if let Some(schema::TypeDefinition::InputObject(t)) =
+                                            type_info_registry.type_by_name.get(&arg_named_type)
+                                        {
+                                            type_info.enter_input_type(t.clone());
+                                        }
+
+                                        self.enter_field_argument(
+                                            argument_name,
+                                            argument_type,
+                                            field,
+                                            visitor_context,
+                                            type_info,
+                                        );
+                                        self.leave_field_argument(
+                                            argument_name,
+                                            argument_type,
+                                            field,
+                                            visitor_context,
+                                            type_info,
+                                        );
+
+                                        type_info.leave_argument();
+                                        type_info.leave_input_type();
+                                    }
+
+                                    self.__visit_selection_set(
+                                        &field.selection_set,
+                                        visitor_context,
+                                        type_info_registry,
+                                        type_info,
+                                    );
+                                    self.leave_field(field, visitor_context, type_info);
+                                    type_info.leave_field_def();
+                                    type_info.leave_type();
+                                }
                             }
+                            query::Selection::FragmentSpread(fragment_spread) => {
+                                self.enter_fragment_spread(
+                                    fragment_spread,
+                                    visitor_context,
+                                    type_info,
+                                );
+                                self.leave_fragment_spread(
+                                    fragment_spread,
+                                    visitor_context,
+                                    type_info,
+                                );
+                            }
+                            query::Selection::InlineFragment(inline_fragment) => {
+                                match &inline_fragment.type_condition {
+                                    Some(query::TypeCondition::On(type_condition)) => {
+                                        type_info.enter_type(schema::Type::NamedType(
+                                            type_condition.clone(),
+                                        ));
+                                    }
+                                    _ => {}
+                                }
 
-                            self.enter_field_argument(
-                                argument_name,
-                                argument_type,
-                                field,
-                                visitor_context,
-                                type_info,
-                            );
-                            self.leave_field_argument(
-                                argument_name,
-                                argument_type,
-                                field,
-                                visitor_context,
-                                type_info,
-                            );
-
-                            type_info.leave_argument();
-                            type_info.leave_input_type();
+                                self.enter_inline_fragment(
+                                    inline_fragment,
+                                    visitor_context,
+                                    type_info,
+                                );
+                                self.__visit_selection_set(
+                                    &inline_fragment.selection_set,
+                                    visitor_context,
+                                    type_info_registry,
+                                    type_info,
+                                );
+                                self.leave_inline_fragment(
+                                    inline_fragment,
+                                    visitor_context,
+                                    type_info,
+                                );
+                                type_info.leave_type();
+                            }
                         }
 
-                        self.__visit_selection_set(
-                            &field.selection_set,
-                            visitor_context,
-                            type_info_registry,
-                            type_info,
-                        );
-                        self.leave_field(field, visitor_context, type_info);
-                        type_info.leave_field_def();
-                        type_info.leave_type();
-                    }
-                }
-                query::Selection::FragmentSpread(fragment_spread) => {
-                    self.enter_fragment_spread(fragment_spread, visitor_context, type_info);
-                    self.leave_fragment_spread(fragment_spread, visitor_context, type_info);
-                }
-                query::Selection::InlineFragment(inline_fragment) => {
-                    match &inline_fragment.type_condition {
-                        Some(query::TypeCondition::On(type_condition)) => {
-                            type_info.enter_type(schema::Type::NamedType(type_condition.clone()));
-                        }
-                        _ => {}
+                        self.leave_selection(selection, visitor_context, type_info);
                     }
 
-                    self.enter_inline_fragment(inline_fragment, visitor_context, type_info);
-                    self.__visit_selection_set(
-                        &inline_fragment.selection_set,
-                        visitor_context,
-                        type_info_registry,
-                        type_info,
-                    );
-                    self.leave_inline_fragment(inline_fragment, visitor_context, type_info);
-                    type_info.leave_type();
+                    self.leave_selection_set(_node, visitor_context, type_info);
+                    type_info.leave_parent_type();
                 }
             }
-
-            self.leave_selection(selection, visitor_context, type_info);
         }
-
-        self.leave_selection_set(_node, visitor_context, type_info);
-        type_info.leave_parent_type();
     }
 
     fn enter_document(&self, _node: &query::Document, _visitor_context: &mut T) {}
