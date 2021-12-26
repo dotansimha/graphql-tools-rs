@@ -69,34 +69,34 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
 
     fn is_leaf_type(&self) -> bool {
         match self {
-            schema::TypeDefinition::Object(o) => false,
-            schema::TypeDefinition::Interface(i) => false,
-            schema::TypeDefinition::Union(u) => false,
-            schema::TypeDefinition::Scalar(u) => true,
-            schema::TypeDefinition::Enum(u) => true,
-            schema::TypeDefinition::InputObject(u) => false,
+            schema::TypeDefinition::Object(_o) => false,
+            schema::TypeDefinition::Interface(_i) => false,
+            schema::TypeDefinition::Union(_u) => false,
+            schema::TypeDefinition::Scalar(_u) => true,
+            schema::TypeDefinition::Enum(_u) => true,
+            schema::TypeDefinition::InputObject(_u) => false,
         }
     }
 
     fn is_input_type(&self) -> bool {
         match self {
-            schema::TypeDefinition::Object(o) => false,
-            schema::TypeDefinition::Interface(i) => false,
-            schema::TypeDefinition::Union(u) => false,
-            schema::TypeDefinition::Scalar(u) => false,
-            schema::TypeDefinition::Enum(u) => false,
-            schema::TypeDefinition::InputObject(u) => true,
+            schema::TypeDefinition::Object(_o) => false,
+            schema::TypeDefinition::Interface(_i) => false,
+            schema::TypeDefinition::Union(_u) => false,
+            schema::TypeDefinition::Scalar(_u) => false,
+            schema::TypeDefinition::Enum(_u) => false,
+            schema::TypeDefinition::InputObject(_u) => true,
         }
     }
 
     fn is_composite_type(&self) -> bool {
         match self {
-            schema::TypeDefinition::Object(o) => true,
-            schema::TypeDefinition::Interface(i) => true,
-            schema::TypeDefinition::Union(u) => true,
-            schema::TypeDefinition::Scalar(u) => false,
-            schema::TypeDefinition::Enum(u) => false,
-            schema::TypeDefinition::InputObject(u) => false,
+            schema::TypeDefinition::Object(_o) => true,
+            schema::TypeDefinition::Interface(_i) => true,
+            schema::TypeDefinition::Union(_u) => true,
+            schema::TypeDefinition::Scalar(_u) => false,
+            schema::TypeDefinition::Enum(_u) => false,
+            schema::TypeDefinition::InputObject(_u) => false,
         }
     }
 }

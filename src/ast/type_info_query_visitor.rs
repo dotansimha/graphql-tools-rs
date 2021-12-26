@@ -477,7 +477,7 @@ fn should_build_correct_type_info_query() {
     }
 
     let mut ctx = TestContext {};
-    let mut visitor = TestVisitor {};
+    let visitor = TestVisitor {};
     let type_info_registry = TypeInfoRegistry::new(&schema_ast);
     visitor.visit_document(&query_ast, &mut ctx, &type_info_registry)
 }
