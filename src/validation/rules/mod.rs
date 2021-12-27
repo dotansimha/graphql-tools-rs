@@ -7,6 +7,7 @@ pub mod no_unused_fragments;
 pub mod overlapping_fields_can_be_merged;
 /// Utilities validating GraphQL documents/operations
 pub mod rule;
+pub mod unique_operation_names;
 
 pub use self::defaults::*;
 pub use self::fragments_on_composite_types::*;
@@ -16,3 +17,4 @@ pub use self::lone_anonymous_operation::*;
 pub use self::no_unused_fragments::*;
 pub use self::overlapping_fields_can_be_merged::*;
 pub use self::rule::*;
+pub use self::unique_operation_names::*;
