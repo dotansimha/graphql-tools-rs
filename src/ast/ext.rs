@@ -113,3 +113,18 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
         }
     }
 }
+
+pub trait AstNodeWithName {
+    fn node_name(&self) -> Option<String>;
+}
+
+impl AstNodeWithName for query::OperationDefinition {
+    fn node_name(&self) -> Option<String> {
+        match self {
+            query::OperationDefinition::Query(q) => q.name.clone(),
+            query::OperationDefinition::SelectionSet(_s) => None,
+            query::OperationDefinition::Mutation(m) => m.name.clone(),
+            query::OperationDefinition::Subscription(s) => s.name.clone(),
+        }
+    }
+}
