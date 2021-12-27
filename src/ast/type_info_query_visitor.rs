@@ -385,7 +385,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         &self,
         _node: &query::VariableDefinition,
         _parent_operation: &query::OperationDefinition,
-        _visitor_context: &T,
+        _visitor_context: &mut T,
         _type_info: &mut TypeInfo,
     ) {
     }
@@ -393,7 +393,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         &self,
         _node: &query::VariableDefinition,
         _parent_operation: &query::OperationDefinition,
-        _visitor_context: &T,
+        _visitor_context: &mut T,
         _type_info: &mut TypeInfo,
     ) {
     }
@@ -433,7 +433,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         _name: &String,
         _value: &query::Value,
         _parent_field: &query::Field,
-        _visitor_context: &T,
+        _visitor_context: &mut T,
         _type_info: &mut TypeInfo,
     ) {
     }
@@ -442,7 +442,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         _name: &String,
         _value: &query::Value,
         _parent_field: &query::Field,
-        _visitor_context: &T,
+        _visitor_context: &mut T,
         _type_info: &mut TypeInfo,
     ) {
     }
