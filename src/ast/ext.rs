@@ -1,7 +1,7 @@
 use crate::static_graphql::query::{self};
 use crate::static_graphql::schema::{self, Field, InterfaceType, ObjectType, UnionType};
 
-use super::get_named_type;
+use super::{get_named_type, TypeInfoElementRef};
 
 pub trait AstNodeWithFields {
     fn find_field(&self, name: String) -> Option<&Field>;
@@ -42,6 +42,15 @@ pub enum CompositeType {
     Union(schema::UnionType),
 }
 
+impl TypeInfoElementRef<CompositeType> {
+    pub fn find_field(&self, name: String) -> Option<&Field> {
+        match self {
+            TypeInfoElementRef::Empty => None,
+            TypeInfoElementRef::Ref(composite_type) => composite_type.find_field(name),
+        }
+    }
+}
+
 impl CompositeType {
     pub fn find_field(&self, name: String) -> Option<&Field> {
         match self {
@@ -66,6 +75,28 @@ pub trait TypeDefinitionExtension {
     fn is_composite_type(&self) -> bool;
     fn is_input_type(&self) -> bool;
     fn name(&self) -> String;
+}
+
+impl TypeDefinitionExtension for CompositeType {
+    fn is_leaf_type(&self) -> bool {
+        false
+    }
+
+    fn is_composite_type(&self) -> bool {
+        true
+    }
+
+    fn is_input_type(&self) -> bool {
+        false
+    }
+
+    fn name(&self) -> String {
+        match self {
+            CompositeType::Object(o) => o.name.clone(),
+            CompositeType::Interface(i) => i.name.clone(),
+            CompositeType::Union(u) => u.name.clone(),
+        }
+    }
 }
 
 impl TypeDefinitionExtension for schema::TypeDefinition {

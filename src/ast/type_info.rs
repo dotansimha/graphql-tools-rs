@@ -86,12 +86,19 @@ impl<'a> TypeInfoRegistry<'a> {
     }
 }
 
+/// This struct is used to mark a "node" or nothing (null, undefined). While tracking TypeInfo, we need to check if there was a node before or not.
+#[derive(Debug, Clone, Copy)]
+pub enum TypeInfoElementRef<T> {
+    Empty,
+    Ref(T),
+}
+
 pub struct TypeInfo {
-    pub type_stack: Vec<schema::Type>,
-    pub parent_type_stack: Vec<CompositeType>,
-    pub field_def_stack: Vec<schema::Field>,
-    pub input_type_stack: Vec<schema::InputObjectType>,
-    pub argument: Option<schema::InputValue>,
+    pub type_stack: Vec<TypeInfoElementRef<schema::Type>>,
+    pub parent_type_stack: Vec<TypeInfoElementRef<CompositeType>>,
+    pub field_def_stack: Vec<TypeInfoElementRef<schema::Field>>,
+    pub input_type_stack: Vec<TypeInfoElementRef<schema::InputObjectType>>,
+    pub argument: Option<TypeInfoElementRef<schema::InputValue>>,
 }
 
 impl TypeInfo {
@@ -105,11 +112,11 @@ impl TypeInfo {
         };
     }
 
-    pub fn get_argument(&self) -> Option<schema::InputValue> {
+    pub fn get_argument(&self) -> Option<TypeInfoElementRef<schema::InputValue>> {
         self.argument.clone()
     }
 
-    pub fn enter_argument(&mut self, input_value: schema::InputValue) {
+    pub fn enter_argument(&mut self, input_value: TypeInfoElementRef<schema::InputValue>) {
         self.argument = Some(input_value);
     }
 
@@ -117,11 +124,11 @@ impl TypeInfo {
         self.argument = None;
     }
 
-    pub fn get_type(&self) -> Option<schema::Type> {
+    pub fn get_type(&self) -> Option<TypeInfoElementRef<schema::Type>> {
         self.type_stack.last().cloned()
     }
 
-    pub fn enter_type(&mut self, object: schema::Type) {
+    pub fn enter_type(&mut self, object: TypeInfoElementRef<schema::Type>) {
         self.type_stack.push(object);
     }
 
@@ -129,11 +136,11 @@ impl TypeInfo {
         self.type_stack.pop();
     }
 
-    pub fn get_input_type(&self) -> Option<schema::InputObjectType> {
+    pub fn get_input_type(&self) -> Option<TypeInfoElementRef<schema::InputObjectType>> {
         self.input_type_stack.last().cloned()
     }
 
-    pub fn enter_input_type(&mut self, object: schema::InputObjectType) {
+    pub fn enter_input_type(&mut self, object: TypeInfoElementRef<schema::InputObjectType>) {
         self.input_type_stack.push(object);
     }
 
@@ -141,11 +148,11 @@ impl TypeInfo {
         self.input_type_stack.pop();
     }
 
-    pub fn get_parent_type(&self) -> Option<CompositeType> {
+    pub fn get_parent_type(&self) -> Option<TypeInfoElementRef<CompositeType>> {
         self.parent_type_stack.last().cloned()
     }
 
-    pub fn enter_parent_type(&mut self, object: CompositeType) {
+    pub fn enter_parent_type(&mut self, object: TypeInfoElementRef<CompositeType>) {
         self.parent_type_stack.push(object);
     }
 
@@ -153,11 +160,11 @@ impl TypeInfo {
         self.parent_type_stack.pop();
     }
 
-    pub fn get_field_def(&self) -> Option<schema::Field> {
+    pub fn get_field_def(&self) -> Option<TypeInfoElementRef<schema::Field>> {
         self.field_def_stack.last().cloned()
     }
 
-    pub fn enter_field_def(&mut self, field: schema::Field) {
+    pub fn enter_field_def(&mut self, field: TypeInfoElementRef<schema::Field>) {
         self.field_def_stack.push(field);
     }
 

@@ -1,7 +1,7 @@
 use super::ValidationRule;
 // use crate::static_graphql::query::*;
 use crate::{
-    ast::{ext::*, get_named_type, TypeInfoQueryVisitor},
+    ast::{ext::*, get_named_type, TypeInfoElementRef, TypeInfoQueryVisitor},
     validation::utils::{ValidationContext, ValidationError, ValidationErrorContext},
 };
 
@@ -19,7 +19,7 @@ impl TypeInfoQueryVisitor<ValidationErrorContext<'_>> for LeafFieldSelections {
         _visitor_context: &mut ValidationErrorContext<'_>,
         _type_info: &mut crate::ast::TypeInfo,
     ) {
-        if let Some(field_type) = _type_info.get_type() {
+        if let Some(TypeInfoElementRef::Ref(field_type)) = _type_info.get_type() {
             let named_type = get_named_type(&field_type);
             let schema_type = _visitor_context
                 .ctx
