@@ -28,8 +28,11 @@ cargo add graphql-tools
 ### Roadmap and progress
 
 - [ ] Better documentation 
-- [x] Visitor: `SchemaVisitor`
-- [x] Visitor: `QueryVisitor`
+- [x] AST Visitor for GraphQL schema (`graphql_parser::schema::Document`)
+- [x] AST Visitor for GraphQL operations (`graphql_parser::operation::Document`) 
+- [x] AST Visitor with TypeInfo
+- [x] AST tools (ongoing)
+- [x] `struct` extensions
 - [x] GraphQL Validation engine
 - [ ] Validation rules (in-progress)
 
