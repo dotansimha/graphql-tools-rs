@@ -13,7 +13,7 @@ pub fn create_default_ruleset_plan() -> ValidationPlan {
 }
 
 #[cfg(test)]
-pub static TEST_SCHEMA: &str = "
+pub static INTROSPECTION_SCHEMA: &str = "
 scalar Boolean
 scalar Float
 scalar Int
@@ -117,8 +117,10 @@ enum __DirectiveLocation {
   ENUM_VALUE
   INPUT_OBJECT
   INPUT_FIELD_DEFINITION
-}
+}";
 
+#[cfg(test)]
+pub static TEST_SCHEMA: &str = "
 interface Mammal {
   mother: Mammal
   father: Mammal
@@ -248,12 +250,18 @@ type Query {
 }
 
 #[cfg(test)]
+fn string_to_static_str(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
+}
+
+#[cfg(test)]
 pub fn test_operation_with_schema<'a>(
-    operation: &'static str,
-    schema: &'static str,
-    plan: &mut ValidationPlan,
+    operation: &'a str,
+    schema: &'a str,
+    plan: &'a ValidationPlan,
 ) -> Vec<ValidationError> {
-    let schema_ast = graphql_parser::parse_schema(schema).expect("Failed to parse schema");
+    let schema_clone = string_to_static_str(schema.to_string() + INTROSPECTION_SCHEMA);
+    let schema_ast = graphql_parser::parse_schema(&schema_clone).expect("Failed to parse schema");
 
     let operation_ast = graphql_parser::parse_query(operation)
         .unwrap()

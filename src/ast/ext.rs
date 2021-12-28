@@ -1,5 +1,7 @@
 use crate::static_graphql::query::{self};
-use crate::static_graphql::schema::{self, Field, InterfaceType, ObjectType, UnionType};
+use crate::static_graphql::schema::{
+    self, Field, InterfaceType, ObjectType, TypeDefinition, UnionType,
+};
 
 use super::{get_named_type, TypeInfoElementRef};
 
@@ -70,11 +72,62 @@ impl CompositeType {
     }
 }
 
+pub trait AbstractTypeDefinitionExtension {
+    fn is_implemented_by(&self, other_type: &dyn ImplementingInterfaceExtension) -> bool;
+}
+
 pub trait TypeDefinitionExtension {
     fn is_leaf_type(&self) -> bool;
     fn is_composite_type(&self) -> bool;
     fn is_input_type(&self) -> bool;
+    fn is_abstract_type(&self) -> bool;
     fn name(&self) -> String;
+}
+
+pub trait ImplementingInterfaceExtension {
+    fn interfaces(&self) -> Vec<String>;
+}
+
+impl ImplementingInterfaceExtension for TypeDefinition {
+    fn interfaces(&self) -> Vec<String> {
+        match self {
+            schema::TypeDefinition::Object(o) => o.interfaces(),
+            schema::TypeDefinition::Interface(i) => i.interfaces(),
+            _ => vec![],
+        }
+    }
+}
+
+impl ImplementingInterfaceExtension for InterfaceType {
+    fn interfaces(&self) -> Vec<String> {
+        self.implements_interfaces.clone()
+    }
+}
+
+impl ImplementingInterfaceExtension for ObjectType {
+    fn interfaces(&self) -> Vec<String> {
+        self.implements_interfaces.clone()
+    }
+}
+
+pub trait UnionTypeExtension {
+    fn has_sub_type(&self, other_type_name: &String) -> bool;
+}
+
+impl UnionTypeExtension for UnionType {
+    fn has_sub_type(&self, other_type_name: &String) -> bool {
+        self.types.iter().find(|v| other_type_name.eq(*v)).is_some()
+    }
+}
+
+impl AbstractTypeDefinitionExtension for InterfaceType {
+    fn is_implemented_by(&self, other_type: &dyn ImplementingInterfaceExtension) -> bool {
+        other_type
+            .interfaces()
+            .iter()
+            .find(|v| self.name.eq(*v))
+            .is_some()
+    }
 }
 
 impl TypeDefinitionExtension for CompositeType {
@@ -97,6 +150,14 @@ impl TypeDefinitionExtension for CompositeType {
             CompositeType::Union(u) => u.name.clone(),
         }
     }
+
+    fn is_abstract_type(&self) -> bool {
+        match self {
+            CompositeType::Object(_o) => false,
+            CompositeType::Interface(_i) => true,
+            CompositeType::Union(_u) => true,
+        }
+    }
 }
 
 impl TypeDefinitionExtension for schema::TypeDefinition {
@@ -108,6 +169,17 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
             schema::TypeDefinition::Scalar(s) => s.name.clone(),
             schema::TypeDefinition::Enum(e) => e.name.clone(),
             schema::TypeDefinition::InputObject(i) => i.name.clone(),
+        }
+    }
+
+    fn is_abstract_type(&self) -> bool {
+        match self {
+            schema::TypeDefinition::Object(_o) => false,
+            schema::TypeDefinition::Interface(_i) => true,
+            schema::TypeDefinition::Union(_u) => true,
+            schema::TypeDefinition::Scalar(_u) => false,
+            schema::TypeDefinition::Enum(_u) => false,
+            schema::TypeDefinition::InputObject(_u) => false,
         }
     }
 

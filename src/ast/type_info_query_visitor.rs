@@ -21,10 +21,10 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         type_info_registry: &TypeInfoRegistry,
     ) {
         let mut type_info = TypeInfo::new();
-        self.enter_document(node, visitor_context);
+        self.enter_document(node, visitor_context, &type_info);
 
         for definition in &node.definitions {
-            self.enter_definition(definition, visitor_context);
+            self.enter_definition(definition, visitor_context, &type_info);
 
             match definition {
                 query::Definition::Fragment(fragment) => {
@@ -33,25 +33,25 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                         type_condition.clone(),
                     )));
 
-                    self.enter_fragment_definition(fragment, visitor_context);
+                    self.enter_fragment_definition(fragment, visitor_context, &type_info);
                     self.__visit_selection_set(
                         &fragment.selection_set,
                         visitor_context,
                         type_info_registry,
                         &mut type_info,
                     );
-                    self.leave_fragment_definition(fragment, visitor_context);
+                    self.leave_fragment_definition(fragment, visitor_context, &type_info);
                     type_info.leave_type();
                 }
                 query::Definition::Operation(operation) => {
-                    self.enter_operation_definition(operation, visitor_context);
+                    self.enter_operation_definition(operation, visitor_context, &type_info);
 
                     match operation {
                         query::OperationDefinition::Query(query) => {
                             type_info.enter_type(TypeInfoElementRef::Ref(Type::NamedType(
                                 type_info_registry.query_type.name.clone(),
                             )));
-                            self.enter_query(query, visitor_context);
+                            self.enter_query(query, visitor_context, &type_info);
 
                             for variable in &query.variable_definitions {
                                 if let Some(schema::TypeDefinition::InputObject(t)) =
@@ -68,13 +68,13 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                     variable,
                                     operation,
                                     visitor_context,
-                                    &mut type_info,
+                                    &type_info,
                                 );
                                 self.leave_variable_definition(
                                     variable,
                                     operation,
                                     visitor_context,
-                                    &mut type_info,
+                                    &type_info,
                                 );
 
                                 type_info.leave_input_type();
@@ -86,7 +86,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                 type_info_registry,
                                 &mut type_info,
                             );
-                            self.leave_query(query, visitor_context);
+                            self.leave_query(query, visitor_context, &type_info);
                             type_info.leave_type();
                         }
                         query::OperationDefinition::Mutation(mutation) => {
@@ -98,7 +98,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                 type_info.enter_type(TypeInfoElementRef::Empty);
                             }
 
-                            self.enter_mutation(mutation, visitor_context);
+                            self.enter_mutation(mutation, visitor_context, &type_info);
                             for variable in &mutation.variable_definitions {
                                 self.enter_variable_definition(
                                     variable,
@@ -119,7 +119,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                 type_info_registry,
                                 &mut type_info,
                             );
-                            self.leave_mutation(mutation, visitor_context);
+                            self.leave_mutation(mutation, visitor_context, &type_info);
                             type_info.leave_type();
                         }
                         query::OperationDefinition::Subscription(subscription) => {
@@ -131,7 +131,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                 type_info.enter_type(TypeInfoElementRef::Empty);
                             }
 
-                            self.enter_subscription(subscription, visitor_context);
+                            self.enter_subscription(subscription, visitor_context, &type_info);
                             for variable in &subscription.variable_definitions {
                                 self.enter_variable_definition(
                                     variable,
@@ -152,7 +152,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                 type_info_registry,
                                 &mut type_info,
                             );
-                            self.leave_subscription(subscription, visitor_context);
+                            self.leave_subscription(subscription, visitor_context, &type_info);
                             type_info.leave_type();
                         }
                         query::OperationDefinition::SelectionSet(selection_set) => {
@@ -179,14 +179,14 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                         }
                     }
 
-                    self.leave_operation_definition(operation, visitor_context);
+                    self.leave_operation_definition(operation, visitor_context, &type_info);
                 }
             }
 
-            self.leave_definition(definition, visitor_context);
+            self.leave_definition(definition, visitor_context, &type_info);
         }
 
-        self.leave_document(node, visitor_context);
+        self.leave_document(node, visitor_context, &type_info);
     }
 
     fn __visit_selection_set(
@@ -325,22 +325,48 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         type_info.leave_parent_type();
     }
 
-    fn enter_document(&self, _node: &query::Document, _visitor_context: &mut T) {}
-    fn leave_document(&self, _node: &query::Document, _visitor_context: &mut T) {}
+    fn enter_document(
+        &self,
+        _node: &query::Document,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
+    fn leave_document(
+        &self,
+        _node: &query::Document,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
 
-    fn enter_definition(&self, _node: &query::Definition, _visitor_context: &mut T) {}
-    fn leave_definition(&self, _node: &query::Definition, _visitor_context: &mut T) {}
+    fn enter_definition(
+        &self,
+        _node: &query::Definition,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
+    fn leave_definition(
+        &self,
+        _node: &query::Definition,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
 
     fn enter_fragment_definition(
         &self,
         _node: &query::FragmentDefinition,
         _visitor_context: &mut T,
+        _type_info: &TypeInfo,
     ) {
     }
     fn leave_fragment_definition(
         &self,
         _node: &query::FragmentDefinition,
         _visitor_context: &mut T,
+        _type_info: &TypeInfo,
     ) {
     }
 
@@ -348,36 +374,62 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         &self,
         _node: &query::OperationDefinition,
         _visitor_context: &mut T,
+        _type_info: &TypeInfo,
     ) {
     }
     fn leave_operation_definition(
         &self,
         _node: &query::OperationDefinition,
         _visitor_context: &mut T,
+        _type_info: &TypeInfo,
     ) {
     }
 
-    fn enter_query(&self, _node: &query::Query, _visitor_context: &mut T) {}
-    fn leave_query(&self, _node: &query::Query, _visitor_context: &mut T) {}
+    fn enter_query(&self, _node: &query::Query, _visitor_context: &mut T, _type_info: &TypeInfo) {}
+    fn leave_query(&self, _node: &query::Query, _visitor_context: &mut T, _type_info: &TypeInfo) {}
 
-    fn enter_mutation(&self, _node: &query::Mutation, _visitor_context: &mut T) {}
-    fn leave_mutation(&self, _node: &query::Mutation, _visitor_context: &mut T) {}
+    fn enter_mutation(
+        &self,
+        _node: &query::Mutation,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
+    fn leave_mutation(
+        &self,
+        _node: &query::Mutation,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
 
-    fn enter_subscription(&self, _node: &query::Subscription, _visitor_context: &mut T) {}
-    fn leave_subscription(&self, _node: &query::Subscription, _visitor_context: &mut T) {}
+    fn enter_subscription(
+        &self,
+        _node: &query::Subscription,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
+    fn leave_subscription(
+        &self,
+        _node: &query::Subscription,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
 
     fn enter_selection_set(
         &self,
         _node: &query::SelectionSet,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
     fn leave_selection_set(
         &self,
         _node: &query::SelectionSet,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
 
@@ -386,7 +438,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         _node: &query::VariableDefinition,
         _parent_operation: &query::OperationDefinition,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
     fn leave_variable_definition(
@@ -394,7 +446,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         _node: &query::VariableDefinition,
         _parent_operation: &query::OperationDefinition,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
 
@@ -402,31 +454,19 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         &self,
         _node: &query::Selection,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
     fn leave_selection(
         &self,
         _node: &query::Selection,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
 
-    fn enter_field(
-        &self,
-        _node: &query::Field,
-        _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
-    ) {
-    }
-    fn leave_field(
-        &self,
-        _node: &query::Field,
-        _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
-    ) {
-    }
+    fn enter_field(&self, _node: &query::Field, _visitor_context: &mut T, _type_info: &TypeInfo) {}
+    fn leave_field(&self, _node: &query::Field, _visitor_context: &mut T, _type_info: &TypeInfo) {}
 
     fn enter_field_argument(
         &self,
@@ -434,7 +474,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         _value: &query::Value,
         _parent_field: &query::Field,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
     fn leave_field_argument(
@@ -443,7 +483,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         _value: &query::Value,
         _parent_field: &query::Field,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
 
@@ -451,14 +491,14 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         &self,
         _node: &query::FragmentSpread,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
     fn leave_fragment_spread(
         &self,
         _node: &query::FragmentSpread,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
 
@@ -466,14 +506,14 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         &self,
         _node: &query::InlineFragment,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
     fn leave_inline_fragment(
         &self,
         _node: &query::InlineFragment,
         _visitor_context: &mut T,
-        _type_info: &mut TypeInfo,
+        _type_info: &TypeInfo,
     ) {
     }
 }

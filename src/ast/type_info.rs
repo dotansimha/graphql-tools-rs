@@ -33,7 +33,7 @@ impl<'a> TypeInfoRegistry<'a> {
             &schema,
             match schema_definition {
                 Some(schema_definition) => schema_definition
-                    .query
+                    .mutation
                     .clone()
                     .unwrap_or("Mutation".to_string()),
                 None => "Mutation".to_string(),
@@ -43,7 +43,7 @@ impl<'a> TypeInfoRegistry<'a> {
             &schema,
             match schema_definition {
                 Some(schema_definition) => schema_definition
-                    .query
+                    .subscription
                     .clone()
                     .unwrap_or("Subscription".to_string()),
                 None => "Subscription".to_string(),

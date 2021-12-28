@@ -1,6 +1,6 @@
 use super::ValidationRule;
 use crate::ast::ext::AstTypeRef;
-use crate::ast::TypeInfoQueryVisitor;
+use crate::ast::{TypeInfo, TypeInfoQueryVisitor};
 use crate::static_graphql::query::TypeCondition;
 use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
@@ -18,6 +18,7 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownTypeNames {
         &self,
         _node: &crate::static_graphql::query::FragmentDefinition,
         _visitor_context: &mut ValidationErrorContext<'a>,
+        _type_info: &TypeInfo,
     ) {
         let TypeCondition::On(fragment_type_name) = &_node.type_condition;
 
@@ -36,7 +37,7 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownTypeNames {
         &self,
         _node: &crate::static_graphql::query::InlineFragment,
         _visitor_context: &mut ValidationErrorContext<'a>,
-        _type_info: &mut crate::ast::TypeInfo,
+        _type_info: &TypeInfo,
     ) {
         if let Some(TypeCondition::On(fragment_type_name)) = &_node.type_condition {
             if let None = _visitor_context
@@ -56,7 +57,7 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownTypeNames {
         _node: &crate::static_graphql::query::VariableDefinition,
         _parent_operation: &crate::static_graphql::query::OperationDefinition,
         _visitor_context: &mut ValidationErrorContext<'a>,
-        _type_info: &mut crate::ast::TypeInfo,
+        _type_info: &TypeInfo,
     ) {
         let base_type = _node.var_type.named_type();
 

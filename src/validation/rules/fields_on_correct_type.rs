@@ -1,6 +1,6 @@
 use super::ValidationRule;
 use crate::ast::ext::TypeDefinitionExtension;
-use crate::ast::{TypeInfoElementRef, TypeInfoQueryVisitor};
+use crate::ast::{TypeInfo, TypeInfoElementRef, TypeInfoQueryVisitor};
 use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
@@ -17,7 +17,7 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for FieldsOnCorrectTyp
         &self,
         _node: &crate::static_graphql::query::Field,
         _visitor_context: &mut ValidationErrorContext<'a>,
-        _type_info: &mut crate::ast::TypeInfo,
+        _type_info: &TypeInfo,
     ) {
         if let Some(TypeInfoElementRef::Ref(parent_type)) = _type_info.get_parent_type() {
             let field_def = _type_info.get_field_def();
