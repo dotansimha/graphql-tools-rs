@@ -231,3 +231,9 @@ impl AstNodeWithName for query::OperationDefinition {
         }
     }
 }
+
+impl AstNodeWithName for query::FragmentDefinition {
+    fn node_name(&self) -> Option<String> {
+        Some(self.name.clone())
+    }
+}
