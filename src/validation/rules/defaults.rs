@@ -1,7 +1,7 @@
 use crate::validation::validate::ValidationPlan;
 
 use super::{
-    FieldsOnCorrectType, FragmentsOnCompositeTypes, KnownFragmentNamesRule, KnownTypeNames,
+    FieldsOnCorrectType, FragmentsOnCompositeTypes, KnownFragmentNames, KnownTypeNames,
     LeafFieldSelections, LoneAnonymousOperation, NoUnusedFragments, OverlappingFieldsCanBeMerged,
     SingleFieldSubscriptions, UniqueFragmentNames, UniqueOperationNames, VariablesAreInputTypes,
 };
@@ -12,7 +12,7 @@ pub fn default_rules_validation_plan() -> ValidationPlan {
     plan.add_rule(Box::new(LoneAnonymousOperation {}));
     plan.add_rule(Box::new(KnownTypeNames {}));
     plan.add_rule(Box::new(FieldsOnCorrectType {}));
-    plan.add_rule(Box::new(KnownFragmentNamesRule {}));
+    plan.add_rule(Box::new(KnownFragmentNames {}));
     plan.add_rule(Box::new(FragmentsOnCompositeTypes {}));
     plan.add_rule(Box::new(OverlappingFieldsCanBeMerged {}));
     plan.add_rule(Box::new(NoUnusedFragments {}));

@@ -9,9 +9,9 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// to fragments defined in the same document.
 ///
 /// See https://spec.graphql.org/draft/#sec-Fragment-spread-target-defined
-pub struct KnownFragmentNamesRule;
+pub struct KnownFragmentNames;
 
-impl<'a> QueryVisitor<ValidationErrorContext<'a>> for KnownFragmentNamesRule {
+impl<'a> QueryVisitor<ValidationErrorContext<'a>> for KnownFragmentNames {
     fn enter_fragment_spread(
         &self,
         _node: &FragmentSpread,
@@ -29,7 +29,7 @@ impl<'a> QueryVisitor<ValidationErrorContext<'a>> for KnownFragmentNamesRule {
     }
 }
 
-impl ValidationRule for KnownFragmentNamesRule {
+impl ValidationRule for KnownFragmentNames {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
         let mut error_context = ValidationErrorContext::new(ctx);
         self.visit_document(&ctx.operation.clone(), &mut error_context);
@@ -42,7 +42,7 @@ impl ValidationRule for KnownFragmentNamesRule {
 fn valid_fragment() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(KnownFragmentNamesRule {}));
+    let mut plan = create_plan_from_rule(Box::new(KnownFragmentNames {}));
     let errors = test_operation_without_schema(
         "{
           human(id: 4) {
@@ -75,7 +75,7 @@ fn valid_fragment() {
 fn invalid_fragment() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(KnownFragmentNamesRule {}));
+    let mut plan = create_plan_from_rule(Box::new(KnownFragmentNames {}));
     let errors = test_operation_without_schema(
         "{
           human(id: 4) {
