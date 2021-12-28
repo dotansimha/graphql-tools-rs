@@ -34,3 +34,34 @@ cargo add graphql-tools
 - [ ] Validation rules (in-progress)
 
 > If you have an idea / missing feature, feel free to open an issue / start a GitHub discussion!
+
+#### Validation Rules
+
+> This comparison is based on `graphql-js` refernece implementation. 
+
+- [x] ExecutableDefinitions (not actually needed)
+- [x] UniqueOperationNames
+- [x] LoneAnonymousOperation
+- [x] SingleFieldSubscriptions
+- [x] KnownTypeNames
+- [x] FragmentsOnCompositeTypes
+- [x] VariablesAreInputTypes
+- [x] LeafFieldSelections
+- [x] FieldsOnCorrectType
+- [x] UniqueFragmentNames
+- [x] KnownFragmentNames
+- [x] NoUnusedFragments
+- [ ] PossibleFragmentSpreads
+- [ ] NoFragmentCycles
+- [ ] UniqueVariableNames
+- [ ] NoUndefinedVariables
+- [ ] NoUnusedVariables
+- [ ] KnownDirectives
+- [ ] UniqueDirectivesPerLocation
+- [ ] KnownArgumentNames
+- [ ] UniqueArgumentNames
+- [ ] ValuesOfCorrectType
+- [ ] ProvidedRequiredArguments
+- [ ] VariablesInAllowedPosition
+- [x] OverlappingFieldsCanBeMerged
+- [ ] UniqueInputFieldNames
