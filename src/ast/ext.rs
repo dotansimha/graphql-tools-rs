@@ -199,8 +199,8 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
             schema::TypeDefinition::Object(_o) => false,
             schema::TypeDefinition::Interface(_i) => false,
             schema::TypeDefinition::Union(_u) => false,
-            schema::TypeDefinition::Scalar(_u) => false,
-            schema::TypeDefinition::Enum(_u) => false,
+            schema::TypeDefinition::Scalar(_u) => true,
+            schema::TypeDefinition::Enum(_u) => true,
             schema::TypeDefinition::InputObject(_u) => true,
         }
     }

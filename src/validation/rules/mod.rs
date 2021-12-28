@@ -11,6 +11,7 @@ pub mod overlapping_fields_can_be_merged;
 pub mod rule;
 pub mod single_field_subscriptions;
 pub mod unique_operation_names;
+pub mod variables_are_input_types;
 
 pub use self::defaults::*;
 pub use self::fields_on_correct_type::*;
@@ -24,3 +25,4 @@ pub use self::overlapping_fields_can_be_merged::*;
 pub use self::rule::*;
 pub use self::single_field_subscriptions::*;
 pub use self::unique_operation_names::*;
+pub use self::variables_are_input_types::*;
