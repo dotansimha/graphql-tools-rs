@@ -1,4 +1,5 @@
-use source::Source;
+mod source;
+use crate::source::Source;
 
 /// Represents a location in a Source.
 pub struct SourceLocation {
