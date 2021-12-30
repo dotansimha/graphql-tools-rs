@@ -5,8 +5,6 @@ use crate::{
 use graphql_parser::Pos;
 use std::{collections::HashMap, fmt::Debug};
 
-use crate::static_graphql::query::FragmentDefinition;
-
 #[derive(Debug)]
 pub struct ValidationContext<'a> {
     pub operation: query::Document,
