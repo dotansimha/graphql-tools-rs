@@ -15,43 +15,18 @@ use std::collections::HashMap;
 pub struct NoFragmentsCycle;
 
 struct NoFragmentsCycleHelper<'a> {
-	// Tracks already visited fragments to maintain O(N) and to ensure that cycles
-	// are not redundantly reported.
+	/// Tracks already visited fragments to maintain O(N) and to ensure that cycles
+	/// are not redundantly reported.
 	visited_fragments: HashMap<String, bool>,
-	// Position in the spread path
+	/// Array of AST nodes used to produce meaningful errors
 	fragment_spreads: Vec<FragmentSpread>,
+	/// Position in the spread path
 	spread_path_index_by_name: HashMap<String, Option<usize>>,
 	validation_context: &'a ValidationContext<'a>,
 	errors_context: ValidationErrorContext<'a>,
 }
 
 impl<'a> QueryVisitor<NoFragmentsCycleHelper<'a>> for NoFragmentsCycle {
-	// fn enter_fragment_spread(
-	// 	&self,
-	// 	_node: &FragmentSpread,
-	// 	_visitor_context: &mut NoFragmentsCycleHelper<'a>,
-	// ) {
-	// 	_visitor_context.fragment_spreads.push(_node.clone());
-	// }
-	// fn enter_fragment_definition(
-	// 	&self,
-	// 	_node: &FragmentDefinition,
-	// 	_visitor_context: &mut NoFragmentsCycleHelper<'a>,
-	// ) {
-	// 	let node = _node.clone();
-	// 	detect_cycles(node, _visitor_context);
-	// 	false;
-	// }
-	// fn leave_fragment_definition(
-	// 	&self,
-	// 	_node: &FragmentDefinition,
-	// 	_visitor_context: &mut NoFragmentsCycleHelper<'a>,
-	// ) {
-	// 	let node = _node.clone();
-	// 	detect_cycles(node, _visitor_context);
-	// 	false;
-	// }
-
 	fn leave_document(
 		&self,
 		_node: &Document,
@@ -72,9 +47,9 @@ impl<'a> QueryVisitor<NoFragmentsCycleHelper<'a>> for NoFragmentsCycle {
 	}
 }
 
-// This does a straight-forward DFS to find cycles.
-// It does not terminate when a cycle was found but continues to explore
-// the graph to find all possible cycles.
+/// This does a straight-forward DFS to find cycles.
+/// It does not terminate when a cycle was found but continues to explore
+/// the graph to find all possible cycles.
 fn detect_cycles(fragment: FragmentDefinition, ctx: &mut NoFragmentsCycleHelper) {
 	if ctx.visited_fragments.contains_key(fragment.name.as_str()) {
 		return;
