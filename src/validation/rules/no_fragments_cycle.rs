@@ -1,5 +1,3 @@
-// use graphql_parser::query::Selection;
-
 use super::ValidationRule;
 use crate::static_graphql::query::{Document, FragmentDefinition, FragmentSpread, Selection};
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
@@ -200,7 +198,128 @@ fn spreading_twice_indirectly_is_not_circular() {
 }
 
 #[test]
-fn no_spreading_indirectly_within_inline_fragment() {
+fn double_spread_within_abstract_types() {
+	use crate::validation::test_utils::*;
+
+	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+	let errors = test_operation_with_schema(
+		"fragment nameFragment on Pet {
+			... on Dog { name }
+			... on Cat { name }
+		      }
+		
+		      fragment spreadsInAnon on Pet {
+			... on Dog { ...nameFragment }
+			... on Cat { ...nameFragment }
+		      }",
+		TEST_SCHEMA,
+		&mut plan,
+	);
+
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 0);
+}
+
+#[test]
+fn does_not_false_positive_on_unknown_fragment() {
+	use crate::validation::test_utils::*;
+
+	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+	let errors = test_operation_with_schema(
+		"fragment nameFragment on Pet {
+			...UnknownFragment
+		      }",
+		TEST_SCHEMA,
+		&mut plan,
+	);
+
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 0);
+}
+
+#[test]
+fn spreading_recursively_within_field_fails() {
+	use crate::validation::test_utils::*;
+
+	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+	let errors = test_operation_with_schema(
+		"fragment fragA on Human { relatives { ...fragA } }",
+		TEST_SCHEMA,
+		&mut plan,
+	);
+
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 1);
+}
+
+#[test]
+fn no_spreading_itself_directly() {
+	use crate::validation::test_utils::*;
+
+	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+	let errors = test_operation_with_schema(
+		"fragment fragA on Dog { ...fragA }",
+		TEST_SCHEMA,
+		&mut plan,
+	);
+
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 1);
+}
+
+#[test]
+fn no_spreading_itself_directly_within_inline_fragment() {
+	use crate::validation::test_utils::*;
+
+	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+	let errors = test_operation_with_schema(
+		"fragment fragA on Pet {
+			... on Dog {
+			  ...fragA
+			}
+		      }",
+		TEST_SCHEMA,
+		&mut plan,
+	);
+
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 1);
+}
+
+#[test]
+fn no_spreading_itself_indirectly() {
+	use crate::validation::test_utils::*;
+
+	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+	let errors = test_operation_with_schema(
+		"fragment fragA on Dog { ...fragB }
+		fragment fragB on Dog { ...fragA }",
+		TEST_SCHEMA,
+		&mut plan,
+	);
+
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 1);
+}
+
+#[test]
+fn no_spreading_itself_indirectly_reports_opposite_order() {
+	use crate::validation::test_utils::*;
+
+	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+	let errors = test_operation_with_schema(
+		"fragment fragB on Dog { ...fragA }
+		fragment fragA on Dog { ...fragB }",
+		TEST_SCHEMA,
+		&mut plan,
+	);
+
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 1);
+}
+
+#[test]
+fn no_spreading_itself_indirectly_within_inline_fragment() {
 	use crate::validation::test_utils::*;
 
 	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
@@ -219,6 +338,79 @@ fn no_spreading_indirectly_within_inline_fragment() {
 		&mut plan,
 	);
 
-	let mes = get_messages(&errors);
-	assert_eq!(mes.len(), 1);
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 1);
+}
+
+#[test]
+fn no_spreading_itself_deeply() {
+	use crate::validation::test_utils::*;
+
+	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+	let errors = test_operation_with_schema(
+		"fragment fragA on Dog { ...fragB }
+		fragment fragB on Dog { ...fragC }
+		fragment fragC on Dog { ...fragO }
+		fragment fragX on Dog { ...fragY }
+		fragment fragY on Dog { ...fragZ }
+		fragment fragZ on Dog { ...fragO }
+		fragment fragO on Dog { ...fragP }
+		fragment fragP on Dog { ...fragA, ...fragX }",
+		TEST_SCHEMA,
+		&mut plan,
+	);
+
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 2);
+}
+
+#[test]
+fn no_spreading_itself_deeply_two_paths() {
+	use crate::validation::test_utils::*;
+
+	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+	let errors = test_operation_with_schema(
+		"fragment fragA on Dog { ...fragB, ...fragC }
+	fragment fragB on Dog { ...fragA }
+	fragment fragC on Dog { ...fragA }",
+		TEST_SCHEMA,
+		&mut plan,
+	);
+
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 2);
+}
+
+#[test]
+fn no_spreading_itself_deeply_two_paths_alt_traverse_order() {
+	use crate::validation::test_utils::*;
+
+	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+	let errors = test_operation_with_schema(
+		"fragment fragA on Dog { ...fragC }
+		fragment fragB on Dog { ...fragC }
+		fragment fragC on Dog { ...fragA, ...fragB }",
+		TEST_SCHEMA,
+		&mut plan,
+	);
+
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 2);
+}
+
+#[test]
+fn no_spreading_itself_deeply_and_immediately() {
+	use crate::validation::test_utils::*;
+
+	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+	let errors = test_operation_with_schema(
+		"fragment fragA on Dog { ...fragB }
+		fragment fragB on Dog { ...fragB, ...fragC }
+		fragment fragC on Dog { ...fragA, ...fragB }",
+		TEST_SCHEMA,
+		&mut plan,
+	);
+
+	let mes = get_messages(&errors).len();
+	assert_eq!(mes, 3);
 }
