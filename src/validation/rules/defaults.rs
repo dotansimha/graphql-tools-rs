@@ -3,7 +3,8 @@ use crate::validation::validate::ValidationPlan;
 use super::{
     FieldsOnCorrectType, FragmentsOnCompositeTypes, KnownFragmentNames, KnownTypeNames,
     LeafFieldSelections, LoneAnonymousOperation, NoUnusedFragments, OverlappingFieldsCanBeMerged,
-    SingleFieldSubscriptions, UniqueFragmentNames, UniqueOperationNames, VariablesAreInputTypes,
+    SingleFieldSubscriptions, UniqueFragmentNames, UniqueInputFieldNames, UniqueOperationNames,
+    VariablesAreInputTypes,
 };
 
 pub fn default_rules_validation_plan() -> ValidationPlan {
@@ -21,6 +22,7 @@ pub fn default_rules_validation_plan() -> ValidationPlan {
     plan.add_rule(Box::new(KnownFragmentNames {}));
     plan.add_rule(Box::new(NoUnusedFragments {}));
     plan.add_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    plan.add_rule(Box::new(UniqueInputFieldNames {}));
 
     plan
 }
