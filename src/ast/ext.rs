@@ -1,4 +1,4 @@
-use crate::static_graphql::query::{self};
+use crate::static_graphql::query::{self, FragmentSpread};
 use crate::static_graphql::schema::{
     self, Field, InterfaceType, ObjectType, TypeDefinition, UnionType,
 };
@@ -235,5 +235,39 @@ impl AstNodeWithName for query::OperationDefinition {
 impl AstNodeWithName for query::FragmentDefinition {
     fn node_name(&self) -> Option<String> {
         Some(self.name.clone())
+    }
+}
+
+impl AstNodeWithName for query::FragmentSpread {
+    fn node_name(&self) -> Option<String> {
+        Some(self.fragment_name.clone())
+    }
+}
+
+pub trait FragmentSpreadExtraction {
+    fn get_recursive_fragment_spreads(&self) -> Vec<FragmentSpread>;
+    fn get_fragment_spreads(&self) -> Vec<FragmentSpread>;
+}
+
+impl FragmentSpreadExtraction for query::SelectionSet {
+    fn get_recursive_fragment_spreads(&self) -> Vec<FragmentSpread> {
+        self.items
+            .iter()
+            .flat_map(|v| match v {
+                query::Selection::FragmentSpread(f) => vec![f.clone()],
+                query::Selection::Field(f) => f.selection_set.get_fragment_spreads(),
+                query::Selection::InlineFragment(f) => f.selection_set.get_fragment_spreads(),
+            })
+            .collect()
+    }
+
+    fn get_fragment_spreads(&self) -> Vec<FragmentSpread> {
+        self.items
+            .iter()
+            .flat_map(|v| match v {
+                query::Selection::FragmentSpread(f) => vec![f.clone()],
+                _ => vec![],
+            })
+            .collect()
     }
 }
