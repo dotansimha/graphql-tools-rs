@@ -51,7 +51,7 @@ fn detect_cycles(fragment: &FragmentDefinition, ctx: &mut NoFragmentsCycleHelper
     // mark fragment as visited, to ensure we are not going to iterate fragments in an endless loop
     ctx.visited_fragments.insert(fragment.name.clone(), true);
 
-    let spreads = fragment.get_fragment_spreads();
+    let spreads = fragment.selection_set.get_recursive_fragment_spreads();
 
     if spreads.len() == 0 {
         return;

@@ -245,23 +245,29 @@ impl AstNodeWithName for query::FragmentSpread {
 }
 
 pub trait FragmentSpreadExtraction {
+    fn get_recursive_fragment_spreads(&self) -> Vec<FragmentSpread>;
     fn get_fragment_spreads(&self) -> Vec<FragmentSpread>;
 }
 
-impl FragmentSpreadExtraction for query::FragmentDefinition {
-    fn get_fragment_spreads(&self) -> Vec<FragmentSpread> {
-        self.selection_set
-            .items
+impl FragmentSpreadExtraction for query::SelectionSet {
+    fn get_recursive_fragment_spreads(&self) -> Vec<FragmentSpread> {
+        self.items
             .iter()
-            .map(|f| {
-                if let Selection::FragmentSpread(fragment_spread) = f {
-                    Some(fragment_spread.clone())
-                } else {
-                    None
-                }
+            .flat_map(|v| match v {
+                query::Selection::FragmentSpread(f) => vec![f.clone()],
+                query::Selection::Field(f) => f.selection_set.get_fragment_spreads(),
+                query::Selection::InlineFragment(f) => f.selection_set.get_fragment_spreads(),
             })
-            .filter(|x| x.is_some())
-            .map(|x| x.unwrap())
-            .collect::<Vec<FragmentSpread>>()
+            .collect()
+    }
+
+    fn get_fragment_spreads(&self) -> Vec<FragmentSpread> {
+        self.items
+            .iter()
+            .flat_map(|v| match v {
+                query::Selection::FragmentSpread(f) => vec![f.clone()],
+                _ => vec![],
+            })
+            .collect()
     }
 }
