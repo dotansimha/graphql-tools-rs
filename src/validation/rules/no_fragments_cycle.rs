@@ -13,197 +13,184 @@ use std::collections::HashMap;
 pub struct NoFragmentsCycle;
 
 struct NoFragmentsCycleHelper<'a> {
-	/// Tracks already visited fragments to maintain O(N) and to ensure that cycles
-	/// are not redundantly reported.
-	visited_fragments: HashMap<String, bool>,
-	/// Array of AST nodes used to produce meaningful errors
-	fragment_spreads: Vec<FragmentSpread>,
-	/// Position in the spread path
-	spread_path_index_by_name: HashMap<String, Option<usize>>,
-	validation_context: &'a ValidationContext<'a>,
-	errors_context: ValidationErrorContext<'a>,
+    /// Tracks already visited fragments to maintain O(N) and to ensure that cycles
+    /// are not redundantly reported.
+    visited_fragments: HashMap<String, bool>,
+    /// Array of AST nodes used to produce meaningful errors
+    fragment_spreads: Vec<FragmentSpread>,
+    /// Position in the spread path
+    spread_path_index_by_name: HashMap<String, Option<usize>>,
+    validation_context: &'a ValidationContext<'a>,
+    errors_context: ValidationErrorContext<'a>,
 }
 
 impl<'a> QueryVisitor<NoFragmentsCycleHelper<'a>> for NoFragmentsCycle {
-	fn leave_document(
-		&self,
-		_node: &Document,
-		_visitor_context: &mut NoFragmentsCycleHelper<'a>,
-	) {
-		_visitor_context
-			.validation_context
-			.fragments
-			.iter()
-			.for_each(|(fragment_name, fragment)| {
-				if !_visitor_context
-					.visited_fragments
-					.contains_key(fragment_name)
-				{
-					detect_cycles(fragment.clone(), _visitor_context);
-				}
-			});
-	}
+    fn leave_document(&self, _node: &Document, _visitor_context: &mut NoFragmentsCycleHelper<'a>) {
+        _visitor_context
+            .validation_context
+            .fragments
+            .iter()
+            .for_each(|(fragment_name, fragment)| {
+                if !_visitor_context
+                    .visited_fragments
+                    .contains_key(fragment_name)
+                {
+                    detect_cycles(fragment.clone(), _visitor_context);
+                }
+            });
+    }
 }
 
 /// This does a straight-forward DFS to find cycles.
 /// It does not terminate when a cycle was found but continues to explore
 /// the graph to find all possible cycles.
 fn detect_cycles(fragment: FragmentDefinition, ctx: &mut NoFragmentsCycleHelper) {
-	if ctx.visited_fragments.contains_key(fragment.name.as_str()) {
-		return;
-	}
+    if ctx.visited_fragments.contains_key(fragment.name.as_str()) {
+        return;
+    }
 
-	// mark fragment as visited
-	ctx.visited_fragments.insert(fragment.name.clone(), true);
+    // mark fragment as visited
+    ctx.visited_fragments.insert(fragment.name.clone(), true);
 
-	// get all the fragment spreads for the current fragment
-	let spreads: Vec<FragmentSpread> = fragment
-		.selection_set
-		.items
-		.iter()
-		.map(|f| {
-			if let Selection::FragmentSpread(fragment_spread) = f {
-				Some(fragment_spread.clone())
-			} else {
-				None
-			}
-		})
-		.filter(|x| x.is_some())
-		.map(|x| x.unwrap())
-		.collect::<Vec<FragmentSpread>>();
+    // get all the fragment spreads for the current fragment
+    let spreads: Vec<FragmentSpread> = fragment
+        .selection_set
+        .items
+        .iter()
+        .map(|f| {
+            if let Selection::FragmentSpread(fragment_spread) = f {
+                Some(fragment_spread.clone())
+            } else {
+                None
+            }
+        })
+        .filter(|x| x.is_some())
+        .map(|x| x.unwrap())
+        .collect::<Vec<FragmentSpread>>();
 
-	if spreads.len() == 0 {
-		return;
-	}
+    if spreads.len() == 0 {
+        return;
+    }
 
-	ctx.spread_path_index_by_name
-		.insert(fragment.name.clone(), Some(spreads.len()));
+    ctx.spread_path_index_by_name
+        .insert(fragment.name.clone(), Some(spreads.len()));
 
-	for spread_node in spreads {
-		let spread_name = spread_node.fragment_name.clone();
-		let cycle_index = ctx.spread_path_index_by_name.get(spread_name.as_str());
-		ctx.fragment_spreads.push(spread_node.clone());
+    for spread_node in spreads {
+        let spread_name = spread_node.fragment_name.clone();
+        let cycle_index = ctx.spread_path_index_by_name.get(spread_name.as_str());
+        ctx.fragment_spreads.push(spread_node.clone());
 
-		match cycle_index {
-			Some(index) => match index {
-				Some(index) => {
-					let cycle_path = &ctx.fragment_spreads[0..index.clone()];
-					ctx.errors_context.report_error(ValidationError {
-						locations: cycle_path
-							.iter()
-							.map(|f| f.position.clone())
-							.collect(),
-						message: format!(
-									"Cannot spread fragment \"{}\" within itself.",
-									spread_name
-								),
-					})
-				}
-				None => {
-					let fragment_spread = ctx
-						.validation_context
-						.fragments
-						.get(spread_name.as_str());
-					if fragment_spread.is_some() {
-						detect_cycles(
-							fragment_spread.unwrap().clone(),
-							ctx,
-						);
-					}
-				}
-			},
-			None => {
-				let fragment_spread =
-					ctx.validation_context.fragments.get(spread_name.as_str());
-				if fragment_spread.is_some() {
-					detect_cycles(fragment_spread.unwrap().clone(), ctx);
-				}
-			}
-		}
+        match cycle_index {
+            Some(index) => match index {
+                Some(index) => {
+                    let cycle_path = &ctx.fragment_spreads[0..index.clone()];
+                    ctx.errors_context.report_error(ValidationError {
+                        locations: cycle_path.iter().map(|f| f.position.clone()).collect(),
+                        message: format!(
+                            "Cannot spread fragment \"{}\" within itself.",
+                            spread_name
+                        ),
+                    })
+                }
+                None => {
+                    let fragment_spread =
+                        ctx.validation_context.fragments.get(spread_name.as_str());
+                    if fragment_spread.is_some() {
+                        detect_cycles(fragment_spread.unwrap().clone(), ctx);
+                    }
+                }
+            },
+            None => {
+                let fragment_spread = ctx.validation_context.fragments.get(spread_name.as_str());
+                if fragment_spread.is_some() {
+                    detect_cycles(fragment_spread.unwrap().clone(), ctx);
+                }
+            }
+        }
 
-		ctx.fragment_spreads.pop();
-	}
-	ctx.spread_path_index_by_name
-		.insert(fragment.name.clone(), None);
+        ctx.fragment_spreads.pop();
+    }
+    ctx.spread_path_index_by_name
+        .insert(fragment.name.clone(), None);
 }
 
 impl<'a> NoFragmentsCycleHelper<'a> {
-	fn new(validation_context: &'a ValidationContext<'a>) -> Self {
-		NoFragmentsCycleHelper {
-			visited_fragments: HashMap::new(),
-			spread_path_index_by_name: HashMap::new(),
-			fragment_spreads: Vec::new(),
-			validation_context: validation_context,
-			errors_context: ValidationErrorContext::new(validation_context),
-		}
-	}
+    fn new(validation_context: &'a ValidationContext<'a>) -> Self {
+        NoFragmentsCycleHelper {
+            visited_fragments: HashMap::new(),
+            spread_path_index_by_name: HashMap::new(),
+            fragment_spreads: Vec::new(),
+            validation_context,
+            errors_context: ValidationErrorContext::new(validation_context),
+        }
+    }
 }
 
 impl ValidationRule for NoFragmentsCycle {
-	fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-		let operation = ctx.operation.clone();
-		let mut helper = NoFragmentsCycleHelper::new(ctx);
-		self.visit_document(&operation, &mut helper);
-		return helper.errors_context.errors;
-	}
+    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
+        let operation = ctx.operation.clone();
+        let mut helper = NoFragmentsCycleHelper::new(ctx);
+        self.visit_document(&operation, &mut helper);
+        return helper.errors_context.errors;
+    }
 }
 
 #[test]
 fn single_reference_is_valid() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Dog { ...fragB }
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment fragA on Dog { ...fragB }
 		fragment fragB on Dog { name }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 0);
+    let mes = get_messages(&errors).len();
+    assert_eq!(mes, 0);
 }
 
 #[test]
 fn spreading_twice_is_not_circular() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Dog { ...fragB, ...fragB }
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment fragA on Dog { ...fragB, ...fragB }
 		fragment fragB on Dog { name }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 0);
+    let mes = get_messages(&errors).len();
+    assert_eq!(mes, 0);
 }
 
 #[test]
 fn spreading_twice_indirectly_is_not_circular() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Dog { ...fragB, ...fragC }
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment fragA on Dog { ...fragB, ...fragC }
 		fragment fragB on Dog { ...fragC }
 		fragment fragC on Dog { name }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 0);
+    let mes = get_messages(&errors).len();
+    assert_eq!(mes, 0);
 }
 
 #[test]
 fn double_spread_within_abstract_types() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment nameFragment on Pet {
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment nameFragment on Pet {
 			... on Dog { name }
 			... on Cat { name }
 		      }
@@ -212,119 +199,127 @@ fn double_spread_within_abstract_types() {
 			... on Dog { ...nameFragment }
 			... on Cat { ...nameFragment }
 		      }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 0);
+    let mes = get_messages(&errors).len();
+    assert_eq!(mes, 0);
 }
 
 #[test]
 fn does_not_false_positive_on_unknown_fragment() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment nameFragment on Pet {
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment nameFragment on Pet {
 			...UnknownFragment
 		      }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 0);
+    let mes = get_messages(&errors).len();
+    assert_eq!(mes, 0);
 }
 
 #[test]
 fn spreading_recursively_within_field_fails() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Human { relatives { ...fragA } }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment fragA on Human { relatives { ...fragA } }",
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 1);
+    let mes = get_messages(&errors);
+    assert_eq!(mes.len(), 1);
+    assert_eq!(mes, vec!["Cannot spread fragment \"fragA\" within itself."]);
 }
 
 #[test]
 fn no_spreading_itself_directly() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Dog { ...fragA }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors =
+        test_operation_with_schema("fragment fragA on Dog { ...fragA }", TEST_SCHEMA, &mut plan);
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 1);
+    let mes = get_messages(&errors);
+    assert_eq!(mes.len(), 1);
+    assert_eq!(mes, vec!["Cannot spread fragment \"fragA\" within itself."]);
 }
 
 #[test]
 fn no_spreading_itself_directly_within_inline_fragment() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Pet {
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment fragA on Pet {
 			... on Dog {
 			  ...fragA
 			}
 		      }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 1);
+    let mes = get_messages(&errors);
+    assert_eq!(mes.len(), 1);
+    assert_eq!(mes, vec!["Cannot spread fragment \"fragA\" within itself."]);
 }
 
 #[test]
 fn no_spreading_itself_indirectly() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Dog { ...fragB }
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment fragA on Dog { ...fragB }
 		fragment fragB on Dog { ...fragA }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 1);
+    let mes = get_messages(&errors);
+    assert_eq!(mes.len(), 1);
+    assert_eq!(
+        mes,
+        vec!["Cannot spread fragment \"fragA\" within itself via \"fragB\"."]
+    );
 }
 
 #[test]
 fn no_spreading_itself_indirectly_reports_opposite_order() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragB on Dog { ...fragA }
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment fragB on Dog { ...fragA }
 		fragment fragA on Dog { ...fragB }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 1);
+    let mes = get_messages(&errors);
+    assert_eq!(mes.len(), 1);
+    assert_eq!(
+        mes,
+        vec!["Cannot spread fragment \"fragB\" within itself via \"fragA\"."]
+    );
 }
 
 #[test]
 fn no_spreading_itself_indirectly_within_inline_fragment() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Pet {
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment fragA on Pet {
 			... on Dog {
 			  ...fragB
 			}
@@ -334,21 +329,25 @@ fn no_spreading_itself_indirectly_within_inline_fragment() {
 			  ...fragA
 			}
 		      }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 1);
+    let mes = get_messages(&errors);
+    assert_eq!(mes.len(), 1);
+    assert_eq!(
+        mes,
+        vec!["Cannot spread fragment \"fragA\" within itself via \"fragB\"."]
+    );
 }
 
 #[test]
 fn no_spreading_itself_deeply() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Dog { ...fragB }
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment fragA on Dog { ...fragB }
 		fragment fragB on Dog { ...fragC }
 		fragment fragC on Dog { ...fragO }
 		fragment fragX on Dog { ...fragY }
@@ -356,61 +355,94 @@ fn no_spreading_itself_deeply() {
 		fragment fragZ on Dog { ...fragO }
 		fragment fragO on Dog { ...fragP }
 		fragment fragP on Dog { ...fragA, ...fragX }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 2);
+    let mes = get_messages(&errors);
+    assert_eq!(mes.len(), 2);
+    assert_eq!(
+        mes,
+        vec![
+            "Cannot spread fragment \"fragA\" within itself via \"fragB\", \"fragC\", \"fragO\", \"fragP\".",
+            "Cannot spread fragment \"fragO\" within itself via \"fragP\", \"fragX\", \"fragY\", \"fragZ\".",
+        ]
+    );
 }
 
 #[test]
 fn no_spreading_itself_deeply_two_paths() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Dog { ...fragB, ...fragC }
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "fragment fragA on Dog { ...fragB, ...fragC }
 	fragment fragB on Dog { ...fragA }
 	fragment fragC on Dog { ...fragA }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 2);
+    let mes = get_messages(&errors);
+    assert_eq!(mes.len(), 2);
+    assert_eq!(
+        mes,
+        vec![
+            "Cannot spread fragment \"fragA\" within itself via \"fragB\".",
+            "Cannot spread fragment \"fragA\" within itself via \"fragC\".",
+        ]
+    );
 }
 
 #[test]
 fn no_spreading_itself_deeply_two_paths_alt_traverse_order() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Dog { ...fragC }
-		fragment fragB on Dog { ...fragC }
-		fragment fragC on Dog { ...fragA, ...fragB }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "
+        fragment fragA on Dog { ...fragC }
+        fragment fragB on Dog { ...fragC }
+        fragment fragC on Dog { ...fragA, ...fragB }
+        ",
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 2);
+    let mes = get_messages(&errors);
+    assert_eq!(mes.len(), 2);
+    assert_eq!(
+        mes,
+        vec![
+            "Cannot spread fragment \"fragA\" within itself via \"fragC\".",
+            "Cannot spread fragment \"fragC\" within itself via \"fragB\".",
+        ]
+    );
 }
 
 #[test]
 fn no_spreading_itself_deeply_and_immediately() {
-	use crate::validation::test_utils::*;
+    use crate::validation::test_utils::*;
 
-	let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-	let errors = test_operation_with_schema(
-		"fragment fragA on Dog { ...fragB }
-		fragment fragB on Dog { ...fragB, ...fragC }
-		fragment fragC on Dog { ...fragA, ...fragB }",
-		TEST_SCHEMA,
-		&mut plan,
-	);
+    let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
+    let errors = test_operation_with_schema(
+        "
+          fragment fragA on Dog { ...fragB }
+		      fragment fragB on Dog { ...fragB, ...fragC }
+		      fragment fragC on Dog { ...fragA, ...fragB }
+        ",
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
-	let mes = get_messages(&errors).len();
-	assert_eq!(mes, 3);
+    let mes = get_messages(&errors);
+    assert_eq!(mes.len(), 3);
+    assert_eq!(
+        mes,
+        vec![
+            "Cannot spread fragment \"fragB\" within itself.",
+            "Cannot spread fragment \"fragA\" within itself via \"fragB\", \"fragC\".",
+            "Cannot spread fragment \"fragB\" within itself via \"fragC\".",
+        ]
+    );
 }
