@@ -20,8 +20,7 @@ pub struct NoFragmentsCycle;
 
 struct NoFragmentsCycleHelper<'a> {
     visited_fragments: HashMap<String, bool>,
-    spread_paths: Vec<FragmentSpread>,
-    spread_path_index_by_name: HashMap<String, usize>,
+
     errors_context: ValidationErrorContext<'a>,
 }
 
@@ -31,14 +30,26 @@ impl<'a> QueryVisitor<NoFragmentsCycleHelper<'a>> for NoFragmentsCycle {
         fragment: &FragmentDefinition,
         visitor_context: &mut NoFragmentsCycleHelper<'a>,
     ) {
-        detect_cycles(fragment, visitor_context);
+        let mut spread_paths: Vec<FragmentSpread> = vec![];
+        let mut spread_path_index_by_name: HashMap<String, usize> = HashMap::new();
+        detect_cycles(
+            fragment,
+            &mut spread_paths,
+            &mut spread_path_index_by_name,
+            visitor_context,
+        );
     }
 }
 
 /// This does a straight-forward DFS to find cycles.
 /// It does not terminate when a cycle was found but continues to explore
 /// the graph to find all possible cycles.
-fn detect_cycles(fragment: &FragmentDefinition, ctx: &mut NoFragmentsCycleHelper) {
+fn detect_cycles(
+    fragment: &FragmentDefinition,
+    spread_paths: &mut Vec<FragmentSpread>,
+    spread_path_index_by_name: &mut HashMap<String, usize>,
+    ctx: &mut NoFragmentsCycleHelper,
+) {
     if ctx.visited_fragments.contains_key(&fragment.name) {
         return;
     }
@@ -51,22 +62,20 @@ fn detect_cycles(fragment: &FragmentDefinition, ctx: &mut NoFragmentsCycleHelper
         return;
     }
 
-    ctx.spread_path_index_by_name
-        .insert(fragment.name.clone(), ctx.spread_paths.len());
+    spread_path_index_by_name.insert(fragment.name.clone(), spread_paths.len());
 
     for spread_node in spread_nodes {
         let spread_name = spread_node.fragment_name.clone();
-        let maybe_cycle_index = ctx.spread_path_index_by_name.get(&spread_name);
-        ctx.spread_paths.push(spread_node);
+        spread_paths.push(spread_node);
 
-        match maybe_cycle_index {
+        match spread_path_index_by_name.get(&spread_name) {
             None => {
                 if let Some(spread_def) = ctx.errors_context.ctx.fragments.get(&spread_name) {
-                    detect_cycles(spread_def, ctx);
+                    detect_cycles(spread_def, spread_paths, spread_path_index_by_name, ctx);
                 }
             }
             Some(cycle_index) => {
-                let cycle_path = &ctx.spread_paths[cycle_index.clone()..];
+                let cycle_path = &spread_paths[cycle_index.clone()..];
                 let via_path = match cycle_path.len() {
                     0 => vec![],
                     _ => cycle_path[0..cycle_path.len() - 1]
@@ -89,18 +98,16 @@ fn detect_cycles(fragment: &FragmentDefinition, ctx: &mut NoFragmentsCycleHelper
             }
         }
 
-        ctx.spread_paths.pop();
+        spread_paths.pop();
     }
 
-    ctx.spread_path_index_by_name.remove(&fragment.name);
+    spread_path_index_by_name.remove(&fragment.name);
 }
 
 impl<'a> NoFragmentsCycleHelper<'a> {
     fn new(validation_context: &'a ValidationContext<'a>) -> Self {
         NoFragmentsCycleHelper {
             visited_fragments: HashMap::new(),
-            spread_paths: Vec::new(),
-            spread_path_index_by_name: HashMap::new(),
             errors_context: ValidationErrorContext::new(validation_context),
         }
     }
