@@ -1,4 +1,4 @@
-use crate::static_graphql::query::{self};
+use crate::static_graphql::query::{self, FragmentSpread, Selection};
 use crate::static_graphql::schema::{
     self, Field, InterfaceType, ObjectType, TypeDefinition, UnionType,
 };
@@ -235,5 +235,33 @@ impl AstNodeWithName for query::OperationDefinition {
 impl AstNodeWithName for query::FragmentDefinition {
     fn node_name(&self) -> Option<String> {
         Some(self.name.clone())
+    }
+}
+
+impl AstNodeWithName for query::FragmentSpread {
+    fn node_name(&self) -> Option<String> {
+        Some(self.fragment_name.clone())
+    }
+}
+
+pub trait FragmentSpreadExtraction {
+    fn get_fragment_spreads(&self) -> Vec<FragmentSpread>;
+}
+
+impl FragmentSpreadExtraction for query::FragmentDefinition {
+    fn get_fragment_spreads(&self) -> Vec<FragmentSpread> {
+        self.selection_set
+            .items
+            .iter()
+            .map(|f| {
+                if let Selection::FragmentSpread(fragment_spread) = f {
+                    Some(fragment_spread.clone())
+                } else {
+                    None
+                }
+            })
+            .filter(|x| x.is_some())
+            .map(|x| x.unwrap())
+            .collect::<Vec<FragmentSpread>>()
     }
 }
