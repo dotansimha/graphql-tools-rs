@@ -54,7 +54,7 @@ cargo add graphql-tools
 - [x] UniqueFragmentNames
 - [x] KnownFragmentNames
 - [x] NoUnusedFragments
-- [ ] PossibleFragmentSpreads
+- [x] PossibleFragmentSpreads
 - [x] NoFragmentCycles
 - [ ] UniqueVariableNames
 - [ ] NoUndefinedVariables

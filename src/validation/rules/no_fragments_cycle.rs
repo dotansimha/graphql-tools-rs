@@ -20,7 +20,6 @@ pub struct NoFragmentsCycle;
 
 struct NoFragmentsCycleHelper<'a> {
     visited_fragments: HashMap<String, bool>,
-
     errors_context: ValidationErrorContext<'a>,
 }
 
