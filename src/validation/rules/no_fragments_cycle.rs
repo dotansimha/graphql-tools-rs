@@ -69,16 +69,16 @@ fn detect_cycles(fragment: &FragmentDefinition, ctx: &mut NoFragmentsCycleHelper
             let via_path = cycle_path[0..cycle_path.len() - 1]
                 .into_iter()
                 .map(|s| format!("\"{}\"", s.node_name().unwrap()))
-                .collect::<Vec<String>>()
-                .join(", ");
+                .collect::<Vec<String>>();
 
             ctx.errors_context.report_error(ValidationError {
                 locations: cycle_path.iter().map(|f| f.position.clone()).collect(),
-                message: match via_path.eq("") {
-                    true => format!("Cannot spread fragment \"{}\" within itself.", spread_name),
-                    false => format!(
+                message: match via_path.len() {
+                    0 => format!("Cannot spread fragment \"{}\" within itself.", spread_name),
+                    _ => format!(
                         "Cannot spread fragment \"{}\" within itself via {}.",
-                        spread_name, via_path
+                        spread_name,
+                        via_path.join(", ")
                     ),
                 },
             })
