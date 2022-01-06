@@ -19,14 +19,9 @@ use std::collections::HashMap;
 pub struct NoFragmentsCycle;
 
 struct NoFragmentsCycleHelper<'a> {
-    /// Tracks already visited fragments to maintain O(N) and to ensure that cycles
-    /// are not redundantly reported.
     visited_fragments: HashMap<String, bool>,
-    /// Array of AST nodes used to produce meaningful errors
-    fragment_spreads: Vec<FragmentSpread>,
-    /// Position in the spread path
+    spread_paths: Vec<FragmentSpread>,
     spread_path_index_by_name: HashMap<String, usize>,
-    validation_context: &'a ValidationContext<'a>,
     errors_context: ValidationErrorContext<'a>,
 }
 
@@ -48,47 +43,53 @@ fn detect_cycles(fragment: &FragmentDefinition, ctx: &mut NoFragmentsCycleHelper
         return;
     }
 
-    // mark fragment as visited, to ensure we are not going to iterate fragments in an endless loop
     ctx.visited_fragments.insert(fragment.name.clone(), true);
 
-    let spreads = fragment.selection_set.get_recursive_fragment_spreads();
+    let spread_nodes = fragment.selection_set.get_recursive_fragment_spreads();
 
-    if spreads.len() == 0 {
+    if spread_nodes.len() == 0 {
         return;
     }
 
     ctx.spread_path_index_by_name
-        .insert(fragment.name.clone(), spreads.len());
+        .insert(fragment.name.clone(), ctx.spread_paths.len());
 
-    for spread_node in spreads {
+    for spread_node in spread_nodes {
         let spread_name = spread_node.fragment_name.clone();
-        ctx.fragment_spreads.push(spread_node);
+        let maybe_cycle_index = ctx.spread_path_index_by_name.get(&spread_name);
+        ctx.spread_paths.push(spread_node);
 
-        if let Some(index) = ctx.spread_path_index_by_name.get(&spread_name) {
-            let cycle_path = &ctx.fragment_spreads[0..index.clone()];
-            let via_path = cycle_path[0..cycle_path.len() - 1]
-                .into_iter()
-                .map(|s| format!("\"{}\"", s.node_name().unwrap()))
-                .collect::<Vec<String>>();
+        match maybe_cycle_index {
+            None => {
+                if let Some(spread_def) = ctx.errors_context.ctx.fragments.get(&spread_name) {
+                    detect_cycles(spread_def, ctx);
+                }
+            }
+            Some(cycle_index) => {
+                let cycle_path = &ctx.spread_paths[cycle_index.clone()..];
+                let via_path = match cycle_path.len() {
+                    0 => vec![],
+                    _ => cycle_path[0..cycle_path.len() - 1]
+                        .iter()
+                        .map(|s| format!("\"{}\"", s.node_name().unwrap()))
+                        .collect::<Vec<String>>(),
+                };
 
-            ctx.errors_context.report_error(ValidationError {
-                locations: cycle_path.iter().map(|f| f.position.clone()).collect(),
-                message: match via_path.len() {
-                    0 => format!("Cannot spread fragment \"{}\" within itself.", spread_name),
-                    _ => format!(
-                        "Cannot spread fragment \"{}\" within itself via {}.",
-                        spread_name,
-                        via_path.join(", ")
-                    ),
-                },
-            })
-        } else {
-            if let Some(fragment_spread) = ctx.validation_context.fragments.get(&spread_name) {
-                detect_cycles(fragment_spread, ctx);
+                ctx.errors_context.report_error(ValidationError {
+                    locations: cycle_path.iter().map(|f| f.position.clone()).collect(),
+                    message: match via_path.len() {
+                        0 => format!("Cannot spread fragment \"{}\" within itself.", spread_name),
+                        _ => format!(
+                            "Cannot spread fragment \"{}\" within itself via {}.",
+                            spread_name,
+                            via_path.join(", ")
+                        ),
+                    },
+                })
             }
         }
 
-        ctx.fragment_spreads.pop();
+        ctx.spread_paths.pop();
     }
 
     ctx.spread_path_index_by_name.remove(&fragment.name);
@@ -98,9 +99,8 @@ impl<'a> NoFragmentsCycleHelper<'a> {
     fn new(validation_context: &'a ValidationContext<'a>) -> Self {
         NoFragmentsCycleHelper {
             visited_fragments: HashMap::new(),
+            spread_paths: Vec::new(),
             spread_path_index_by_name: HashMap::new(),
-            fragment_spreads: Vec::new(),
-            validation_context,
             errors_context: ValidationErrorContext::new(validation_context),
         }
     }
@@ -108,10 +108,10 @@ impl<'a> NoFragmentsCycleHelper<'a> {
 
 impl ValidationRule for NoFragmentsCycle {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let operation = ctx.operation.clone();
         let mut helper = NoFragmentsCycleHelper::new(ctx);
-        self.visit_document(&operation, &mut helper);
-        return helper.errors_context.errors;
+        self.visit_document(&ctx.operation, &mut helper);
+
+        helper.errors_context.errors
     }
 }
 
@@ -225,8 +225,12 @@ fn no_spreading_itself_directly() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
-    let errors =
-        test_operation_with_schema("fragment fragA on Dog { ...fragA }", TEST_SCHEMA, &mut plan);
+    let errors = test_operation_with_schema(
+        "
+        fragment fragA on Dog { ...fragA }",
+        TEST_SCHEMA,
+        &mut plan,
+    );
 
     let mes = get_messages(&errors);
     assert_eq!(mes.len(), 1);
@@ -328,13 +332,13 @@ fn no_spreading_itself_deeply() {
     let mut plan = create_plan_from_rule(Box::new(NoFragmentsCycle {}));
     let errors = test_operation_with_schema(
         "fragment fragA on Dog { ...fragB }
-		fragment fragB on Dog { ...fragC }
-		fragment fragC on Dog { ...fragO }
-		fragment fragX on Dog { ...fragY }
-		fragment fragY on Dog { ...fragZ }
-		fragment fragZ on Dog { ...fragO }
-		fragment fragO on Dog { ...fragP }
-		fragment fragP on Dog { ...fragA, ...fragX }",
+        fragment fragB on Dog { ...fragC }
+        fragment fragC on Dog { ...fragO }
+        fragment fragX on Dog { ...fragY }
+        fragment fragY on Dog { ...fragZ }
+        fragment fragZ on Dog { ...fragO }
+        fragment fragO on Dog { ...fragP }
+        fragment fragP on Dog { ...fragA, ...fragX }",
         TEST_SCHEMA,
         &mut plan,
     );
