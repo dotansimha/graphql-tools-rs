@@ -25,7 +25,7 @@ struct NoFragmentsCycleHelper<'a> {
     /// Array of AST nodes used to produce meaningful errors
     fragment_spreads: Vec<FragmentSpread>,
     /// Position in the spread path
-    spread_path_index_by_name: HashMap<String, Option<usize>>,
+    spread_path_index_by_name: HashMap<String, usize>,
     validation_context: &'a ValidationContext<'a>,
     errors_context: ValidationErrorContext<'a>,
 }
@@ -58,13 +58,13 @@ fn detect_cycles(fragment: &FragmentDefinition, ctx: &mut NoFragmentsCycleHelper
     }
 
     ctx.spread_path_index_by_name
-        .insert(fragment.name.clone(), Some(spreads.len()));
+        .insert(fragment.name.clone(), spreads.len());
 
     for spread_node in spreads {
         let spread_name = spread_node.fragment_name.clone();
         ctx.fragment_spreads.push(spread_node);
 
-        if let Some(Some(index)) = ctx.spread_path_index_by_name.get(&spread_name) {
+        if let Some(index) = ctx.spread_path_index_by_name.get(&spread_name) {
             let cycle_path = &ctx.fragment_spreads[0..index.clone()];
             let via_path = cycle_path[0..cycle_path.len() - 1]
                 .into_iter()
@@ -91,8 +91,7 @@ fn detect_cycles(fragment: &FragmentDefinition, ctx: &mut NoFragmentsCycleHelper
         ctx.fragment_spreads.pop();
     }
 
-    ctx.spread_path_index_by_name
-        .insert(fragment.name.clone(), None);
+    ctx.spread_path_index_by_name.remove(&fragment.name);
 }
 
 impl<'a> NoFragmentsCycleHelper<'a> {

@@ -1,4 +1,4 @@
-use crate::static_graphql::query::{self, FragmentSpread, Selection};
+use crate::static_graphql::query::{self, FragmentSpread};
 use crate::static_graphql::schema::{
     self, Field, InterfaceType, ObjectType, TypeDefinition, UnionType,
 };
