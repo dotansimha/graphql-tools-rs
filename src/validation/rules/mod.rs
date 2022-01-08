@@ -7,6 +7,7 @@ pub mod leaf_field_selections;
 pub mod lone_anonymous_operation;
 pub mod no_fragments_cycle;
 pub mod no_unused_fragments;
+pub mod no_unused_variables;
 pub mod overlapping_fields_can_be_merged;
 pub mod possible_fragment_spreads;
 /// Utilities validating GraphQL documents/operations
@@ -25,6 +26,7 @@ pub use self::leaf_field_selections::*;
 pub use self::lone_anonymous_operation::*;
 pub use self::no_fragments_cycle::*;
 pub use self::no_unused_fragments::*;
+pub use self::no_unused_variables::*;
 pub use self::overlapping_fields_can_be_merged::*;
 pub use self::possible_fragment_spreads::*;
 pub use self::rule::*;
