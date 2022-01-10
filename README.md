@@ -67,4 +67,4 @@ cargo add graphql-tools
 - [ ] ProvidedRequiredArguments
 - [ ] VariablesInAllowedPosition
 - [x] OverlappingFieldsCanBeMerged
-- [ ] UniqueInputFieldNames
+- [ ] UniqueInputFieldNames (blocked by https://github.com/graphql-rust/graphql-parser/issues/59)
