@@ -220,8 +220,11 @@ directive @onSubscription on SUBSCRIPTION
 directive @onFragmentDefinition on FRAGMENT_DEFINITION
 directive @onFragmentSpread on FRAGMENT_SPREAD
 directive @onInlineFragment on INLINE_FRAGMENT
+
 # doesn't work see https://github.com/graphql-rust/graphql-parser/issues/60
 # directive @onVariableDefinition on VARIABLE_DEFINITION
+
+directive @repeatable repeatable on FIELD | FRAGMENT_DEFINITION
 ";
 
 #[cfg(test)]
