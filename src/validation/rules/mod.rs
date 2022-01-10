@@ -19,6 +19,7 @@ pub mod single_field_subscriptions;
 pub mod unique_argument_names;
 pub mod unique_fragment_names;
 pub mod unique_operation_names;
+pub mod unique_variable_names;
 pub mod variables_are_input_types;
 
 pub use self::defaults::*;
@@ -41,4 +42,5 @@ pub use self::single_field_subscriptions::*;
 pub use self::unique_argument_names::*;
 pub use self::unique_fragment_names::*;
 pub use self::unique_operation_names::*;
+pub use self::unique_variable_names::*;
 pub use self::variables_are_input_types::*;
