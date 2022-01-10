@@ -111,6 +111,29 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
 
                     for (name, argument) in &field.arguments {
                         self.enter_field_argument(name, argument, field, visitor_context);
+
+                        println!("args: {}", name);
+
+                        match argument {
+                            Value::Variable(variable) => {
+                                println!("variable: {}", argument);
+
+                                self.enter_variable(
+                                    variable,
+                                    (name, argument),
+                                    &field,
+                                    visitor_context,
+                                );
+                                self.leave_variable(
+                                    variable,
+                                    (name, argument),
+                                    &field,
+                                    visitor_context,
+                                );
+                            }
+                            _ => {}
+                        }
+
                         self.leave_field_argument(name, argument, field, visitor_context);
                     }
 
@@ -191,6 +214,23 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         &self,
         _name: &String,
         _value: &Value,
+        _parent_field: &Field,
+        _visitor_context: &mut T,
+    ) {
+    }
+
+    fn enter_variable(
+        &self,
+        _name: &String,
+        _parent_arg: (&String, &Value),
+        _parent_field: &Field,
+        _visitor_context: &mut T,
+    ) {
+    }
+    fn leave_variable(
+        &self,
+        _name: &String,
+        _parent_arg: (&String, &Value),
         _parent_field: &Field,
         _visitor_context: &mut T,
     ) {

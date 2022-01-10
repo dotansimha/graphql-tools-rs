@@ -3,7 +3,7 @@ use super::{
     TypeInfoRegistry,
 };
 use crate::static_graphql::{
-    query::{self, Type},
+    query::{self, Field, Type, Value},
     schema::{self},
 };
 
@@ -270,6 +270,27 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             visitor_context,
                             type_info,
                         );
+
+                        match argument_type {
+                            Value::Variable(variable) => {
+                                self.enter_variable(
+                                    variable,
+                                    (argument_name, argument_type),
+                                    &field,
+                                    visitor_context,
+                                    type_info,
+                                );
+                                self.leave_variable(
+                                    variable,
+                                    (argument_name, argument_type),
+                                    &field,
+                                    visitor_context,
+                                    type_info,
+                                );
+                            }
+                            _ => {}
+                        }
+
                         self.leave_field_argument(
                             argument_name,
                             argument_type,
@@ -482,6 +503,25 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         _name: &String,
         _value: &query::Value,
         _parent_field: &query::Field,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
+
+    fn enter_variable(
+        &self,
+        _name: &String,
+        _parent_arg: (&String, &Value),
+        _parent_field: &Field,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
+    fn leave_variable(
+        &self,
+        _name: &String,
+        _parent_arg: (&String, &Value),
+        _parent_field: &Field,
         _visitor_context: &mut T,
         _type_info: &TypeInfo,
     ) {

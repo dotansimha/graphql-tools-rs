@@ -2,9 +2,9 @@ use crate::validation::validate::ValidationPlan;
 
 use super::{
     FieldsOnCorrectType, FragmentsOnCompositeTypes, KnownFragmentNames, KnownTypeNames,
-    LeafFieldSelections, LoneAnonymousOperation, NoFragmentsCycle, NoUnusedFragments,
-    OverlappingFieldsCanBeMerged, PossibleFragmentSpreads, SingleFieldSubscriptions,
-    UniqueFragmentNames, UniqueOperationNames, VariablesAreInputTypes,
+    LeafFieldSelections, LoneAnonymousOperation, NoFragmentsCycle, NoUndefinedVariables,
+    NoUnusedFragments, OverlappingFieldsCanBeMerged, PossibleFragmentSpreads,
+    SingleFieldSubscriptions, UniqueFragmentNames, UniqueOperationNames, VariablesAreInputTypes,
 };
 
 pub fn default_rules_validation_plan() -> ValidationPlan {
@@ -24,6 +24,7 @@ pub fn default_rules_validation_plan() -> ValidationPlan {
     plan.add_rule(Box::new(OverlappingFieldsCanBeMerged {}));
     plan.add_rule(Box::new(NoFragmentsCycle {}));
     plan.add_rule(Box::new(PossibleFragmentSpreads {}));
+    plan.add_rule(Box::new(NoUndefinedVariables {}));
 
     plan
 }
