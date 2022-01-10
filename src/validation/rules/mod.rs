@@ -11,6 +11,7 @@ pub mod no_undefined_variables;
 pub mod no_unused_fragments;
 pub mod overlapping_fields_can_be_merged;
 pub mod possible_fragment_spreads;
+pub mod provided_required_arguments;
 /// Utilities validating GraphQL documents/operations
 pub mod rule;
 pub mod single_field_subscriptions;
@@ -32,6 +33,7 @@ pub use self::no_undefined_variables::*;
 pub use self::no_unused_fragments::*;
 pub use self::overlapping_fields_can_be_merged::*;
 pub use self::possible_fragment_spreads::*;
+pub use self::provided_required_arguments::*;
 pub use self::rule::*;
 pub use self::single_field_subscriptions::*;
 pub use self::unique_argument_names::*;

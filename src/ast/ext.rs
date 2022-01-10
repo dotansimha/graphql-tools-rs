@@ -1,12 +1,28 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::ast::QueryVisitor;
-use crate::static_graphql::query::{self, FragmentSpread, OperationDefinition};
+use crate::static_graphql::query::{self, FragmentSpread, OperationDefinition, Type};
 use crate::static_graphql::schema::{
-    self, Field, InterfaceType, ObjectType, TypeDefinition, UnionType,
+    self, Field, InputValue, InterfaceType, ObjectType, TypeDefinition, UnionType,
 };
 
 use super::{get_named_type, TypeInfoElementRef, TypeInfoRegistry};
+
+pub trait InputValueHelpers {
+    fn is_required(&self) -> bool;
+}
+
+impl InputValueHelpers for InputValue {
+    fn is_required(&self) -> bool {
+        if let Type::NonNullType(_inner_type) = &self.value_type {
+            if let None = &self.default_value {
+                return true;
+            }
+        }
+
+        false
+    }
+}
 
 pub trait AstWithVariables {
     fn get_variables(&self) -> Vec<query::VariableDefinition>;
