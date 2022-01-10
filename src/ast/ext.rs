@@ -1,9 +1,109 @@
-use crate::static_graphql::query::{self, FragmentSpread};
+use std::collections::{HashMap, HashSet};
+
+use crate::ast::QueryVisitor;
+use crate::static_graphql::query::{self, FragmentSpread, OperationDefinition, Type};
 use crate::static_graphql::schema::{
-    self, Field, InterfaceType, ObjectType, TypeDefinition, UnionType,
+    self, Field, InputValue, InterfaceType, ObjectType, TypeDefinition, UnionType,
 };
 
 use super::{get_named_type, TypeInfoElementRef, TypeInfoRegistry};
+
+pub trait InputValueHelpers {
+    fn is_required(&self) -> bool;
+}
+
+impl InputValueHelpers for InputValue {
+    fn is_required(&self) -> bool {
+        if let Type::NonNullType(_inner_type) = &self.value_type {
+            if let None = &self.default_value {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+pub trait AstWithVariables {
+    fn get_variables(&self) -> Vec<query::VariableDefinition>;
+    fn get_variables_in_use(
+        &self,
+        fragments: &HashMap<String, query::FragmentDefinition>,
+    ) -> HashSet<String>;
+}
+
+impl AstWithVariables for OperationDefinition {
+    fn get_variables(&self) -> Vec<query::VariableDefinition> {
+        match self {
+            OperationDefinition::Query(query) => query.variable_definitions.clone(),
+            OperationDefinition::SelectionSet(_anon_query) => vec![],
+            OperationDefinition::Mutation(mutation) => mutation.variable_definitions.clone(),
+            OperationDefinition::Subscription(subscription) => {
+                subscription.variable_definitions.clone()
+            }
+        }
+    }
+
+    fn get_variables_in_use(
+        &self,
+        fragments: &HashMap<String, query::FragmentDefinition>,
+    ) -> HashSet<String> {
+        struct GetVariablesInUse;
+
+        struct GetVariablesInUseHelper<'a> {
+            variables_in_use: HashSet<String>,
+            available_fragments: &'a HashMap<String, query::FragmentDefinition>,
+            visited_fragments: HashSet<String>,
+        }
+
+        impl<'a> QueryVisitor<GetVariablesInUseHelper<'a>> for GetVariablesInUse {
+            fn enter_fragment_spread(
+                &self,
+                _node: &FragmentSpread,
+                _visitor_context: &mut GetVariablesInUseHelper,
+            ) {
+                if !_visitor_context
+                    .visited_fragments
+                    .contains(&_node.fragment_name)
+                {
+                    _visitor_context
+                        .visited_fragments
+                        .insert(_node.fragment_name.clone());
+
+                    if let Some(fragment_def) = _visitor_context
+                        .available_fragments
+                        .get(&_node.fragment_name)
+                    {
+                        self.__visit_selection_set(&fragment_def.selection_set, _visitor_context);
+                    }
+                }
+            }
+
+            fn enter_variable(
+                &self,
+                _name: &String,
+                _parent_arg: (&String, &query::Value),
+                _parent_field: &query::Field,
+                _visitor_context: &mut GetVariablesInUseHelper,
+            ) {
+                _visitor_context.variables_in_use.insert(_name.clone());
+            }
+        }
+
+        let visitor = GetVariablesInUse {};
+        let doc = query::Document {
+            definitions: vec![query::Definition::Operation(self.clone())],
+        };
+        let mut helper = GetVariablesInUseHelper {
+            variables_in_use: HashSet::new(),
+            available_fragments: fragments,
+            visited_fragments: HashSet::new(),
+        };
+        visitor.visit_document(&doc, &mut helper);
+
+        helper.variables_in_use
+    }
+}
 
 pub trait AstNodeWithFields {
     fn find_field(&self, name: String) -> Option<&Field>;

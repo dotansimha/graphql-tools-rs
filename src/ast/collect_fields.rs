@@ -34,11 +34,6 @@ fn does_fragment_condition_match<'a>(
 ) -> bool {
     if let Some(TypeCondition::On(type_name)) = fragment_condition {
         if let Some(conditional_type) = type_info_registry.type_by_name.get(type_name) {
-            println!("conditional_type: {}", conditional_type.name());
-            println!(
-                "current_selection_set_type: {}",
-                current_selection_set_type.name()
-            );
             if conditional_type
                 .name()
                 .eq(&current_selection_set_type.name())
@@ -73,7 +68,6 @@ fn collect_fields_inner(
     result_arr: &mut HashMap<String, Vec<query::Field>>,
     visited_fragments_names: &mut Vec<String>,
 ) {
-    println!("collect_fields_inner");
     selection_set.items.iter().for_each(|item| match item {
         Selection::Field(f) => {
             let existing = result_arr.entry(f.name.clone()).or_insert(vec![]);

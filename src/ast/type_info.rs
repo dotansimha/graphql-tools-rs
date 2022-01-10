@@ -5,7 +5,7 @@ use crate::{
     validation::utils::find_object_type_by_name,
 };
 
-use super::{find_schema_definition, CompositeType};
+use super::{find_schema_definition, CompositeType, TypeDefinitionExtension};
 
 #[derive(Debug)]
 pub struct TypeInfoRegistry<'a> {
@@ -13,6 +13,7 @@ pub struct TypeInfoRegistry<'a> {
     pub mutation_type: Option<&'a schema::ObjectType>,
     pub subscription_type: Option<&'a schema::ObjectType>,
     pub type_by_name: HashMap<String, &'a schema::TypeDefinition>,
+    pub directives: HashMap<String, &'a schema::DirectiveDefinition>,
 }
 
 impl<'a> TypeInfoRegistry<'a> {
@@ -53,26 +54,19 @@ impl<'a> TypeInfoRegistry<'a> {
         let type_by_name =
             HashMap::from_iter(schema.definitions.iter().filter_map(
                 |definition| match definition {
-                    schema::Definition::TypeDefinition(type_definition) => match type_definition {
-                        schema::TypeDefinition::Object(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                        schema::TypeDefinition::Scalar(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                        schema::TypeDefinition::Interface(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                        schema::TypeDefinition::InputObject(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                        schema::TypeDefinition::Enum(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                        schema::TypeDefinition::Union(object) => {
-                            Some((object.name.clone(), type_definition))
-                        }
-                    },
+                    schema::Definition::TypeDefinition(type_definition) => {
+                        Some((type_definition.name(), type_definition))
+                    }
+                    _ => None,
+                },
+            ));
+
+        let directives =
+            HashMap::from_iter(schema.definitions.iter().filter_map(
+                |definition| match definition {
+                    schema::Definition::DirectiveDefinition(directive_definition) => {
+                        Some((directive_definition.name.clone(), directive_definition))
+                    }
                     _ => None,
                 },
             ));
@@ -82,6 +76,7 @@ impl<'a> TypeInfoRegistry<'a> {
             query_type,
             subscription_type,
             type_by_name,
+            directives,
         };
     }
 }

@@ -57,14 +57,14 @@ cargo add graphql-tools
 - [x] PossibleFragmentSpreads
 - [x] NoFragmentCycles
 - [ ] UniqueVariableNames
-- [ ] NoUndefinedVariables
+- [x] NoUndefinedVariables
 - [ ] NoUnusedVariables
 - [ ] KnownDirectives
 - [ ] UniqueDirectivesPerLocation
-- [ ] KnownArgumentNames
-- [ ] UniqueArgumentNames
+- [x] KnownArgumentNames
+- [x] UniqueArgumentNames
 - [ ] ValuesOfCorrectType
-- [ ] ProvidedRequiredArguments
+- [x] ProvidedRequiredArguments
 - [ ] VariablesInAllowedPosition
 - [x] OverlappingFieldsCanBeMerged
-- [ ] UniqueInputFieldNames
+- [ ] UniqueInputFieldNames (blocked by https://github.com/graphql-rust/graphql-parser/issues/59)

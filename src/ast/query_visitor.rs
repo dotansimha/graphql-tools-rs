@@ -1,6 +1,7 @@
 use crate::static_graphql::query::{
-    Definition, Document, Field, FragmentDefinition, FragmentSpread, InlineFragment, Mutation,
-    OperationDefinition, Query, Selection, SelectionSet, Subscription, Value, VariableDefinition,
+    Definition, Directive, Document, Field, FragmentDefinition, FragmentSpread, InlineFragment,
+    Mutation, OperationDefinition, Query, Selection, SelectionSet, Subscription, Value,
+    VariableDefinition,
 };
 
 use super::DefaultVisitorContext;
@@ -109,8 +110,33 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
                 Selection::Field(field) => {
                     self.enter_field(field, visitor_context);
 
+                    for directive in &field.directives {
+                        self.enter_directive(&directive, visitor_context);
+                        self.leave_directive(&directive, visitor_context);
+                    }
+
                     for (name, argument) in &field.arguments {
                         self.enter_field_argument(name, argument, field, visitor_context);
+                        self.__visit_value(argument, visitor_context);
+
+                        match argument {
+                            Value::Variable(variable) => {
+                                self.enter_variable(
+                                    variable,
+                                    (name, argument),
+                                    &field,
+                                    visitor_context,
+                                );
+                                self.leave_variable(
+                                    variable,
+                                    (name, argument),
+                                    &field,
+                                    visitor_context,
+                                );
+                            }
+                            _ => {}
+                        }
+
                         self.leave_field_argument(name, argument, field, visitor_context);
                     }
 
@@ -119,10 +145,22 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
                 }
                 Selection::FragmentSpread(fragment_spread) => {
                     self.enter_fragment_spread(fragment_spread, visitor_context);
+
+                    for directive in &fragment_spread.directives {
+                        self.enter_directive(&directive, visitor_context);
+                        self.leave_directive(&directive, visitor_context);
+                    }
+
                     self.leave_fragment_spread(fragment_spread, visitor_context);
                 }
                 Selection::InlineFragment(inline_fragment) => {
                     self.enter_inline_fragment(inline_fragment, visitor_context);
+
+                    for directive in &inline_fragment.directives {
+                        self.enter_directive(&directive, visitor_context);
+                        self.leave_directive(&directive, visitor_context);
+                    }
+
                     self.__visit_selection_set(&inline_fragment.selection_set, visitor_context);
                     self.leave_inline_fragment(inline_fragment, visitor_context);
                 }
@@ -132,6 +170,18 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         }
 
         self.leave_selection_set(_node, visitor_context);
+    }
+
+    fn __visit_value(&self, node: &Value, visitor_context: &mut T) {
+        self.enter_value(node, visitor_context);
+
+        if let Value::Object(tree_map) = node {
+            tree_map
+                .iter()
+                .for_each(|(_key, sub_value)| self.__visit_value(sub_value, visitor_context))
+        }
+
+        self.leave_value(node, visitor_context);
     }
 
     fn enter_document(&self, _node: &Document, _visitor_context: &mut T) {}
@@ -173,11 +223,17 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
     ) {
     }
 
+    fn enter_value(&self, _node: &Value, _visitor_context: &mut T) {}
+    fn leave_value(&self, _node: &Value, _visitor_context: &mut T) {}
+
     fn enter_selection(&self, _node: &Selection, _visitor_context: &mut T) {}
     fn leave_selection(&self, _node: &Selection, _visitor_context: &mut T) {}
 
     fn enter_field(&self, _node: &Field, _visitor_context: &mut T) {}
     fn leave_field(&self, _node: &Field, _visitor_context: &mut T) {}
+
+    fn enter_directive(&self, _directive: &Directive, _visitor_context: &mut T) {}
+    fn leave_directive(&self, _directive: &Directive, _visitor_context: &mut T) {}
 
     fn enter_field_argument(
         &self,
@@ -191,6 +247,23 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         &self,
         _name: &String,
         _value: &Value,
+        _parent_field: &Field,
+        _visitor_context: &mut T,
+    ) {
+    }
+
+    fn enter_variable(
+        &self,
+        _name: &String,
+        _parent_arg: (&String, &Value),
+        _parent_field: &Field,
+        _visitor_context: &mut T,
+    ) {
+    }
+    fn leave_variable(
+        &self,
+        _name: &String,
+        _parent_arg: (&String, &Value),
         _parent_field: &Field,
         _visitor_context: &mut T,
     ) {

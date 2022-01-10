@@ -3,7 +3,7 @@ use super::{
     TypeInfoRegistry,
 };
 use crate::static_graphql::{
-    query::{self, Type},
+    query::{self, Directive, Field, Type, Value},
     schema::{self},
 };
 
@@ -234,6 +234,11 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
 
                     self.enter_field(field, visitor_context, type_info);
 
+                    for directive in &field.directives {
+                        self.enter_directive(&directive, visitor_context, type_info);
+                        self.leave_directive(&directive, visitor_context, type_info);
+                    }
+
                     for (argument_name, argument_type) in &field.arguments {
                         if let Some(parent_type) = type_info.get_parent_type() {
                             if let Some(field_def) = parent_type.find_field(field.name.clone()) {
@@ -270,6 +275,27 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             visitor_context,
                             type_info,
                         );
+
+                        match argument_type {
+                            Value::Variable(variable) => {
+                                self.enter_variable(
+                                    variable,
+                                    (argument_name, argument_type),
+                                    &field,
+                                    visitor_context,
+                                    type_info,
+                                );
+                                self.leave_variable(
+                                    variable,
+                                    (argument_name, argument_type),
+                                    &field,
+                                    visitor_context,
+                                    type_info,
+                                );
+                            }
+                            _ => {}
+                        }
+
                         self.leave_field_argument(
                             argument_name,
                             argument_type,
@@ -294,6 +320,10 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                 }
                 query::Selection::FragmentSpread(fragment_spread) => {
                     self.enter_fragment_spread(fragment_spread, visitor_context, type_info);
+                    for directive in &fragment_spread.directives {
+                        self.enter_directive(&directive, visitor_context, type_info);
+                        self.leave_directive(&directive, visitor_context, type_info);
+                    }
                     self.leave_fragment_spread(fragment_spread, visitor_context, type_info);
                 }
                 query::Selection::InlineFragment(inline_fragment) => {
@@ -307,6 +337,12 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                     }
 
                     self.enter_inline_fragment(inline_fragment, visitor_context, type_info);
+
+                    for directive in &inline_fragment.directives {
+                        self.enter_directive(&directive, visitor_context, type_info);
+                        self.leave_directive(&directive, visitor_context, type_info);
+                    }
+
                     self.__visit_selection_set(
                         &inline_fragment.selection_set,
                         visitor_context,
@@ -468,6 +504,21 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
     fn enter_field(&self, _node: &query::Field, _visitor_context: &mut T, _type_info: &TypeInfo) {}
     fn leave_field(&self, _node: &query::Field, _visitor_context: &mut T, _type_info: &TypeInfo) {}
 
+    fn enter_directive(
+        &self,
+        _directive: &Directive,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
+    fn leave_directive(
+        &self,
+        _directive: &Directive,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
+
     fn enter_field_argument(
         &self,
         _name: &String,
@@ -482,6 +533,25 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         _name: &String,
         _value: &query::Value,
         _parent_field: &query::Field,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
+
+    fn enter_variable(
+        &self,
+        _name: &String,
+        _parent_arg: (&String, &Value),
+        _parent_field: &Field,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
+    fn leave_variable(
+        &self,
+        _name: &String,
+        _parent_arg: (&String, &Value),
+        _parent_field: &Field,
         _visitor_context: &mut T,
         _type_info: &TypeInfo,
     ) {

@@ -1,10 +1,11 @@
 use crate::validation::validate::ValidationPlan;
 
 use super::{
-    FieldsOnCorrectType, FragmentsOnCompositeTypes, KnownFragmentNames, KnownTypeNames,
-    LeafFieldSelections, LoneAnonymousOperation, NoFragmentsCycle, NoUnusedFragments,
-    NoUnusedVariables, OverlappingFieldsCanBeMerged, PossibleFragmentSpreads,
-    SingleFieldSubscriptions, UniqueFragmentNames, UniqueOperationNames, VariablesAreInputTypes,
+    FieldsOnCorrectType, FragmentsOnCompositeTypes, KnownArgumentNames, KnownFragmentNames,
+    KnownTypeNames, LeafFieldSelections, LoneAnonymousOperation, NoFragmentsCycle,
+    NoUndefinedVariables, NoUnusedFragments, OverlappingFieldsCanBeMerged, PossibleFragmentSpreads,
+    ProvidedRequiredArguments, SingleFieldSubscriptions, UniqueArgumentNames, UniqueFragmentNames,
+    UniqueOperationNames, VariablesAreInputTypes, NoUnusedVariables,
 };
 
 pub fn default_rules_validation_plan() -> ValidationPlan {
@@ -25,6 +26,10 @@ pub fn default_rules_validation_plan() -> ValidationPlan {
     plan.add_rule(Box::new(NoFragmentsCycle {}));
     plan.add_rule(Box::new(PossibleFragmentSpreads {}));
     plan.add_rule(Box::new(NoUnusedVariables {}));
+    plan.add_rule(Box::new(NoUndefinedVariables {}));
+    plan.add_rule(Box::new(KnownArgumentNames {}));
+    plan.add_rule(Box::new(UniqueArgumentNames {}));
+    plan.add_rule(Box::new(ProvidedRequiredArguments {}));
 
     plan
 }
