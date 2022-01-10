@@ -23,7 +23,7 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for FieldsOnCorrectTyp
             let field_def = _type_info.get_field_def();
             match field_def {
                 Some(TypeInfoElementRef::Empty) => {
-                    if _node.name.ne("__typename") {
+                    if !_node.name.starts_with("__") {
                         _visitor_context.report_error(ValidationError {
                             locations: vec![_node.position],
                             message: format!(
