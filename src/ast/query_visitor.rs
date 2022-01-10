@@ -111,19 +111,15 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
                     self.enter_field(field, visitor_context);
 
                     for directive in &field.directives {
-                        self.enter_directive(&directive, field, visitor_context);
-                        self.leave_directive(&directive, field, visitor_context);
+                        self.enter_directive(&directive, visitor_context);
+                        self.leave_directive(&directive, visitor_context);
                     }
 
                     for (name, argument) in &field.arguments {
                         self.enter_field_argument(name, argument, field, visitor_context);
 
-                        println!("args: {}", name);
-
                         match argument {
                             Value::Variable(variable) => {
-                                println!("variable: {}", argument);
-
                                 self.enter_variable(
                                     variable,
                                     (name, argument),
@@ -148,10 +144,22 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
                 }
                 Selection::FragmentSpread(fragment_spread) => {
                     self.enter_fragment_spread(fragment_spread, visitor_context);
+
+                    for directive in &fragment_spread.directives {
+                        self.enter_directive(&directive, visitor_context);
+                        self.leave_directive(&directive, visitor_context);
+                    }
+
                     self.leave_fragment_spread(fragment_spread, visitor_context);
                 }
                 Selection::InlineFragment(inline_fragment) => {
                     self.enter_inline_fragment(inline_fragment, visitor_context);
+
+                    for directive in &inline_fragment.directives {
+                        self.enter_directive(&directive, visitor_context);
+                        self.leave_directive(&directive, visitor_context);
+                    }
+
                     self.__visit_selection_set(&inline_fragment.selection_set, visitor_context);
                     self.leave_inline_fragment(inline_fragment, visitor_context);
                 }
@@ -208,20 +216,8 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
     fn enter_field(&self, _node: &Field, _visitor_context: &mut T) {}
     fn leave_field(&self, _node: &Field, _visitor_context: &mut T) {}
 
-    fn enter_directive(
-        &self,
-        _directive: &Directive,
-        _parent_field: &Field,
-        _visitor_context: &mut T,
-    ) {
-    }
-    fn leave_directive(
-        &self,
-        _directive: &Directive,
-        _parent_field: &Field,
-        _visitor_context: &mut T,
-    ) {
-    }
+    fn enter_directive(&self, _directive: &Directive, _visitor_context: &mut T) {}
+    fn leave_directive(&self, _directive: &Directive, _visitor_context: &mut T) {}
 
     fn enter_field_argument(
         &self,

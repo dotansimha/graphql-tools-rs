@@ -267,7 +267,6 @@ fn interface_into_implemented_object() {
     );
 
     let messages = get_messages(&errors);
-    println!("{:?}", messages);
     assert_eq!(messages.len(), 0);
 }
 
@@ -315,7 +314,6 @@ fn interface_into_overlapping_union() {
     );
 
     let messages = get_messages(&errors);
-    println!("{:?}", messages);
     assert_eq!(messages.len(), 0);
 }
 
@@ -333,8 +331,6 @@ fn ignores_incorrect_type() {
     );
 
     let messages = get_messages(&errors);
-    println!("{:#?}", errors);
-
     assert_eq!(messages.len(), 0);
 }
 

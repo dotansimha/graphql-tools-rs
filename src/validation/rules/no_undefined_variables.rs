@@ -55,8 +55,6 @@ impl<'a> QueryVisitor<NoUndefinedVariablesHelper<'a>> for NoUndefinedVariables {
         visitor_context: &mut NoUndefinedVariablesHelper<'a>,
     ) {
         let in_use = node.get_variables_in_use(&visitor_context.error_ctx.ctx.fragments);
-        println!("defined: {:?}", visitor_context.current_op_variables);
-        println!("in use: {:?}", in_use);
 
         in_use.iter().for_each(|v| {
             if !visitor_context.current_op_variables.contains(v) {

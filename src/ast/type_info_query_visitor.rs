@@ -235,8 +235,8 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                     self.enter_field(field, visitor_context, type_info);
 
                     for directive in &field.directives {
-                        self.enter_directive(&directive, field, visitor_context, type_info);
-                        self.leave_directive(&directive, field, visitor_context, type_info);
+                        self.enter_directive(&directive, visitor_context, type_info);
+                        self.leave_directive(&directive, visitor_context, type_info);
                     }
 
                     for (argument_name, argument_type) in &field.arguments {
@@ -320,6 +320,10 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                 }
                 query::Selection::FragmentSpread(fragment_spread) => {
                     self.enter_fragment_spread(fragment_spread, visitor_context, type_info);
+                    for directive in &fragment_spread.directives {
+                        self.enter_directive(&directive, visitor_context, type_info);
+                        self.leave_directive(&directive, visitor_context, type_info);
+                    }
                     self.leave_fragment_spread(fragment_spread, visitor_context, type_info);
                 }
                 query::Selection::InlineFragment(inline_fragment) => {
@@ -333,6 +337,12 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                     }
 
                     self.enter_inline_fragment(inline_fragment, visitor_context, type_info);
+
+                    for directive in &inline_fragment.directives {
+                        self.enter_directive(&directive, visitor_context, type_info);
+                        self.leave_directive(&directive, visitor_context, type_info);
+                    }
+
                     self.__visit_selection_set(
                         &inline_fragment.selection_set,
                         visitor_context,
@@ -497,7 +507,6 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
     fn enter_directive(
         &self,
         _directive: &Directive,
-        _parent_field: &query::Field,
         _visitor_context: &mut T,
         _type_info: &TypeInfo,
     ) {
@@ -505,7 +514,6 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
     fn leave_directive(
         &self,
         _directive: &Directive,
-        _parent_field: &query::Field,
         _visitor_context: &mut T,
         _type_info: &TypeInfo,
     ) {

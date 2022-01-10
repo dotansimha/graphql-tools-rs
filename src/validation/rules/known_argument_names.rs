@@ -17,7 +17,6 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownArgumentNames
     fn enter_directive(
         &self,
         directive: &crate::static_graphql::query::Directive,
-        _parent_field: &crate::static_graphql::query::Field,
         visitor_context: &mut ValidationErrorContext<'a>,
         _type_info: &TypeInfo,
     ) {
@@ -27,10 +26,6 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownArgumentNames
             .as_ref()
             .unwrap()
             .directives;
-        println!(
-            "enter_directive, directive name: {}, known_directives: {:?}",
-            directive.name, known_directives
-        );
 
         if let Some(directive_def) = known_directives.get(&directive.name) {
             let known_directive_args = &directive_def.arguments;
