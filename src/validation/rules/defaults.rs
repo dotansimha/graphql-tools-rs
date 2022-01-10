@@ -6,7 +6,7 @@ use super::{
     NoUndefinedVariables, NoUnusedFragments, NoUnusedVariables, OverlappingFieldsCanBeMerged,
     PossibleFragmentSpreads, ProvidedRequiredArguments, SingleFieldSubscriptions,
     UniqueArgumentNames, UniqueFragmentNames, UniqueOperationNames, UniqueVariableNames,
-    VariablesAreInputTypes,
+    VariablesAreInputTypes, VariablesInAllowedPosition,
 };
 
 pub fn default_rules_validation_plan() -> ValidationPlan {
@@ -32,6 +32,7 @@ pub fn default_rules_validation_plan() -> ValidationPlan {
     plan.add_rule(Box::new(UniqueArgumentNames {}));
     plan.add_rule(Box::new(UniqueVariableNames {}));
     plan.add_rule(Box::new(ProvidedRequiredArguments {}));
+    plan.add_rule(Box::new(VariablesInAllowedPosition {}));
 
     plan
 }

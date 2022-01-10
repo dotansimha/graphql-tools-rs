@@ -21,6 +21,7 @@ pub mod unique_fragment_names;
 pub mod unique_operation_names;
 pub mod unique_variable_names;
 pub mod variables_are_input_types;
+pub mod variables_in_allowed_position;
 
 pub use self::defaults::*;
 pub use self::fields_on_correct_type::*;
@@ -44,3 +45,4 @@ pub use self::unique_fragment_names::*;
 pub use self::unique_operation_names::*;
 pub use self::unique_variable_names::*;
 pub use self::variables_are_input_types::*;
+pub use self::variables_in_allowed_position::*;

@@ -1,6 +1,9 @@
 use crate::{
     ast::TypeInfoRegistry,
-    static_graphql::{query, schema},
+    static_graphql::{
+        query,
+        schema::{self, TypeDefinition},
+    },
 };
 use graphql_parser::Pos;
 use std::{collections::HashMap, fmt::Debug};

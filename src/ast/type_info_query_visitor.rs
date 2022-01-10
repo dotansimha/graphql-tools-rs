@@ -1,10 +1,10 @@
 use super::{
-    get_named_type, CompositeType, DefaultVisitorContext, TypeInfo, TypeInfoElementRef,
-    TypeInfoRegistry,
+    get_named_type, CompositeType, DefaultVisitorContext, PossibleInputType, TypeInfo,
+    TypeInfoElementRef, TypeInfoRegistry,
 };
 use crate::static_graphql::{
-    query::{self, Directive, Type, Value},
-    schema::{self},
+    query::{self, Directive, FragmentDefinition, Type, Value},
+    schema::{self, TypeDefinition},
 };
 
 use crate::ast::ext::AstTypeRef;
@@ -14,6 +14,29 @@ use crate::ast::ext::AstTypeRef;
 ///
 /// You can pass custom <T> as context if you need to store data / access external variables.
 pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
+    fn __visit_fragment_def(
+        &self,
+        fragment: &FragmentDefinition,
+        visitor_context: &mut T,
+        type_info_registry: &TypeInfoRegistry,
+        type_info: &mut TypeInfo,
+    ) {
+        let query::TypeCondition::On(type_condition) = fragment.type_condition.clone();
+        type_info.enter_type(TypeInfoElementRef::Ref(schema::Type::NamedType(
+            type_condition.clone(),
+        )));
+
+        self.enter_fragment_definition(fragment, visitor_context, &type_info);
+        self.__visit_selection_set(
+            &fragment.selection_set,
+            visitor_context,
+            type_info_registry,
+            type_info,
+        );
+        self.leave_fragment_definition(fragment, visitor_context, &type_info);
+        type_info.leave_type();
+    }
+
     fn visit_document(
         &self,
         node: &query::Document,
@@ -28,20 +51,12 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
 
             match definition {
                 query::Definition::Fragment(fragment) => {
-                    let query::TypeCondition::On(type_condition) = fragment.type_condition.clone();
-                    type_info.enter_type(TypeInfoElementRef::Ref(schema::Type::NamedType(
-                        type_condition.clone(),
-                    )));
-
-                    self.enter_fragment_definition(fragment, visitor_context, &type_info);
-                    self.__visit_selection_set(
-                        &fragment.selection_set,
+                    self.__visit_fragment_def(
+                        fragment,
                         visitor_context,
                         type_info_registry,
                         &mut type_info,
                     );
-                    self.leave_fragment_definition(fragment, visitor_context, &type_info);
-                    type_info.leave_type();
                 }
                 query::Definition::Operation(operation) => {
                     self.enter_operation_definition(operation, visitor_context, &type_info);
@@ -54,14 +69,37 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             self.enter_query(query, visitor_context, &type_info);
 
                             for variable in &query.variable_definitions {
-                                if let Some(schema::TypeDefinition::InputObject(t)) =
-                                    type_info_registry
-                                        .type_by_name
-                                        .get(&get_named_type(&variable.var_type))
+                                match type_info_registry
+                                    .type_by_name
+                                    .get(&get_named_type(&variable.var_type))
                                 {
-                                    type_info.enter_input_type(TypeInfoElementRef::Ref(t.clone()));
-                                } else {
-                                    type_info.enter_input_type(TypeInfoElementRef::Empty);
+                                    Some(TypeDefinition::Enum(e)) => {
+                                        type_info.enter_input_type(TypeInfoElementRef::Ref(
+                                            PossibleInputType::Enum(
+                                                variable.var_type.clone(),
+                                                e.clone(),
+                                            ),
+                                        ));
+                                    }
+                                    Some(TypeDefinition::InputObject(e)) => {
+                                        type_info.enter_input_type(TypeInfoElementRef::Ref(
+                                            PossibleInputType::InputObject(
+                                                variable.var_type.clone(),
+                                                e.clone(),
+                                            ),
+                                        ));
+                                    }
+                                    Some(TypeDefinition::Scalar(e)) => {
+                                        type_info.enter_input_type(TypeInfoElementRef::Ref(
+                                            PossibleInputType::Scalar(
+                                                variable.var_type.clone(),
+                                                e.clone(),
+                                            ),
+                                        ));
+                                    }
+                                    _ => {
+                                        type_info.enter_input_type(TypeInfoElementRef::Empty);
+                                    }
                                 }
 
                                 self.enter_variable_definition(
@@ -290,13 +328,34 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                     let arg_named_type =
                                         get_named_type(&found_schema_arg.value_type);
 
-                                    if let Some(schema::TypeDefinition::InputObject(t)) =
-                                        type_info_registry.type_by_name.get(&arg_named_type)
-                                    {
-                                        type_info
-                                            .enter_input_type(TypeInfoElementRef::Ref(t.clone()));
-                                    } else {
-                                        type_info.enter_input_type(TypeInfoElementRef::Empty);
+                                    match type_info_registry.type_by_name.get(&arg_named_type) {
+                                        Some(TypeDefinition::Enum(e)) => {
+                                            type_info.enter_input_type(TypeInfoElementRef::Ref(
+                                                PossibleInputType::Enum(
+                                                    found_schema_arg.value_type.clone(),
+                                                    e.clone(),
+                                                ),
+                                            ));
+                                        }
+                                        Some(TypeDefinition::InputObject(e)) => {
+                                            type_info.enter_input_type(TypeInfoElementRef::Ref(
+                                                PossibleInputType::InputObject(
+                                                    found_schema_arg.value_type.clone(),
+                                                    e.clone(),
+                                                ),
+                                            ));
+                                        }
+                                        Some(TypeDefinition::Scalar(e)) => {
+                                            type_info.enter_input_type(TypeInfoElementRef::Ref(
+                                                PossibleInputType::Scalar(
+                                                    found_schema_arg.value_type.clone(),
+                                                    e.clone(),
+                                                ),
+                                            ));
+                                        }
+                                        _ => {
+                                            type_info.enter_input_type(TypeInfoElementRef::Empty);
+                                        }
                                     }
                                 } else {
                                     type_info.enter_argument(TypeInfoElementRef::Empty)
@@ -603,14 +662,14 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         &self,
         _node: &query::FragmentSpread,
         _visitor_context: &mut T,
-        _type_info: &TypeInfo,
+        _type_info: &mut TypeInfo,
     ) {
     }
     fn leave_fragment_spread(
         &self,
         _node: &query::FragmentSpread,
         _visitor_context: &mut T,
-        _type_info: &TypeInfo,
+        _type_info: &mut TypeInfo,
     ) {
     }
 

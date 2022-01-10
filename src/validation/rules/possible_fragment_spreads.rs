@@ -56,7 +56,7 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for PossibleFragmentSp
         &self,
         node: &crate::static_graphql::query::FragmentSpread,
         visitor_context: &mut ValidationErrorContext<'a>,
-        type_info: &crate::ast::TypeInfo,
+        type_info: &mut crate::ast::TypeInfo,
     ) {
         if let Some(actual_fragment) = visitor_context.ctx.fragments.get(&node.fragment_name) {
             let TypeCondition::On(fragment_type_name) = &actual_fragment.type_condition;

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    static_graphql::schema::{self},
+    static_graphql::schema::{self, Type},
     validation::utils::find_object_type_by_name,
 };
 
@@ -92,8 +92,25 @@ pub struct TypeInfo {
     pub type_stack: Vec<TypeInfoElementRef<schema::Type>>,
     pub parent_type_stack: Vec<TypeInfoElementRef<CompositeType>>,
     pub field_def_stack: Vec<TypeInfoElementRef<schema::Field>>,
-    pub input_type_stack: Vec<TypeInfoElementRef<schema::InputObjectType>>,
+    pub input_type_stack: Vec<TypeInfoElementRef<PossibleInputType>>,
     pub argument: Option<TypeInfoElementRef<schema::InputValue>>,
+}
+
+#[derive(Debug, Clone)]
+pub enum PossibleInputType {
+    Scalar(Type, schema::ScalarType),
+    Enum(Type, schema::EnumType),
+    InputObject(Type, schema::InputObjectType),
+}
+
+impl PossibleInputType {
+    pub fn get_type(&self) -> &Type {
+        match self {
+            PossibleInputType::Scalar(t, _) => t,
+            PossibleInputType::Enum(t, _) => t,
+            PossibleInputType::InputObject(t, _) => t,
+        }
+    }
 }
 
 impl TypeInfo {
@@ -131,11 +148,11 @@ impl TypeInfo {
         self.type_stack.pop();
     }
 
-    pub fn get_input_type(&self) -> Option<TypeInfoElementRef<schema::InputObjectType>> {
+    pub fn get_input_type(&self) -> Option<TypeInfoElementRef<PossibleInputType>> {
         self.input_type_stack.last().cloned()
     }
 
-    pub fn enter_input_type(&mut self, object: TypeInfoElementRef<schema::InputObjectType>) {
+    pub fn enter_input_type(&mut self, object: TypeInfoElementRef<PossibleInputType>) {
         self.input_type_stack.push(object);
     }
 

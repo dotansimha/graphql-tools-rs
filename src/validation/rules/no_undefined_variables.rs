@@ -5,6 +5,7 @@ use crate::{
     ast::{ext::AstWithVariables, QueryVisitor},
     validation::utils::ValidationContext,
 };
+use std::any::Any;
 use std::collections::HashSet;
 
 /// No undefined variables
@@ -54,9 +55,17 @@ impl<'a> QueryVisitor<NoUndefinedVariablesHelper<'a>> for NoUndefinedVariables {
         node: &crate::static_graphql::query::OperationDefinition,
         visitor_context: &mut NoUndefinedVariablesHelper<'a>,
     ) {
-        let in_use = node.get_variables_in_use(&visitor_context.error_ctx.ctx.fragments);
+        let in_use = node.get_variables_in_use(
+            &visitor_context.error_ctx.ctx.fragments,
+            visitor_context
+                .error_ctx
+                .ctx
+                .type_info_registry
+                .as_ref()
+                .unwrap(),
+        );
 
-        in_use.iter().for_each(|v| {
+        in_use.iter().for_each(|(v, _attrs)| {
             if !visitor_context.current_op_variables.contains(v) {
                 visitor_context.error_ctx.report_error(ValidationError {
                     message: match node.node_name() {

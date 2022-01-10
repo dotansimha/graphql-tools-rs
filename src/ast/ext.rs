@@ -1,15 +1,28 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::ast::QueryVisitor;
-use crate::static_graphql::query::{self, FragmentSpread, OperationDefinition, Type};
+use crate::ast::{TypeInfo, TypeInfoQueryVisitor};
+use crate::static_graphql::query::{self, FragmentSpread, OperationDefinition, Type, Value};
 use crate::static_graphql::schema::{
     self, Field, InputValue, InterfaceType, ObjectType, TypeDefinition, UnionType,
 };
 
-use super::{get_named_type, TypeInfoElementRef, TypeInfoRegistry};
+use super::{get_named_type, PossibleInputType, TypeInfoElementRef, TypeInfoRegistry};
 
 pub trait InputValueHelpers {
     fn is_required(&self) -> bool;
+}
+
+pub trait ExtendedValue {
+    fn is_null(&self) -> bool;
+}
+
+impl ExtendedValue for Value {
+    fn is_null(&self) -> bool {
+        match self {
+            Value::Null => true,
+            _ => false,
+        }
+    }
 }
 
 impl InputValueHelpers for InputValue {
@@ -29,7 +42,8 @@ pub trait AstWithVariables {
     fn get_variables_in_use(
         &self,
         fragments: &HashMap<String, query::FragmentDefinition>,
-    ) -> HashSet<String>;
+        type_info_registry: &TypeInfoRegistry,
+    ) -> HashMap<String, Option<TypeInfoElementRef<PossibleInputType>>>;
 }
 
 impl AstWithVariables for OperationDefinition {
@@ -47,20 +61,23 @@ impl AstWithVariables for OperationDefinition {
     fn get_variables_in_use(
         &self,
         fragments: &HashMap<String, query::FragmentDefinition>,
-    ) -> HashSet<String> {
+        type_info_registry: &TypeInfoRegistry,
+    ) -> HashMap<String, Option<TypeInfoElementRef<PossibleInputType>>> {
         struct GetVariablesInUse;
 
         struct GetVariablesInUseHelper<'a> {
-            variables_in_use: HashSet<String>,
+            variables_in_use: HashMap<String, Option<TypeInfoElementRef<PossibleInputType>>>,
             available_fragments: &'a HashMap<String, query::FragmentDefinition>,
             visited_fragments: HashSet<String>,
+            type_info_registry: &'a TypeInfoRegistry<'a>,
         }
 
-        impl<'a> QueryVisitor<GetVariablesInUseHelper<'a>> for GetVariablesInUse {
+        impl<'a> TypeInfoQueryVisitor<GetVariablesInUseHelper<'a>> for GetVariablesInUse {
             fn enter_fragment_spread(
                 &self,
                 _node: &FragmentSpread,
                 _visitor_context: &mut GetVariablesInUseHelper,
+                _type_info: &mut TypeInfo,
             ) {
                 if !_visitor_context
                     .visited_fragments
@@ -74,7 +91,12 @@ impl AstWithVariables for OperationDefinition {
                         .available_fragments
                         .get(&_node.fragment_name)
                     {
-                        self.__visit_selection_set(&fragment_def.selection_set, _visitor_context);
+                        self.__visit_fragment_def(
+                            &fragment_def,
+                            _visitor_context,
+                            _visitor_context.type_info_registry,
+                            _type_info,
+                        );
                     }
                 }
             }
@@ -84,8 +106,13 @@ impl AstWithVariables for OperationDefinition {
                 _name: &String,
                 _parent_arg: (&String, &query::Value),
                 _visitor_context: &mut GetVariablesInUseHelper,
+                _type_info: &TypeInfo,
             ) {
-                _visitor_context.variables_in_use.insert(_name.clone());
+                let input_type = _type_info.get_input_type();
+
+                _visitor_context
+                    .variables_in_use
+                    .insert(_name.clone(), input_type);
             }
         }
 
@@ -94,11 +121,13 @@ impl AstWithVariables for OperationDefinition {
             definitions: vec![query::Definition::Operation(self.clone())],
         };
         let mut helper = GetVariablesInUseHelper {
-            variables_in_use: HashSet::new(),
+            variables_in_use: HashMap::new(),
             available_fragments: fragments,
             visited_fragments: HashSet::new(),
+            type_info_registry,
         };
-        visitor.visit_document(&doc, &mut helper);
+
+        visitor.visit_document(&doc, &mut helper, type_info_registry);
 
         helper.variables_in_use
     }
