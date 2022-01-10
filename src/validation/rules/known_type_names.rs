@@ -26,10 +26,12 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownTypeNames {
             .ctx
             .find_schema_definition_by_name(fragment_type_name.clone())
         {
-            _visitor_context.errors.push(ValidationError {
-                locations: vec![_node.position],
-                message: format!("Unknown type \"{}\".", fragment_type_name),
-            });
+            if !fragment_type_name.starts_with("__") {
+                _visitor_context.errors.push(ValidationError {
+                    locations: vec![_node.position],
+                    message: format!("Unknown type \"{}\".", fragment_type_name),
+                });
+            }
         }
     }
 
@@ -44,10 +46,12 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownTypeNames {
                 .ctx
                 .find_schema_definition_by_name(fragment_type_name.clone())
             {
-                _visitor_context.errors.push(ValidationError {
-                    locations: vec![_node.position],
-                    message: format!("Unknown type \"{}\".", fragment_type_name),
-                });
+                if !fragment_type_name.starts_with("__") {
+                    _visitor_context.errors.push(ValidationError {
+                        locations: vec![_node.position],
+                        message: format!("Unknown type \"{}\".", fragment_type_name),
+                    });
+                }
             }
         }
     }
@@ -65,10 +69,12 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownTypeNames {
             .ctx
             .find_schema_definition_by_name(base_type.clone())
         {
-            _visitor_context.errors.push(ValidationError {
-                locations: vec![_node.position],
-                message: format!("Unknown type \"{}\".", base_type),
-            });
+            if !base_type.starts_with("__") {
+                _visitor_context.errors.push(ValidationError {
+                    locations: vec![_node.position],
+                    message: format!("Unknown type \"{}\".", base_type),
+                });
+            }
         }
     }
 }
