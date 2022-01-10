@@ -1,8 +1,6 @@
-use std::collections::HashSet;
-
 use super::ValidationRule;
 use crate::ast::AstNodeWithName;
-use crate::static_graphql::query::{OperationDefinition, VariableDefinition};
+use crate::static_graphql::query::OperationDefinition;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 use crate::{
     ast::{ext::AstWithVariables, QueryVisitor},
@@ -18,59 +16,40 @@ use crate::{
 pub struct NoUnusedVariables;
 
 struct NoUnusedVariablesHelper<'a> {
-    variables_definitions: HashSet<String>,
     error_context: ValidationErrorContext<'a>,
 }
 
 impl<'a> NoUnusedVariablesHelper<'a> {
     fn new(validation_context: &'a ValidationContext<'a>) -> Self {
         NoUnusedVariablesHelper {
-            variables_definitions: HashSet::new(),
             error_context: ValidationErrorContext::new(validation_context),
         }
     }
 }
 
 impl<'a> QueryVisitor<NoUnusedVariablesHelper<'a>> for NoUnusedVariables {
-    fn enter_variable_definition(
-        &self,
-        node: &VariableDefinition,
-        _parent_operation: &OperationDefinition,
-        visitor_context: &mut NoUnusedVariablesHelper<'a>,
-    ) {
-        visitor_context
-            .variables_definitions
-            .insert(node.name.clone());
-    }
-
-    fn enter_operation_definition(
-        &self,
-        _node: &OperationDefinition,
-        visitor_context: &mut NoUnusedVariablesHelper<'a>,
-    ) {
-        visitor_context.variables_definitions.clear();
-    }
-
     fn leave_operation_definition(
         &self,
         node: &OperationDefinition,
         visitor_context: &mut NoUnusedVariablesHelper<'a>,
     ) {
+        let variables = node.get_variables();
         let in_use = node.get_variables_in_use(&visitor_context.error_context.ctx.fragments);
 
-        visitor_context
-            .variables_definitions
+        variables
             .iter()
-            .filter(|variable_name| !in_use.contains(variable_name.clone()))
+            .filter(|variable_name| !in_use.contains(&variable_name.name))
             .for_each(|unused_variable_name| {
                 visitor_context.error_context.report_error(ValidationError {
                     locations: vec![],
                     message: match node.node_name() {
                         Some(name) => format!(
                             "Variable \"${}\" is never used in operation \"{}\".",
-                            unused_variable_name, name
+                            unused_variable_name.name, name
                         ),
-                        None => format!("Variable \"${}\" is never used.", unused_variable_name),
+                        None => {
+                            format!("Variable \"${}\" is never used.", unused_variable_name.name)
+                        }
                     },
                 });
             });
