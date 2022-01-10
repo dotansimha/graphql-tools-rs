@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use super::ValidationRule;
 use crate::static_graphql::query::*;
@@ -35,16 +35,16 @@ impl<'a> QueryVisitor<UniqueVariableNamesHelper<'a>> for UniqueVariableNames {
     ) {
         let variables = node.get_variables();
 
-        let mut seen_variables = HashMap::new();
+        let mut seen_variables: HashSet<String> = HashSet::new();
 
         variables.iter().for_each(|var| {
-            if seen_variables.contains_key(&var.name) {
+            if seen_variables.contains(&var.name) {
                 visitor_context.error_context.report_error(ValidationError {
                     locations: vec![],
                     message: format!("There can only be one variable named \"${}\".", var.name),
                 });
             } else {
-                seen_variables.insert(var.name.clone(), true);
+                seen_variables.insert(var.name.clone());
             }
         })
     }
