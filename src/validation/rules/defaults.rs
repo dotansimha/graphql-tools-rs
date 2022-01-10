@@ -3,9 +3,10 @@ use crate::validation::validate::ValidationPlan;
 use super::{
     FieldsOnCorrectType, FragmentsOnCompositeTypes, KnownArgumentNames, KnownFragmentNames,
     KnownTypeNames, LeafFieldSelections, LoneAnonymousOperation, NoFragmentsCycle,
-    NoUndefinedVariables, NoUnusedFragments, OverlappingFieldsCanBeMerged, PossibleFragmentSpreads,
-    ProvidedRequiredArguments, SingleFieldSubscriptions, UniqueArgumentNames, UniqueFragmentNames,
-    UniqueOperationNames, VariablesAreInputTypes, NoUnusedVariables,
+    NoUndefinedVariables, NoUnusedFragments, NoUnusedVariables, OverlappingFieldsCanBeMerged,
+    PossibleFragmentSpreads, ProvidedRequiredArguments, SingleFieldSubscriptions,
+    UniqueArgumentNames, UniqueFragmentNames, UniqueOperationNames, UniqueVariableNames,
+    VariablesAreInputTypes,
 };
 
 pub fn default_rules_validation_plan() -> ValidationPlan {
@@ -29,6 +30,7 @@ pub fn default_rules_validation_plan() -> ValidationPlan {
     plan.add_rule(Box::new(NoUndefinedVariables {}));
     plan.add_rule(Box::new(KnownArgumentNames {}));
     plan.add_rule(Box::new(UniqueArgumentNames {}));
+    plan.add_rule(Box::new(UniqueVariableNames {}));
     plan.add_rule(Box::new(ProvidedRequiredArguments {}));
 
     plan
