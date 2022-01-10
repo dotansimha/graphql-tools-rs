@@ -14,6 +14,9 @@ pub fn create_default_ruleset_plan() -> ValidationPlan {
 
 #[cfg(test)]
 pub static INTROSPECTION_SCHEMA: &str = "
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+
 scalar Boolean
 scalar Float
 scalar Int

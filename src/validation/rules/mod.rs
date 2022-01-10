@@ -1,6 +1,7 @@
 pub mod defaults;
 pub mod fields_on_correct_type;
 pub mod fragments_on_composite_types;
+pub mod known_argument_names;
 pub mod known_fragment_names;
 pub mod known_type_names;
 pub mod leaf_field_selections;
@@ -20,6 +21,7 @@ pub mod variables_are_input_types;
 pub use self::defaults::*;
 pub use self::fields_on_correct_type::*;
 pub use self::fragments_on_composite_types::*;
+pub use self::known_argument_names::*;
 pub use self::known_fragment_names::*;
 pub use self::known_type_names::*;
 pub use self::leaf_field_selections::*;

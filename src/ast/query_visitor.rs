@@ -1,6 +1,7 @@
 use crate::static_graphql::query::{
-    Definition, Document, Field, FragmentDefinition, FragmentSpread, InlineFragment, Mutation,
-    OperationDefinition, Query, Selection, SelectionSet, Subscription, Value, VariableDefinition,
+    Definition, Directive, Document, Field, FragmentDefinition, FragmentSpread, InlineFragment,
+    Mutation, OperationDefinition, Query, Selection, SelectionSet, Subscription, Value,
+    VariableDefinition,
 };
 
 use super::DefaultVisitorContext;
@@ -109,6 +110,11 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
                 Selection::Field(field) => {
                     self.enter_field(field, visitor_context);
 
+                    for directive in &field.directives {
+                        self.enter_directive(&directive, field, visitor_context);
+                        self.leave_directive(&directive, field, visitor_context);
+                    }
+
                     for (name, argument) in &field.arguments {
                         self.enter_field_argument(name, argument, field, visitor_context);
 
@@ -201,6 +207,21 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
 
     fn enter_field(&self, _node: &Field, _visitor_context: &mut T) {}
     fn leave_field(&self, _node: &Field, _visitor_context: &mut T) {}
+
+    fn enter_directive(
+        &self,
+        _directive: &Directive,
+        _parent_field: &Field,
+        _visitor_context: &mut T,
+    ) {
+    }
+    fn leave_directive(
+        &self,
+        _directive: &Directive,
+        _parent_field: &Field,
+        _visitor_context: &mut T,
+    ) {
+    }
 
     fn enter_field_argument(
         &self,

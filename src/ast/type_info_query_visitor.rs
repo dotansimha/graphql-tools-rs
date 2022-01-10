@@ -3,7 +3,7 @@ use super::{
     TypeInfoRegistry,
 };
 use crate::static_graphql::{
-    query::{self, Field, Type, Value},
+    query::{self, Directive, Field, Type, Value},
     schema::{self},
 };
 
@@ -233,6 +233,11 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                     }
 
                     self.enter_field(field, visitor_context, type_info);
+
+                    for directive in &field.directives {
+                        self.enter_directive(&directive, field, visitor_context, type_info);
+                        self.leave_directive(&directive, field, visitor_context, type_info);
+                    }
 
                     for (argument_name, argument_type) in &field.arguments {
                         if let Some(parent_type) = type_info.get_parent_type() {
@@ -488,6 +493,23 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
 
     fn enter_field(&self, _node: &query::Field, _visitor_context: &mut T, _type_info: &TypeInfo) {}
     fn leave_field(&self, _node: &query::Field, _visitor_context: &mut T, _type_info: &TypeInfo) {}
+
+    fn enter_directive(
+        &self,
+        _directive: &Directive,
+        _parent_field: &query::Field,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
+    fn leave_directive(
+        &self,
+        _directive: &Directive,
+        _parent_field: &query::Field,
+        _visitor_context: &mut T,
+        _type_info: &TypeInfo,
+    ) {
+    }
 
     fn enter_field_argument(
         &self,
