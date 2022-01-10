@@ -62,7 +62,7 @@ cargo add graphql-tools
 - [ ] KnownDirectives
 - [ ] UniqueDirectivesPerLocation
 - [x] KnownArgumentNames
-- [ ] UniqueArgumentNames
+- [x] UniqueArgumentNames
 - [ ] ValuesOfCorrectType
 - [ ] ProvidedRequiredArguments
 - [ ] VariablesInAllowedPosition
