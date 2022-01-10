@@ -1,12 +1,12 @@
 use crate::validation::validate::ValidationPlan;
 
 use super::{
-    FieldsOnCorrectType, FragmentsOnCompositeTypes, KnownArgumentNames, KnownFragmentNames,
-    KnownTypeNames, LeafFieldSelections, LoneAnonymousOperation, NoFragmentsCycle,
-    NoUndefinedVariables, NoUnusedFragments, NoUnusedVariables, OverlappingFieldsCanBeMerged,
-    PossibleFragmentSpreads, ProvidedRequiredArguments, SingleFieldSubscriptions,
-    UniqueArgumentNames, UniqueFragmentNames, UniqueOperationNames, UniqueVariableNames,
-    VariablesAreInputTypes,
+    FieldsOnCorrectType, FragmentsOnCompositeTypes, KnownArgumentNames, KnownDirectives,
+    KnownFragmentNames, KnownTypeNames, LeafFieldSelections, LoneAnonymousOperation,
+    NoFragmentsCycle, NoUndefinedVariables, NoUnusedFragments, NoUnusedVariables,
+    OverlappingFieldsCanBeMerged, PossibleFragmentSpreads, ProvidedRequiredArguments,
+    SingleFieldSubscriptions, UniqueArgumentNames, UniqueFragmentNames, UniqueOperationNames,
+    UniqueVariableNames, VariablesAreInputTypes,
 };
 
 pub fn default_rules_validation_plan() -> ValidationPlan {
@@ -32,6 +32,7 @@ pub fn default_rules_validation_plan() -> ValidationPlan {
     plan.add_rule(Box::new(UniqueArgumentNames::new()));
     plan.add_rule(Box::new(UniqueVariableNames::new()));
     plan.add_rule(Box::new(ProvidedRequiredArguments::new()));
+    plan.add_rule(Box::new(KnownDirectives::new()));
 
     plan
 }

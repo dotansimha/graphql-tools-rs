@@ -213,7 +213,16 @@ schema {
   mutation: MutationRoot
   query: QueryRoot
 }
-directive @onField on FIELD";
+directive @onField on FIELD
+directive @onQuery on QUERY
+directive @onMutation on MUTATION
+directive @onSubscription on SUBSCRIPTION
+directive @onFragmentDefinition on FRAGMENT_DEFINITION
+directive @onFragmentSpread on FRAGMENT_SPREAD
+directive @onInlineFragment on INLINE_FRAGMENT
+# doesn't work see https://github.com/graphql-rust/graphql-parser/issues/60
+# directive @onVariableDefinition on VARIABLE_DEFINITION
+";
 
 #[cfg(test)]
 pub fn create_plan_from_rule(rule: Box<dyn ValidationRule>) -> ValidationPlan {
