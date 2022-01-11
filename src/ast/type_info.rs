@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use crate::{
-    static_graphql::schema::{self, Type},
+    static_graphql::{
+        query::Value,
+        schema::{self, Type, TypeDefinition},
+    },
     validation::utils::find_object_type_by_name,
 };
 
@@ -93,22 +96,40 @@ pub struct TypeInfo {
     pub parent_type_stack: Vec<TypeInfoElementRef<CompositeType>>,
     pub field_def_stack: Vec<TypeInfoElementRef<schema::Field>>,
     pub input_type_stack: Vec<TypeInfoElementRef<PossibleInputType>>,
+    pub default_value_stack: Vec<TypeInfoElementRef<Option<Value>>>,
     pub argument: Option<TypeInfoElementRef<schema::InputValue>>,
 }
 
+/// Type (named/list/non-null), schema raw type, and default value
 #[derive(Debug, Clone)]
 pub enum PossibleInputType {
-    Scalar(Type, schema::ScalarType),
-    Enum(Type, schema::EnumType),
-    InputObject(Type, schema::InputObjectType),
+    Scalar(Type, schema::ScalarType, Option<Value>),
+    Enum(Type, schema::EnumType, Option<Value>),
+    InputObject(Type, schema::InputObjectType, Option<Value>),
 }
 
 impl PossibleInputType {
     pub fn get_type(&self) -> &Type {
         match self {
-            PossibleInputType::Scalar(t, _) => t,
-            PossibleInputType::Enum(t, _) => t,
-            PossibleInputType::InputObject(t, _) => t,
+            PossibleInputType::Scalar(t, _, _) => t,
+            PossibleInputType::Enum(t, _, _) => t,
+            PossibleInputType::InputObject(t, _, _) => t,
+        }
+    }
+
+    pub fn get_schema_type_definition(&self) -> TypeDefinition {
+        match self {
+            PossibleInputType::Scalar(_, t, _) => TypeDefinition::Scalar(t.clone()),
+            PossibleInputType::Enum(_, t, _) => TypeDefinition::Enum(t.clone()),
+            PossibleInputType::InputObject(_, t, _) => TypeDefinition::InputObject(t.clone()),
+        }
+    }
+
+    pub fn get_default_value(&self) -> &Option<Value> {
+        match self {
+            PossibleInputType::Scalar(_, _, d) => d,
+            PossibleInputType::Enum(_, _, d) => d,
+            PossibleInputType::InputObject(_, _, d) => d,
         }
     }
 }
@@ -120,6 +141,7 @@ impl TypeInfo {
             parent_type_stack: Vec::new(),
             input_type_stack: Vec::new(),
             field_def_stack: Vec::new(),
+            default_value_stack: Vec::new(),
             argument: None,
         };
     }
@@ -134,6 +156,18 @@ impl TypeInfo {
 
     pub fn leave_argument(&mut self) {
         self.argument = None;
+    }
+
+    pub fn get_default_value(&self) -> Option<TypeInfoElementRef<Option<Value>>> {
+        self.default_value_stack.last().cloned()
+    }
+
+    pub fn enter_default_value(&mut self, default_value: TypeInfoElementRef<Option<Value>>) {
+        self.default_value_stack.push(default_value);
+    }
+
+    pub fn leave_default_value(&mut self) {
+        self.default_value_stack.pop();
     }
 
     pub fn get_type(&self) -> Option<TypeInfoElementRef<schema::Type>> {

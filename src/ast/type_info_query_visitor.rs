@@ -78,6 +78,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                             PossibleInputType::Enum(
                                                 variable.var_type.clone(),
                                                 e.clone(),
+                                                variable.default_value.clone(),
                                             ),
                                         ));
                                     }
@@ -86,6 +87,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                             PossibleInputType::InputObject(
                                                 variable.var_type.clone(),
                                                 e.clone(),
+                                                variable.default_value.clone(),
                                             ),
                                         ));
                                     }
@@ -94,6 +96,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                             PossibleInputType::Scalar(
                                                 variable.var_type.clone(),
                                                 e.clone(),
+                                                variable.default_value.clone(),
                                             ),
                                         ));
                                     }
@@ -325,6 +328,10 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                         found_schema_arg.clone(),
                                     ));
 
+                                    type_info.enter_default_value(TypeInfoElementRef::Ref(
+                                        found_schema_arg.default_value.clone(),
+                                    ));
+
                                     let arg_named_type =
                                         get_named_type(&found_schema_arg.value_type);
 
@@ -334,6 +341,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                                 PossibleInputType::Enum(
                                                     found_schema_arg.value_type.clone(),
                                                     e.clone(),
+                                                    found_schema_arg.default_value.clone(),
                                                 ),
                                             ));
                                         }
@@ -342,6 +350,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                                 PossibleInputType::InputObject(
                                                     found_schema_arg.value_type.clone(),
                                                     e.clone(),
+                                                    found_schema_arg.default_value.clone(),
                                                 ),
                                             ));
                                         }
@@ -350,6 +359,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                                 PossibleInputType::Scalar(
                                                     found_schema_arg.value_type.clone(),
                                                     e.clone(),
+                                                    found_schema_arg.default_value.clone(),
                                                 ),
                                             ));
                                         }
@@ -398,6 +408,7 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                         );
 
                         type_info.leave_argument();
+                        type_info.leave_default_value();
                         type_info.leave_input_type();
                     }
 

@@ -5,7 +5,6 @@ use crate::{
     ast::{ext::AstWithVariables, QueryVisitor},
     validation::utils::ValidationContext,
 };
-use std::any::Any;
 use std::collections::HashSet;
 
 /// No undefined variables

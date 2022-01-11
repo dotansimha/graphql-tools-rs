@@ -25,6 +25,44 @@ impl ExtendedValue for Value {
     }
 }
 
+pub trait TypeExtension {
+    fn is_non_null_type(&self) -> bool;
+    fn is_list_type(&self) -> bool;
+    fn is_named_type(&self) -> bool;
+    fn inner_type(&self) -> &Type;
+}
+
+impl TypeExtension for Type {
+    fn inner_type(&self) -> &Type {
+        match self {
+            Type::ListType(inner_type) => inner_type,
+            Type::NonNullType(inner_type) => inner_type,
+            _ => self,
+        }
+    }
+
+    fn is_non_null_type(&self) -> bool {
+        match self {
+            Type::NonNullType(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_list_type(&self) -> bool {
+        match self {
+            Type::ListType(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_named_type(&self) -> bool {
+        match self {
+            Type::NamedType(_) => true,
+            _ => false,
+        }
+    }
+}
+
 impl InputValueHelpers for InputValue {
     fn is_required(&self) -> bool {
         if let Type::NonNullType(_inner_type) = &self.value_type {
@@ -215,6 +253,8 @@ pub trait AbstractTypeDefinitionExtension {
 pub trait TypeDefinitionExtension {
     fn is_leaf_type(&self) -> bool;
     fn is_composite_type(&self) -> bool;
+    fn is_object_type(&self) -> bool;
+    fn is_interface_type(&self) -> bool;
     fn is_input_type(&self) -> bool;
     fn is_abstract_type(&self) -> bool;
     fn name(&self) -> String;
@@ -351,9 +391,23 @@ impl TypeDefinitionExtension for CompositeType {
 
     fn is_abstract_type(&self) -> bool {
         match self {
-            CompositeType::Object(_o) => false,
             CompositeType::Interface(_i) => true,
             CompositeType::Union(_u) => true,
+            _ => false,
+        }
+    }
+
+    fn is_object_type(&self) -> bool {
+        match self {
+            CompositeType::Object(_o) => true,
+            _ => false,
+        }
+    }
+
+    fn is_interface_type(&self) -> bool {
+        match self {
+            CompositeType::Interface(_i) => true,
+            _ => false,
         }
     }
 }
@@ -372,34 +426,27 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
 
     fn is_abstract_type(&self) -> bool {
         match self {
-            schema::TypeDefinition::Object(_o) => false,
             schema::TypeDefinition::Interface(_i) => true,
             schema::TypeDefinition::Union(_u) => true,
-            schema::TypeDefinition::Scalar(_u) => false,
-            schema::TypeDefinition::Enum(_u) => false,
             schema::TypeDefinition::InputObject(_u) => false,
+            _ => false,
         }
     }
 
     fn is_leaf_type(&self) -> bool {
         match self {
-            schema::TypeDefinition::Object(_o) => false,
-            schema::TypeDefinition::Interface(_i) => false,
-            schema::TypeDefinition::Union(_u) => false,
             schema::TypeDefinition::Scalar(_u) => true,
             schema::TypeDefinition::Enum(_u) => true,
-            schema::TypeDefinition::InputObject(_u) => false,
+            _ => false,
         }
     }
 
     fn is_input_type(&self) -> bool {
         match self {
-            schema::TypeDefinition::Object(_o) => false,
-            schema::TypeDefinition::Interface(_i) => false,
-            schema::TypeDefinition::Union(_u) => false,
             schema::TypeDefinition::Scalar(_u) => true,
             schema::TypeDefinition::Enum(_u) => true,
             schema::TypeDefinition::InputObject(_u) => true,
+            _ => false,
         }
     }
 
@@ -408,9 +455,21 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
             schema::TypeDefinition::Object(_o) => true,
             schema::TypeDefinition::Interface(_i) => true,
             schema::TypeDefinition::Union(_u) => true,
-            schema::TypeDefinition::Scalar(_u) => false,
-            schema::TypeDefinition::Enum(_u) => false,
-            schema::TypeDefinition::InputObject(_u) => false,
+            _ => false,
+        }
+    }
+
+    fn is_object_type(&self) -> bool {
+        match self {
+            schema::TypeDefinition::Object(_o) => true,
+            _ => false,
+        }
+    }
+
+    fn is_interface_type(&self) -> bool {
+        match self {
+            schema::TypeDefinition::Interface(_i) => true,
+            _ => false,
         }
     }
 }

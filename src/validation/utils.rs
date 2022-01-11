@@ -2,7 +2,7 @@ use crate::{
     ast::TypeInfoRegistry,
     static_graphql::{
         query,
-        schema::{self, TypeDefinition},
+        schema::{self},
     },
 };
 use graphql_parser::Pos;
