@@ -2,7 +2,7 @@ use super::ValidationRule;
 use crate::static_graphql::query::*;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Overlapping fields can be merged
 ///
@@ -17,6 +17,7 @@ struct FindOverlappingFieldsThatCanBeMergedHelper<'a> {
     discoverd_fields: HashMap<String, Field>,
     validation_context: &'a ValidationErrorContext<'a>,
     selection_set_errors: Vec<ValidationError>,
+    visited_fragments: HashSet<String>,
 }
 
 impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
@@ -25,6 +26,7 @@ impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
             discoverd_fields: HashMap::new(),
             selection_set_errors: Vec::new(),
             validation_context: ctx,
+            visited_fragments: HashSet::new(),
         }
     }
 
@@ -101,6 +103,9 @@ impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
                 }
 
                 Selection::FragmentSpread(fragment_spread) => {
+                  if !self.visited_fragments.contains(&fragment_spread.fragment_name) {
+                    self.visited_fragments.insert(fragment_spread.fragment_name.clone());
+
                     if let Some(fragment) = self
                         .validation_context
                         .ctx
@@ -116,6 +121,7 @@ impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
                         }
                     }
                 }
+              }
             }
         }
     }
