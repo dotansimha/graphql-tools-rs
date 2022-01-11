@@ -196,3 +196,451 @@ fn boolean_to_boolean() {
 
     assert_eq!(get_messages(&errors).len(), 0);
 }
+
+#[test]
+fn boolean_to_boolean_within_fragment() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "fragment booleanArgFrag on ComplicatedArgs {
+          booleanArgField(booleanArg: $booleanArg)
+        }
+        query Query($booleanArg: Boolean)
+        {
+          complicatedArgs {
+            ...booleanArgFrag
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    assert_eq!(get_messages(&errors).len(), 0);
+
+    let errors = test_operation_with_schema(
+        "query Query($booleanArg: Boolean)
+      {
+        complicatedArgs {
+          ...booleanArgFrag
+        }
+      }
+      fragment booleanArgFrag on ComplicatedArgs {
+        booleanArgField(booleanArg: $booleanArg)
+      }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    assert_eq!(get_messages(&errors).len(), 0);
+}
+
+#[test]
+fn boolean_nonnull_to_boolean() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($nonNullBooleanArg: Boolean!)
+        {
+          complicatedArgs {
+            booleanArgField(booleanArg: $nonNullBooleanArg)
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    assert_eq!(get_messages(&errors).len(), 0);
+}
+
+#[test]
+fn string_list_to_string_list() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($stringListVar: [String])
+        {
+          complicatedArgs {
+            stringListArgField(stringListArg: $stringListVar)
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    assert_eq!(get_messages(&errors).len(), 0);
+}
+
+#[test]
+fn string_list_nonnull_to_string_list() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($stringListVar: [String!])
+        {
+          complicatedArgs {
+            stringListArgField(stringListArg: $stringListVar)
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    assert_eq!(get_messages(&errors).len(), 0);
+}
+
+#[test]
+fn string_to_string_list_in_item_position() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($stringVar: String)
+        {
+          complicatedArgs {
+            stringListArgField(stringListArg: [$stringVar])
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    assert_eq!(get_messages(&errors).len(), 0);
+}
+
+#[test]
+fn string_nonnull_to_string_list_in_item_position() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($stringVar: String!)
+        {
+          complicatedArgs {
+            stringListArgField(stringListArg: [$stringVar])
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    assert_eq!(get_messages(&errors).len(), 0);
+}
+
+#[test]
+fn complexinput_to_complexinput() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($complexVar: ComplexInput)
+        {
+          complicatedArgs {
+            complexArgField(complexArg: $complexVar)
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    assert_eq!(get_messages(&errors).len(), 0);
+}
+
+#[test]
+fn complexinput_to_complexinput_in_field_position() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($boolVar: Boolean = false)
+        {
+          complicatedArgs {
+            complexArgField(complexArg: {requiredArg: $boolVar})
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    assert_eq!(get_messages(&errors).len(), 0);
+}
+
+#[test]
+fn boolean_nonnull_to_boolean_nonnull_in_directive() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($boolVar: Boolean!)
+        {
+          dog @include(if: $boolVar)
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    assert_eq!(get_messages(&errors).len(), 0);
+}
+
+#[test]
+fn int_to_int_nonnull() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($intArg: Int) {
+          complicatedArgs {
+            nonNullIntArgField(nonNullIntArg: $intArg)
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Variable \"$intArg\" of type \"Int\" used in position expecting type \"Int!\"."
+    ])
+}
+
+
+#[test]
+fn int_to_int_nonnull_within_fragment() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "fragment nonNullIntArgFieldFrag on ComplicatedArgs {
+          nonNullIntArgField(nonNullIntArg: $intArg)
+        }
+        query Query($intArg: Int) {
+          complicatedArgs {
+            ...nonNullIntArgFieldFrag
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Variable \"$intArg\" of type \"Int\" used in position expecting type \"Int!\"."
+    ])
+}
+
+#[test]
+fn int_to_int_nonnull_within_nested_fragment() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "fragment outerFrag on ComplicatedArgs {
+          ...nonNullIntArgFieldFrag
+        }
+        fragment nonNullIntArgFieldFrag on ComplicatedArgs {
+          nonNullIntArgField(nonNullIntArg: $intArg)
+        }
+        query Query($intArg: Int) {
+          complicatedArgs {
+            ...outerFrag
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Variable \"$intArg\" of type \"Int\" used in position expecting type \"Int!\"."
+    ])
+}
+
+#[test]
+fn string_over_boolean() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($stringVar: String) {
+          complicatedArgs {
+            booleanArgField(booleanArg: $stringVar)
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Variable \"$stringVar\" of type \"String\" used in position expecting type \"Boolean\"."
+    ])
+}
+
+#[test]
+fn string_over_string_list() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($stringVar: String) {
+          complicatedArgs {
+            stringListArgField(stringListArg: $stringVar)
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Variable \"$stringVar\" of type \"String\" used in position expecting type \"[String]\"."
+    ])
+}
+
+#[test]
+fn boolean_to_boolean_nonnull_in_directive() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($boolVar: Boolean) {
+          dog @include(if: $boolVar)
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Variable \"$boolVar\" of type \"Boolean\" used in position expecting type \"Boolean!\"."
+    ])
+}
+
+#[test]
+fn string_to_boolean_nonnull_in_directive() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($stringVar: String) {
+          dog @include(if: $stringVar)
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Variable \"$boolVar\" of type \"String\" used in position expecting type \"Boolean!\"."
+    ])
+}
+
+#[test]
+fn string_list_to_string_nonnull_list() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($stringListVar: [String])
+        {
+          complicatedArgs {
+            stringListNonNullArgField(stringListNonNullArg: $stringListVar)
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Variable \"$stringListVar\" of type \"[String]\" used in position expecting type \"[String!]\"."
+    ])
+}
+
+#[test]
+fn int_to_int_non_null_with_null_default_value() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($intVar: Int = null) {
+          complicatedArgs {
+            nonNullIntArgField(nonNullIntArg: $intVar)
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Variable \"$intVar\" of type \"Int\" used in position expecting type \"Int!\"."
+    ])
+}
+
+#[test]
+fn int_to_int_non_null_with_default_value() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($intVar: Int = 1) {
+          complicatedArgs {
+            nonNullIntArgField(nonNullIntArg: $intVar)
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}
+
+#[test]
+fn int_to_int_non_null_where_argument_with_default_value() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($intVar: Int) {
+          complicatedArgs {
+            nonNullFieldWithDefault(nonNullIntArg: $intVar)
+          }
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}
+
+#[test]
+fn boolean_to_boolean_non_null_with_default_value() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(VariablesInAllowedPosition {}));
+    let errors = test_operation_with_schema(
+        "query Query($boolVar: Boolean = false) {
+          dog @include(if: $boolVar)
+        }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}

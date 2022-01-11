@@ -380,7 +380,7 @@ fn nested_variable_should_work_as_well() {
     let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
     let errors = test_operation_without_schema(
         "query foo($t: Boolean!) {
-          field(boop: { test: $t})
+          field(boop: { test: $t })
         }
         ",
         &mut plan,

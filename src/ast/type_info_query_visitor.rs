@@ -37,6 +37,36 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         type_info.leave_type();
     }
 
+    fn __visit_value(
+        &self,
+        arg_name: &String,
+        node: &Value,
+        visitor_context: &mut T,
+        type_info_registry: &TypeInfoRegistry,
+        type_info: &mut TypeInfo,
+    ) {
+        self.enter_value(node, visitor_context, type_info);
+
+        if let Value::Object(tree_map) = node {
+            tree_map.iter().for_each(|(key, sub_value)| {
+                self.__visit_value(
+                    key,
+                    sub_value,
+                    visitor_context,
+                    type_info_registry,
+                    type_info,
+                )
+            })
+        }
+
+        if let Value::Variable(var_name) = node {
+            self.enter_variable(var_name, (arg_name, node), visitor_context, type_info);
+            self.leave_variable(var_name, (arg_name, node), visitor_context, type_info);
+        }
+
+        self.leave_value(node, visitor_context, type_info);
+    }
+
     fn visit_document(
         &self,
         node: &query::Document,
@@ -381,6 +411,14 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             type_info,
                         );
 
+                        self.__visit_value(
+                            argument_name,
+                            argument_type,
+                            visitor_context,
+                            type_info_registry,
+                            type_info,
+                        );
+
                         match argument_type {
                             Value::Variable(variable) => {
                                 self.enter_variable(
@@ -474,6 +512,9 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         self.leave_selection_set(_node, visitor_context, type_info);
         type_info.leave_parent_type();
     }
+
+    fn enter_value(&self, _node: &Value, _visitor_context: &mut T, _type_info: &TypeInfo) {}
+    fn leave_value(&self, _node: &Value, _visitor_context: &mut T, _type_info: &TypeInfo) {}
 
     fn enter_document(
         &self,
