@@ -541,7 +541,7 @@ fn string_to_boolean_nonnull_in_directive() {
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 1);
     assert_eq!(messages, vec![
-      "Variable \"$boolVar\" of type \"String\" used in position expecting type \"Boolean!\"."
+      "Variable \"$stringVar\" of type \"String\" used in position expecting type \"Boolean!\"."
     ])
 }
 

@@ -47,26 +47,30 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownArgumentNames
         }
     }
 
-    fn enter_field_argument(
+    fn enter_field(
         &self,
-        argument_name: &String,
-        _value: &crate::static_graphql::query::Value,
-        _parent_field: &crate::static_graphql::query::Field,
+        _node: &crate::static_graphql::query::Field,
         _visitor_context: &mut ValidationErrorContext<'a>,
         type_info: &TypeInfo,
     ) {
-        if let Some(TypeInfoElementRef::Empty) = type_info.get_argument() {
+        for (argument_name, _argument_value) in &_node.arguments {
             if let Some(TypeInfoElementRef::Ref(field_def)) = type_info.get_field_def() {
                 if let Some(TypeInfoElementRef::Ref(parent_type)) = type_info.get_parent_type() {
-                    _visitor_context.report_error(ValidationError {
-                        locations: vec![_parent_field.position],
-                        message: format!(
-                            "Unknown argument \"{}\" on field \"{}.{}\".",
-                            argument_name,
-                            parent_type.name(),
-                            field_def.name
-                        ),
-                    });
+                    if let None = field_def
+                        .arguments
+                        .iter()
+                        .find(|v| v.name.eq(argument_name))
+                    {
+                        _visitor_context.report_error(ValidationError {
+                            locations: vec![],
+                            message: format!(
+                                "Unknown argument \"{}\" on field \"{}.{}\".",
+                                argument_name,
+                                parent_type.name(),
+                                field_def.name
+                            ),
+                        });
+                    }
                 }
             }
         }
@@ -262,6 +266,7 @@ fn arg_passed_to_directive_without_arg_is_reported() {
     );
 
     let messages = get_messages(&errors);
+    println!("{:?}", messages);
     assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,

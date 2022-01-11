@@ -99,41 +99,13 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             self.enter_query(query, visitor_context, &type_info);
 
                             for variable in &query.variable_definitions {
-                                match type_info_registry
-                                    .type_by_name
-                                    .get(&get_named_type(&variable.var_type))
-                                {
-                                    Some(TypeDefinition::Enum(e)) => {
-                                        type_info.enter_input_type(TypeInfoElementRef::Ref(
-                                            PossibleInputType::Enum(
-                                                variable.var_type.clone(),
-                                                e.clone(),
-                                                variable.default_value.clone(),
-                                            ),
-                                        ));
-                                    }
-                                    Some(TypeDefinition::InputObject(e)) => {
-                                        type_info.enter_input_type(TypeInfoElementRef::Ref(
-                                            PossibleInputType::InputObject(
-                                                variable.var_type.clone(),
-                                                e.clone(),
-                                                variable.default_value.clone(),
-                                            ),
-                                        ));
-                                    }
-                                    Some(TypeDefinition::Scalar(e)) => {
-                                        type_info.enter_input_type(TypeInfoElementRef::Ref(
-                                            PossibleInputType::Scalar(
-                                                variable.var_type.clone(),
-                                                e.clone(),
-                                                variable.default_value.clone(),
-                                            ),
-                                        ));
-                                    }
-                                    _ => {
-                                        type_info.enter_input_type(TypeInfoElementRef::Empty);
-                                    }
-                                }
+                                self.__handle_input_type(
+                                    &variable.var_type,
+                                    &variable.default_value,
+                                    &get_named_type(&variable.var_type),
+                                    type_info_registry,
+                                    &mut type_info,
+                                );
 
                                 self.enter_variable_definition(
                                     variable,
@@ -264,32 +236,111 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         &self,
         directive: &query::Directive,
         visitor_context: &mut T,
-        _type_info_registry: &TypeInfoRegistry,
+        type_info_registry: &TypeInfoRegistry,
         type_info: &mut TypeInfo,
     ) {
-        self.enter_directive(&directive, visitor_context, type_info);
+        if let Some(directive_def) = type_info_registry.directives.get(&directive.name) {
+            self.enter_directive(&directive, visitor_context, type_info);
 
-        for (arg_name, arg_value) in &directive.arguments {
-            match arg_value {
-                Value::Variable(variable) => {
-                    self.enter_variable(
-                        variable,
-                        (arg_name, arg_value),
-                        visitor_context,
+            for (argument_name, argument_type) in &directive.arguments {
+                if let Some(found_schema_arg) = directive_def
+                    .arguments
+                    .iter()
+                    .find(|arg| arg.name.eq(argument_name))
+                {
+                    type_info.enter_argument(TypeInfoElementRef::Ref(found_schema_arg.clone()));
+
+                    type_info.enter_default_value(TypeInfoElementRef::Ref(
+                        found_schema_arg.default_value.clone(),
+                    ));
+
+                    let arg_named_type = get_named_type(&found_schema_arg.value_type);
+
+                    self.__handle_input_type(
+                        &found_schema_arg.value_type,
+                        &found_schema_arg.default_value,
+                        &arg_named_type,
+                        type_info_registry,
                         type_info,
                     );
-                    self.leave_variable(
-                        variable,
-                        (arg_name, arg_value),
-                        visitor_context,
-                        type_info,
-                    );
+                } else {
+                    type_info.enter_argument(TypeInfoElementRef::Empty)
                 }
-                _ => {}
+
+                self.enter_argument(argument_name, argument_type, visitor_context, type_info);
+
+                self.__visit_value(
+                    argument_name,
+                    argument_type,
+                    visitor_context,
+                    type_info_registry,
+                    type_info,
+                );
+
+                match argument_type {
+                    Value::Variable(variable) => {
+                        self.enter_variable(
+                            variable,
+                            (argument_name, argument_type),
+                            visitor_context,
+                            type_info,
+                        );
+                        self.leave_variable(
+                            variable,
+                            (argument_name, argument_type),
+                            visitor_context,
+                            type_info,
+                        );
+                    }
+                    _ => {}
+                }
+
+                self.leave_argument(argument_name, argument_type, visitor_context, type_info);
+
+                type_info.leave_argument();
+                type_info.leave_default_value();
+                type_info.leave_input_type();
+            }
+            self.leave_directive(&directive, visitor_context, type_info);
+        }
+    }
+
+    fn __handle_input_type(
+        &self,
+        type_to_use: &Type,
+        default_value: &Option<Value>,
+        named_type: &String,
+        type_info_registry: &TypeInfoRegistry,
+        type_info: &mut TypeInfo,
+    ) {
+        match type_info_registry.type_by_name.get(named_type) {
+            Some(TypeDefinition::Enum(e)) => {
+                type_info.enter_input_type(TypeInfoElementRef::Ref(PossibleInputType::Enum(
+                    type_to_use.clone(),
+                    e.clone(),
+                    default_value.clone(),
+                )));
+            }
+            Some(TypeDefinition::InputObject(e)) => {
+                type_info.enter_input_type(TypeInfoElementRef::Ref(
+                    PossibleInputType::InputObject(
+                        type_to_use.clone(),
+                        e.clone(),
+                        default_value.clone(),
+                    ),
+                ));
+            }
+            Some(TypeDefinition::Scalar(e)) => {
+                type_info.enter_input_type(TypeInfoElementRef::Ref(PossibleInputType::Scalar(
+                    type_to_use.clone(),
+                    e.clone(),
+                    default_value.clone(),
+                )));
+            }
+            _ => {
+                type_info.enter_input_type(TypeInfoElementRef::Empty);
             }
         }
-
-        self.leave_directive(&directive, visitor_context, type_info);
     }
 
     fn __visit_selection_set(
@@ -365,48 +416,22 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                     let arg_named_type =
                                         get_named_type(&found_schema_arg.value_type);
 
-                                    match type_info_registry.type_by_name.get(&arg_named_type) {
-                                        Some(TypeDefinition::Enum(e)) => {
-                                            type_info.enter_input_type(TypeInfoElementRef::Ref(
-                                                PossibleInputType::Enum(
-                                                    found_schema_arg.value_type.clone(),
-                                                    e.clone(),
-                                                    found_schema_arg.default_value.clone(),
-                                                ),
-                                            ));
-                                        }
-                                        Some(TypeDefinition::InputObject(e)) => {
-                                            type_info.enter_input_type(TypeInfoElementRef::Ref(
-                                                PossibleInputType::InputObject(
-                                                    found_schema_arg.value_type.clone(),
-                                                    e.clone(),
-                                                    found_schema_arg.default_value.clone(),
-                                                ),
-                                            ));
-                                        }
-                                        Some(TypeDefinition::Scalar(e)) => {
-                                            type_info.enter_input_type(TypeInfoElementRef::Ref(
-                                                PossibleInputType::Scalar(
-                                                    found_schema_arg.value_type.clone(),
-                                                    e.clone(),
-                                                    found_schema_arg.default_value.clone(),
-                                                ),
-                                            ));
-                                        }
-                                        _ => {
-                                            type_info.enter_input_type(TypeInfoElementRef::Empty);
-                                        }
-                                    }
+                                    self.__handle_input_type(
+                                        &found_schema_arg.value_type,
+                                        &found_schema_arg.default_value,
+                                        &arg_named_type,
+                                        type_info_registry,
+                                        type_info,
+                                    );
                                 } else {
                                     type_info.enter_argument(TypeInfoElementRef::Empty)
                                 }
                             }
                         }
 
-                        self.enter_field_argument(
+                        self.enter_argument(
                             argument_name,
                             argument_type,
-                            field,
                             visitor_context,
                             type_info,
                         );
@@ -437,10 +462,9 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             _ => {}
                         }
 
-                        self.leave_field_argument(
+                        self.leave_argument(
                             argument_name,
                             argument_type,
-                            field,
                             visitor_context,
                             type_info,
                         );
@@ -674,20 +698,18 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
     ) {
     }
 
-    fn enter_field_argument(
+    fn enter_argument(
         &self,
         _name: &String,
         _value: &query::Value,
-        _parent_field: &query::Field,
         _visitor_context: &mut T,
         _type_info: &TypeInfo,
     ) {
     }
-    fn leave_field_argument(
+    fn leave_argument(
         &self,
         _name: &String,
         _value: &query::Value,
-        _parent_field: &query::Field,
         _visitor_context: &mut T,
         _type_info: &TypeInfo,
     ) {
