@@ -365,7 +365,8 @@ fn complexinput_to_complexinput_in_field_position() {
         &mut plan,
     );
 
-    assert_eq!(get_messages(&errors).len(), 0);
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
 }
 
 #[test]
