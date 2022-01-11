@@ -132,7 +132,7 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
 
                     for (name, argument) in &field.arguments {
                         self.enter_field_argument(name, argument, field, visitor_context);
-                        self.__visit_value(argument, visitor_context);
+                        self.__visit_value(name, argument, visitor_context);
 
                         match argument {
                             Value::Variable(variable) => {
@@ -175,13 +175,18 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         self.leave_selection_set(_node, visitor_context);
     }
 
-    fn __visit_value(&self, node: &Value, visitor_context: &mut T) {
+    fn __visit_value(&self, arg_name: &String, node: &Value, visitor_context: &mut T) {
         self.enter_value(node, visitor_context);
 
         if let Value::Object(tree_map) = node {
             tree_map
                 .iter()
-                .for_each(|(_key, sub_value)| self.__visit_value(sub_value, visitor_context))
+                .for_each(|(key, sub_value)| self.__visit_value(key, sub_value, visitor_context))
+        }
+
+        if let Value::Variable(var_name) = node {
+            self.enter_variable(var_name, (arg_name, node), visitor_context);
+            self.leave_variable(var_name, (arg_name, node), visitor_context);
         }
 
         self.leave_value(node, visitor_context);

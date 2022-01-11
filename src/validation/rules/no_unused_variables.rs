@@ -364,3 +364,20 @@ fn should_also_check_directives_usage() {
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 0);
 }
+
+#[test]
+fn nested_variable_should_work_as_well() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let errors = test_operation_without_schema(
+        "query foo($t: Boolean!) {
+          field(boop: { test: $t})
+        }
+        ",
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}
