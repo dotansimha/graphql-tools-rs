@@ -100,6 +100,22 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         self.leave_document(node, visitor_context);
     }
 
+    fn __visit_directive_use(&self, directive: &Directive, visitor_context: &mut T) {
+        self.enter_directive(&directive, visitor_context);
+
+        for (arg_name, arg_value) in &directive.arguments {
+            match arg_value {
+                Value::Variable(variable) => {
+                    self.enter_variable(variable, (arg_name, arg_value), visitor_context);
+                    self.leave_variable(variable, (arg_name, arg_value), visitor_context);
+                }
+                _ => {}
+            }
+        }
+
+        self.leave_directive(&directive, visitor_context);
+    }
+
     fn __visit_selection_set(&self, _node: &SelectionSet, visitor_context: &mut T) {
         self.enter_selection_set(_node, visitor_context);
 
@@ -111,8 +127,7 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
                     self.enter_field(field, visitor_context);
 
                     for directive in &field.directives {
-                        self.enter_directive(&directive, visitor_context);
-                        self.leave_directive(&directive, visitor_context);
+                        self.__visit_directive_use(directive, visitor_context)
                     }
 
                     for (name, argument) in &field.arguments {
@@ -121,18 +136,8 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
 
                         match argument {
                             Value::Variable(variable) => {
-                                self.enter_variable(
-                                    variable,
-                                    (name, argument),
-                                    &field,
-                                    visitor_context,
-                                );
-                                self.leave_variable(
-                                    variable,
-                                    (name, argument),
-                                    &field,
-                                    visitor_context,
-                                );
+                                self.enter_variable(variable, (name, argument), visitor_context);
+                                self.leave_variable(variable, (name, argument), visitor_context);
                             }
                             _ => {}
                         }
@@ -147,8 +152,7 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
                     self.enter_fragment_spread(fragment_spread, visitor_context);
 
                     for directive in &fragment_spread.directives {
-                        self.enter_directive(&directive, visitor_context);
-                        self.leave_directive(&directive, visitor_context);
+                        self.__visit_directive_use(directive, visitor_context)
                     }
 
                     self.leave_fragment_spread(fragment_spread, visitor_context);
@@ -157,8 +161,7 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
                     self.enter_inline_fragment(inline_fragment, visitor_context);
 
                     for directive in &inline_fragment.directives {
-                        self.enter_directive(&directive, visitor_context);
-                        self.leave_directive(&directive, visitor_context);
+                        self.__visit_directive_use(directive, visitor_context)
                     }
 
                     self.__visit_selection_set(&inline_fragment.selection_set, visitor_context);
@@ -256,7 +259,6 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         &self,
         _name: &String,
         _parent_arg: (&String, &Value),
-        _parent_field: &Field,
         _visitor_context: &mut T,
     ) {
     }
@@ -264,7 +266,6 @@ pub trait QueryVisitor<T = DefaultVisitorContext> {
         &self,
         _name: &String,
         _parent_arg: (&String, &Value),
-        _parent_field: &Field,
         _visitor_context: &mut T,
     ) {
     }

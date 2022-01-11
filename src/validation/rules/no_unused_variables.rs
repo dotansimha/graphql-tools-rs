@@ -347,3 +347,20 @@ fn variables_not_used_by_fragment_used_by_other_operation() {
     assert!(messages.contains(&&"Variable \"$b\" is never used in operation \"Foo\".".to_owned()));
     assert!(messages.contains(&&"Variable \"$a\" is never used in operation \"Bar\".".to_owned()));
 }
+
+#[test]
+fn should_also_check_directives_usage() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let errors = test_operation_without_schema(
+        "query foo($skip: Boolean!) {
+          field @skip(if: $skip)
+        }
+        ",
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}

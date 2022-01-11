@@ -3,7 +3,7 @@ use super::{
     TypeInfoRegistry,
 };
 use crate::static_graphql::{
-    query::{self, Directive, Field, Type, Value},
+    query::{self, Directive, Type, Value},
     schema::{self},
 };
 
@@ -189,6 +189,38 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         self.leave_document(node, visitor_context, &type_info);
     }
 
+    fn __visit_directive_use(
+        &self,
+        directive: &query::Directive,
+        visitor_context: &mut T,
+        _type_info_registry: &TypeInfoRegistry,
+        type_info: &mut TypeInfo,
+    ) {
+        self.enter_directive(&directive, visitor_context, type_info);
+
+        for (arg_name, arg_value) in &directive.arguments {
+            match arg_value {
+                Value::Variable(variable) => {
+                    self.enter_variable(
+                        variable,
+                        (arg_name, arg_value),
+                        visitor_context,
+                        type_info,
+                    );
+                    self.leave_variable(
+                        variable,
+                        (arg_name, arg_value),
+                        visitor_context,
+                        type_info,
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        self.leave_directive(&directive, visitor_context, type_info);
+    }
+
     fn __visit_selection_set(
         &self,
         _node: &query::SelectionSet,
@@ -235,8 +267,12 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                     self.enter_field(field, visitor_context, type_info);
 
                     for directive in &field.directives {
-                        self.enter_directive(&directive, visitor_context, type_info);
-                        self.leave_directive(&directive, visitor_context, type_info);
+                        self.__visit_directive_use(
+                            directive,
+                            visitor_context,
+                            type_info_registry,
+                            type_info,
+                        );
                     }
 
                     for (argument_name, argument_type) in &field.arguments {
@@ -281,14 +317,12 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                                 self.enter_variable(
                                     variable,
                                     (argument_name, argument_type),
-                                    &field,
                                     visitor_context,
                                     type_info,
                                 );
                                 self.leave_variable(
                                     variable,
                                     (argument_name, argument_type),
-                                    &field,
                                     visitor_context,
                                     type_info,
                                 );
@@ -320,10 +354,16 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                 }
                 query::Selection::FragmentSpread(fragment_spread) => {
                     self.enter_fragment_spread(fragment_spread, visitor_context, type_info);
+
                     for directive in &fragment_spread.directives {
-                        self.enter_directive(&directive, visitor_context, type_info);
-                        self.leave_directive(&directive, visitor_context, type_info);
+                        self.__visit_directive_use(
+                            directive,
+                            visitor_context,
+                            type_info_registry,
+                            type_info,
+                        );
                     }
+
                     self.leave_fragment_spread(fragment_spread, visitor_context, type_info);
                 }
                 query::Selection::InlineFragment(inline_fragment) => {
@@ -339,8 +379,12 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                     self.enter_inline_fragment(inline_fragment, visitor_context, type_info);
 
                     for directive in &inline_fragment.directives {
-                        self.enter_directive(&directive, visitor_context, type_info);
-                        self.leave_directive(&directive, visitor_context, type_info);
+                        self.__visit_directive_use(
+                            directive,
+                            visitor_context,
+                            type_info_registry,
+                            type_info,
+                        );
                     }
 
                     self.__visit_selection_set(
@@ -542,7 +586,6 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         &self,
         _name: &String,
         _parent_arg: (&String, &Value),
-        _parent_field: &Field,
         _visitor_context: &mut T,
         _type_info: &TypeInfo,
     ) {
@@ -551,7 +594,6 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         &self,
         _name: &String,
         _parent_arg: (&String, &Value),
-        _parent_field: &Field,
         _visitor_context: &mut T,
         _type_info: &TypeInfo,
     ) {

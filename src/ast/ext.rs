@@ -83,7 +83,6 @@ impl AstWithVariables for OperationDefinition {
                 &self,
                 _name: &String,
                 _parent_arg: (&String, &query::Value),
-                _parent_field: &query::Field,
                 _visitor_context: &mut GetVariablesInUseHelper,
             ) {
                 _visitor_context.variables_in_use.insert(_name.clone());
