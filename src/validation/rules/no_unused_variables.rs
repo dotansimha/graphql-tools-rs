@@ -34,11 +34,19 @@ impl<'a> QueryVisitor<NoUnusedVariablesHelper<'a>> for NoUnusedVariables {
         visitor_context: &mut NoUnusedVariablesHelper<'a>,
     ) {
         let variables = node.get_variables();
-        let in_use = node.get_variables_in_use(&visitor_context.error_context.ctx.fragments);
+        let in_use = node.get_variables_in_use(
+            &visitor_context.error_context.ctx.fragments,
+            visitor_context
+                .error_context
+                .ctx
+                .type_info_registry
+                .as_ref()
+                .unwrap(),
+        );
 
         variables
             .iter()
-            .filter(|variable_name| !in_use.contains(&variable_name.name))
+            .filter(|variable_name| !in_use.contains_key(&variable_name.name))
             .for_each(|unused_variable_name| {
                 visitor_context.error_context.report_error(ValidationError {
                     locations: vec![],
