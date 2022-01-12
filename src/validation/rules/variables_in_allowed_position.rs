@@ -27,11 +27,6 @@ fn is_type_subtype_of(
         return true;
     }
 
-    println!(
-        "is_type_subtype_of: sub_type: {:?} {:?}, super_type: {:?} {:?}",
-        maybe_sub_type, maybe_sub_type_schema_type, super_type, super_type_schema_type
-    );
-
     if super_type.is_non_null_type() {
         if maybe_sub_type.is_non_null_type() {
             return is_type_subtype_of(
@@ -358,7 +353,7 @@ fn complexinput_to_complexinput_in_field_position() {
         "query Query($boolVar: Boolean = false)
         {
           complicatedArgs {
-            complexArgField(complexArg: {requiredArg: $boolVar})
+            complexArgField(complexArg: { requiredArg: $boolVar })
           }
         }",
         &TEST_SCHEMA,

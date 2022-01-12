@@ -146,6 +146,7 @@ impl AstWithVariables for OperationDefinition {
                 _visitor_context: &mut GetVariablesInUseHelper,
                 _type_info: &TypeInfo,
             ) {
+                println!("enter variable: {}", _name);
                 let input_type = _type_info.get_input_type();
 
                 _visitor_context

@@ -236,14 +236,16 @@ pub fn test_operation_without_schema<'a>(
     operation: &'a str,
     plan: &'a mut ValidationPlan,
 ) -> Vec<ValidationError> {
-    let schema_ast = graphql_parser::parse_schema(
+    let schema_clone = string_to_static_str(
         "
-type Query {
-  dummy: String
-}
-",
-    )
-    .expect("Failed to parse schema");
+  type Query {
+    dummy: String
+  }
+  "
+        .to_string()
+            + INTROSPECTION_SCHEMA,
+    );
+    let schema_ast = graphql_parser::parse_schema(&schema_clone).expect("Failed to parse schema");
 
     let operation_ast = graphql_parser::parse_query(operation)
         .unwrap()
