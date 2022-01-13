@@ -20,6 +20,7 @@ fn is_type_subtype_of(
     (maybe_sub_type, maybe_sub_type_schema_type): (&Type, &TypeDefinition),
     (super_type, super_type_schema_type): (&Type, &TypeDefinition),
 ) -> bool {
+    println!("maybe_sub_type: {:?}, super_type: {:?}", maybe_sub_type, super_type);
     if super_type.is_named_type()
         && maybe_sub_type.is_named_type()
         && maybe_sub_type.named_type().eq(&super_type.named_type())
@@ -63,8 +64,6 @@ fn is_type_subtype_of(
     return super_type_schema_type.is_abstract_type()
         && (maybe_sub_type_schema_type.is_interface_type()
             || maybe_sub_type_schema_type.is_object_type());
-
-    // Missing here: schema.isSubType(superType, maybeSubType)
 }
 
 fn is_variable_compatible(

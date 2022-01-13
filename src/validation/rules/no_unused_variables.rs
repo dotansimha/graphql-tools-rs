@@ -33,7 +33,7 @@ impl<'a> QueryVisitor<NoUnusedVariablesHelper<'a>> for NoUnusedVariables {
         node: &OperationDefinition,
         visitor_context: &mut NoUnusedVariablesHelper<'a>,
     ) {
-        let variables = node.get_variables();
+        let known_variables = node.get_variables();
         let in_use = node.get_variables_in_use(
             &visitor_context.error_context.ctx.fragments,
             visitor_context
@@ -44,7 +44,7 @@ impl<'a> QueryVisitor<NoUnusedVariablesHelper<'a>> for NoUnusedVariables {
                 .unwrap(),
         );
 
-        variables
+        known_variables
             .iter()
             .filter(|variable_name| !in_use.contains_key(&variable_name.name))
             .for_each(|unused_variable_name| {

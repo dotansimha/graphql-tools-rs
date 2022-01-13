@@ -3,8 +3,8 @@ use super::{
     TypeInfoElementRef, TypeInfoRegistry,
 };
 use crate::static_graphql::{
-    query::{self, Directive, FragmentDefinition, Type, Value},
-    schema::{self, TypeDefinition},
+    query::{self, Directive, FragmentDefinition, Type, Value, VariableDefinition},
+    schema::{self, InputValue, TypeDefinition},
 };
 
 use crate::ast::ext::AstTypeRef;
@@ -48,9 +48,9 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         self.enter_value(node, visitor_context, type_info);
 
         if let Value::Object(tree_map) = node {
-            tree_map.iter().for_each(|(key, sub_value)| {
+            tree_map.iter().for_each(|(sub_key, sub_value)| {
                 self.__visit_value(
-                    key,
+                    sub_key,
                     sub_value,
                     visitor_context,
                     type_info_registry,
@@ -65,6 +65,29 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         }
 
         self.leave_value(node, visitor_context, type_info);
+    }
+
+    fn __handle_operation_variables(
+        &self,
+        variable_definitions: &Vec<VariableDefinition>,
+        visitor_context: &mut T,
+        type_info_registry: &TypeInfoRegistry,
+        type_info: &mut TypeInfo,
+    ) {
+        for variable in variable_definitions {
+            self.__handle_input_type(
+                &variable.var_type,
+                &variable.default_value,
+                &get_named_type(&variable.var_type),
+                type_info_registry,
+                type_info,
+            );
+
+            self.enter_variable_definition(variable, visitor_context, &type_info);
+            self.leave_variable_definition(variable, visitor_context, &type_info);
+
+            type_info.leave_input_type();
+        }
     }
 
     fn visit_document(
@@ -98,37 +121,23 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             )));
                             self.enter_query(query, visitor_context, &type_info);
 
-                            for variable in &query.variable_definitions {
-                                self.__handle_input_type(
-                                    &variable.var_type,
-                                    &variable.default_value,
-                                    &get_named_type(&variable.var_type),
-                                    type_info_registry,
-                                    &mut type_info,
-                                );
+                            let variables = &query.variable_definitions;
+                            self.__handle_operation_variables(
+                                variables,
+                                visitor_context,
+                                type_info_registry,
+                                &mut type_info,
+                            );
 
-                                self.enter_variable_definition(
-                                    variable,
-                                    operation,
-                                    visitor_context,
-                                    &type_info,
-                                );
-                                self.leave_variable_definition(
-                                    variable,
-                                    operation,
-                                    visitor_context,
-                                    &type_info,
-                                );
-
-                                type_info.leave_input_type();
-                            }
-
+                            type_info.enter_known_variables(variables.clone());
                             self.__visit_selection_set(
                                 &query.selection_set,
                                 visitor_context,
                                 type_info_registry,
                                 &mut type_info,
                             );
+                            type_info.leave_known_variables();
+
                             self.leave_query(query, visitor_context, &type_info);
                             type_info.leave_type();
                         }
@@ -142,26 +151,23 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             }
 
                             self.enter_mutation(mutation, visitor_context, &type_info);
-                            for variable in &mutation.variable_definitions {
-                                self.enter_variable_definition(
-                                    variable,
-                                    operation,
-                                    visitor_context,
-                                    &mut type_info,
-                                );
-                                self.leave_variable_definition(
-                                    variable,
-                                    operation,
-                                    visitor_context,
-                                    &mut type_info,
-                                );
-                            }
+
+                            let variables = &mutation.variable_definitions;
+                            self.__handle_operation_variables(
+                                variables,
+                                visitor_context,
+                                type_info_registry,
+                                &mut type_info,
+                            );
+
+                            type_info.enter_known_variables(variables.clone());
                             self.__visit_selection_set(
                                 &mutation.selection_set,
                                 visitor_context,
                                 type_info_registry,
                                 &mut type_info,
                             );
+                            type_info.leave_known_variables();
                             self.leave_mutation(mutation, visitor_context, &type_info);
                             type_info.leave_type();
                         }
@@ -175,26 +181,23 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             }
 
                             self.enter_subscription(subscription, visitor_context, &type_info);
-                            for variable in &subscription.variable_definitions {
-                                self.enter_variable_definition(
-                                    variable,
-                                    operation,
-                                    visitor_context,
-                                    &mut type_info,
-                                );
-                                self.leave_variable_definition(
-                                    variable,
-                                    operation,
-                                    visitor_context,
-                                    &mut type_info,
-                                );
-                            }
+
+                            let variables = &subscription.variable_definitions;
+                            self.__handle_operation_variables(
+                                variables,
+                                visitor_context,
+                                type_info_registry,
+                                &mut type_info,
+                            );
+
+                            type_info.enter_known_variables(variables.clone());
                             self.__visit_selection_set(
                                 &subscription.selection_set,
                                 visitor_context,
                                 type_info_registry,
                                 &mut type_info,
                             );
+                            type_info.leave_known_variables();
                             self.leave_subscription(subscription, visitor_context, &type_info);
                             type_info.leave_type();
                         }
@@ -242,65 +245,14 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         if let Some(directive_def) = type_info_registry.directives.get(&directive.name) {
             self.enter_directive(&directive, visitor_context, type_info);
 
-            for (argument_name, argument_type) in &directive.arguments {
-                if let Some(found_schema_arg) = directive_def
-                    .arguments
-                    .iter()
-                    .find(|arg| arg.name.eq(argument_name))
-                {
-                    type_info.enter_argument(TypeInfoElementRef::Ref(found_schema_arg.clone()));
+            self.__handle_arguments(
+                &directive.arguments,
+                &directive_def.arguments,
+                visitor_context,
+                type_info_registry,
+                type_info,
+            );
 
-                    type_info.enter_default_value(TypeInfoElementRef::Ref(
-                        found_schema_arg.default_value.clone(),
-                    ));
-
-                    let arg_named_type = get_named_type(&found_schema_arg.value_type);
-
-                    self.__handle_input_type(
-                        &found_schema_arg.value_type,
-                        &found_schema_arg.default_value,
-                        &arg_named_type,
-                        type_info_registry,
-                        type_info,
-                    );
-                } else {
-                    type_info.enter_argument(TypeInfoElementRef::Empty)
-                }
-
-                self.enter_argument(argument_name, argument_type, visitor_context, type_info);
-
-                self.__visit_value(
-                    argument_name,
-                    argument_type,
-                    visitor_context,
-                    type_info_registry,
-                    type_info,
-                );
-
-                match argument_type {
-                    Value::Variable(variable) => {
-                        self.enter_variable(
-                            variable,
-                            (argument_name, argument_type),
-                            visitor_context,
-                            type_info,
-                        );
-                        self.leave_variable(
-                            variable,
-                            (argument_name, argument_type),
-                            visitor_context,
-                            type_info,
-                        );
-                    }
-                    _ => {}
-                }
-
-                self.leave_argument(argument_name, argument_type, visitor_context, type_info);
-
-                type_info.leave_argument();
-                type_info.leave_default_value();
-                type_info.leave_input_type();
-            }
             self.leave_directive(&directive, visitor_context, type_info);
         }
     }
@@ -343,6 +295,74 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
         }
     }
 
+    fn __handle_arguments(
+        &self,
+        arguments_in_use: &Vec<(String, Value)>,
+        known_arguments: &Vec<InputValue>,
+        visitor_context: &mut T,
+        type_info_registry: &TypeInfoRegistry,
+        type_info: &mut TypeInfo,
+    ) {
+        for (argument_name, argument_type) in arguments_in_use {
+            if let Some(found_schema_arg) = known_arguments
+                .iter()
+                .find(|arg| arg.name.eq(argument_name))
+            {
+                type_info.enter_argument(TypeInfoElementRef::Ref(found_schema_arg.clone()));
+
+                type_info.enter_default_value(TypeInfoElementRef::Ref(
+                    found_schema_arg.default_value.clone(),
+                ));
+
+                let arg_named_type = get_named_type(&found_schema_arg.value_type);
+
+                self.__handle_input_type(
+                    &found_schema_arg.value_type,
+                    &found_schema_arg.default_value,
+                    &arg_named_type,
+                    type_info_registry,
+                    type_info,
+                );
+            } else {
+                type_info.enter_argument(TypeInfoElementRef::Empty)
+            }
+
+            self.enter_argument(argument_name, argument_type, visitor_context, type_info);
+
+            self.__visit_value(
+                argument_name,
+                argument_type,
+                visitor_context,
+                type_info_registry,
+                type_info,
+            );
+
+            match argument_type {
+                Value::Variable(variable) => {
+                    self.enter_variable(
+                        variable,
+                        (argument_name, argument_type),
+                        visitor_context,
+                        type_info,
+                    );
+                    self.leave_variable(
+                        variable,
+                        (argument_name, argument_type),
+                        visitor_context,
+                        type_info,
+                    );
+                }
+                _ => {}
+            }
+
+            self.leave_argument(argument_name, argument_type, visitor_context, type_info);
+
+            type_info.leave_argument();
+            type_info.leave_default_value();
+            type_info.leave_input_type();
+        }
+    }
+
     fn __visit_selection_set(
         &self,
         _node: &query::SelectionSet,
@@ -378,6 +398,14 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             type_info
                                 .enter_type(TypeInfoElementRef::Ref(field_def.field_type.clone()));
                             type_info.enter_field_def(TypeInfoElementRef::Ref(field_def.clone()));
+
+                            self.__handle_arguments(
+                                &field.arguments,
+                                &field_def.arguments,
+                                visitor_context,
+                                type_info_registry,
+                                type_info,
+                            );
                         } else {
                             type_info.enter_type(TypeInfoElementRef::Empty);
                             type_info.enter_field_def(TypeInfoElementRef::Empty);
@@ -395,83 +423,6 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
                             type_info_registry,
                             type_info,
                         );
-                    }
-
-                    for (argument_name, argument_type) in &field.arguments {
-                        if let Some(parent_type) = type_info.get_parent_type() {
-                            if let Some(field_def) = parent_type.find_field(field.name.clone()) {
-                                if let Some(found_schema_arg) = field_def
-                                    .arguments
-                                    .iter()
-                                    .find(|arg| arg.name.eq(argument_name))
-                                {
-                                    type_info.enter_argument(TypeInfoElementRef::Ref(
-                                        found_schema_arg.clone(),
-                                    ));
-
-                                    type_info.enter_default_value(TypeInfoElementRef::Ref(
-                                        found_schema_arg.default_value.clone(),
-                                    ));
-
-                                    let arg_named_type =
-                                        get_named_type(&found_schema_arg.value_type);
-
-                                    self.__handle_input_type(
-                                        &found_schema_arg.value_type,
-                                        &found_schema_arg.default_value,
-                                        &arg_named_type,
-                                        type_info_registry,
-                                        type_info,
-                                    );
-                                } else {
-                                    type_info.enter_argument(TypeInfoElementRef::Empty)
-                                }
-                            }
-                        }
-
-                        self.enter_argument(
-                            argument_name,
-                            argument_type,
-                            visitor_context,
-                            type_info,
-                        );
-
-                        self.__visit_value(
-                            argument_name,
-                            argument_type,
-                            visitor_context,
-                            type_info_registry,
-                            type_info,
-                        );
-
-                        match argument_type {
-                            Value::Variable(variable) => {
-                                self.enter_variable(
-                                    variable,
-                                    (argument_name, argument_type),
-                                    visitor_context,
-                                    type_info,
-                                );
-                                self.leave_variable(
-                                    variable,
-                                    (argument_name, argument_type),
-                                    visitor_context,
-                                    type_info,
-                                );
-                            }
-                            _ => {}
-                        }
-
-                        self.leave_argument(
-                            argument_name,
-                            argument_type,
-                            visitor_context,
-                            type_info,
-                        );
-
-                        type_info.leave_argument();
-                        type_info.leave_default_value();
-                        type_info.leave_input_type();
                     }
 
                     self.__visit_selection_set(
@@ -651,7 +602,6 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
     fn enter_variable_definition(
         &self,
         _node: &query::VariableDefinition,
-        _parent_operation: &query::OperationDefinition,
         _visitor_context: &mut T,
         _type_info: &TypeInfo,
     ) {
@@ -659,7 +609,6 @@ pub trait TypeInfoQueryVisitor<T = DefaultVisitorContext> {
     fn leave_variable_definition(
         &self,
         _node: &query::VariableDefinition,
-        _parent_operation: &query::OperationDefinition,
         _visitor_context: &mut T,
         _type_info: &TypeInfo,
     ) {

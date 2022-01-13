@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     static_graphql::{
-        query::Value,
+        query::{Value, VariableDefinition},
         schema::{self, Type, TypeDefinition},
     },
     validation::utils::find_object_type_by_name,
@@ -98,6 +98,7 @@ pub struct TypeInfo {
     pub input_type_stack: Vec<TypeInfoElementRef<PossibleInputType>>,
     pub default_value_stack: Vec<TypeInfoElementRef<Option<Value>>>,
     pub argument: Option<TypeInfoElementRef<schema::InputValue>>,
+    pub known_variables: Vec<VariableDefinition>,
 }
 
 /// Type (named/list/non-null), schema raw type, and default value
@@ -142,6 +143,7 @@ impl TypeInfo {
             input_type_stack: Vec::new(),
             field_def_stack: Vec::new(),
             default_value_stack: Vec::new(),
+            known_variables: Vec::new(),
             argument: None,
         };
     }
@@ -156,6 +158,18 @@ impl TypeInfo {
 
     pub fn leave_argument(&mut self) {
         self.argument = None;
+    }
+
+    pub fn get_known_variables(&self) -> Vec<VariableDefinition> {
+        self.known_variables.clone()
+    }
+
+    pub fn enter_known_variables(&mut self, known_variables: Vec<VariableDefinition>) {
+        self.known_variables = known_variables
+    }
+
+    pub fn leave_known_variables(&mut self) {
+        self.known_variables = vec![];
     }
 
     pub fn get_default_value(&self) -> Option<TypeInfoElementRef<Option<Value>>> {

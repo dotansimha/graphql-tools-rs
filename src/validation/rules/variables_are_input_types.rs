@@ -15,7 +15,6 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for VariablesAreInputT
     fn enter_variable_definition(
         &self,
         _node: &crate::static_graphql::query::VariableDefinition,
-        _parent_operation: &crate::static_graphql::query::OperationDefinition,
         _visitor_context: &mut ValidationErrorContext<'a>,
         _type_info: &crate::ast::TypeInfo,
     ) {
