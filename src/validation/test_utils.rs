@@ -1,16 +1,7 @@
-use super::rules::OverlappingFieldsCanBeMerged;
 use super::rules::ValidationRule;
 use super::utils::ValidationError;
 use super::validate::validate;
 use super::validate::ValidationPlan;
-
-#[cfg(test)]
-pub fn create_default_ruleset_plan() -> ValidationPlan {
-    let mut plan = ValidationPlan { rules: Vec::new() };
-    plan.add_rule(Box::new(OverlappingFieldsCanBeMerged {}));
-
-    plan
-}
 
 #[cfg(test)]
 pub static INTROSPECTION_SCHEMA: &str = "

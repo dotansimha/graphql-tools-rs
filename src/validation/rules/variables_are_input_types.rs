@@ -3,8 +3,8 @@ use crate::ast::operation_visitor::SchemaDocumentExtension;
 use crate::ast::{
     visit_document, AstTypeRef, OperationVisitor, OperationVisitorContext, TypeDefinitionExtension,
 };
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::ValidationError;
+use crate::validation::utils::{ValidationContext, ValidationErrorContext};
 
 /// Variables are input types
 ///
