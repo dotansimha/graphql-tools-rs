@@ -1,16 +1,11 @@
-use crate::{
-    ast::TypeInfoRegistry,
-    static_graphql::{query, schema},
-};
+use crate::static_graphql::{query, schema};
 use graphql_parser::Pos;
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 
 #[derive(Debug)]
 pub struct ValidationContext<'a> {
-    pub operation: query::Document,
-    pub schema: schema::Document,
-    pub fragments: HashMap<String, query::FragmentDefinition>,
-    pub type_info_registry: Option<TypeInfoRegistry<'a>>,
+    pub operation: &'a query::Document,
+    pub schema: &'a schema::Document,
 }
 
 impl<'a> ValidationContext<'a> {

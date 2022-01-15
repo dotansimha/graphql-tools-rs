@@ -48,7 +48,7 @@ impl ValidationRule for UniqueOperationNames {
         visit_document(
             &mut UniqueOperationNames {},
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.schema),
+            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.operation, &ctx.schema),
         );
 
         visitor_helper

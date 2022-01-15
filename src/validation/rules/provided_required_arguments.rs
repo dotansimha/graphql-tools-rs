@@ -1,5 +1,8 @@
 use super::ValidationRule;
-use crate::ast::{InputValueHelpers, TypeInfo, TypeInfoElementRef, TypeInfoQueryVisitor};
+use crate::ast::{
+    visit_document, FieldByNameExtension, InputValueHelpers, OperationVisitor,
+    OperationVisitorContext,
+};
 use crate::static_graphql::query::Value;
 use crate::static_graphql::schema::InputValue;
 use crate::validation::utils::ValidationContext;
@@ -12,6 +15,50 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 ///
 /// See https://spec.graphql.org/draft/#sec-Required-Arguments
 pub struct ProvidedRequiredArguments;
+
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for ProvidedRequiredArguments {
+    fn enter_field(
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        field: &crate::static_graphql::query::Field,
+    ) {
+        if let Some(parent_type) = visitor_context.current_parent_type() {
+            if let Some(field_def) = parent_type.field_by_name(&field.name) {
+                let missing_required_args =
+                    validate_arguments(&field.arguments, &field_def.arguments);
+
+                for missing in missing_required_args {
+                    visitor_context.user_context.report_error(ValidationError {
+              locations: vec![field.position],
+              message: format!("Field \"{}\" argument \"{}\" of type \"{}\" is required, but it was not provided.",
+              field.name, missing.name, missing.value_type),
+          });
+                }
+            }
+        }
+    }
+
+    fn enter_directive(
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        directive: &crate::static_graphql::query::Directive,
+    ) {
+        let known_directives = &visitor_context.directives;
+
+        if let Some(directive_def) = known_directives.get(&directive.name) {
+            let missing_required_args =
+                validate_arguments(&directive.arguments, &directive_def.arguments);
+
+            for missing in missing_required_args {
+                visitor_context.user_context.report_error(ValidationError {
+              locations: vec![directive.position],
+              message: format!("Directive \"@{}\" argument \"{}\" of type \"{}\" is required, but it was not provided.",
+              directive.name, missing.name, missing.value_type),
+          });
+            }
+        }
+    }
+}
 
 fn validate_arguments<'a>(
     arguments_used: &Vec<(String, Value)>,
@@ -34,67 +81,17 @@ fn validate_arguments<'a>(
         .collect()
 }
 
-impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for ProvidedRequiredArguments {
-    fn enter_directive(
-        &self,
-        directive: &crate::static_graphql::query::Directive,
-        visitor_context: &mut ValidationErrorContext<'a>,
-        _type_info: &TypeInfo,
-    ) {
-        let known_directives = &visitor_context
-            .ctx
-            .type_info_registry
-            .as_ref()
-            .unwrap()
-            .directives;
-
-        if let Some(directive_def) = known_directives.get(&directive.name) {
-            let missing_required_args =
-                validate_arguments(&directive.arguments, &directive_def.arguments);
-
-            for missing in missing_required_args {
-                visitor_context.report_error(ValidationError {
-                      locations: vec![directive.position],
-                      message: format!("Directive \"@{}\" argument \"{}\" of type \"{}\" is required, but it was not provided.",
-                      directive.name, missing.name, missing.value_type),
-                  });
-            }
-        }
-    }
-
-    fn enter_field(
-        &self,
-        node: &crate::static_graphql::query::Field,
-        visitor_context: &mut ValidationErrorContext<'a>,
-        type_info: &TypeInfo,
-    ) {
-        if let Some(TypeInfoElementRef::Ref(field_def)) = type_info.get_field_def() {
-            let missing_required_args = validate_arguments(&node.arguments, &field_def.arguments);
-
-            for missing in missing_required_args {
-                visitor_context.report_error(ValidationError {
-                    locations: vec![node.position],
-                    message: format!("Field \"{}\" argument \"{}\" of type \"{}\" is required, but it was not provided.",
-                    node.name, missing.name, missing.value_type),
-                });
-            }
-        }
-    }
-}
-
 impl ValidationRule for ProvidedRequiredArguments {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut error_context = ValidationErrorContext::new(ctx);
+        let mut visitor_helper = ValidationErrorContext::new();
 
-        if let Some(type_info_registry) = &ctx.type_info_registry {
-            self.visit_document(
-                &ctx.operation.clone(),
-                &mut error_context,
-                &type_info_registry,
-            );
-        }
+        visit_document(
+            &mut ProvidedRequiredArguments {},
+            &ctx.operation,
+            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.operation, &ctx.schema),
+        );
 
-        error_context.errors
+        visitor_helper.errors
     }
 }
 

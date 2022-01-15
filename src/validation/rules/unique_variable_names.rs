@@ -75,7 +75,7 @@ impl ValidationRule for UniqueVariableNames {
         visit_document(
             &mut UniqueVariableNames {},
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.schema),
+            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.operation, &ctx.schema),
         );
 
         visitor_helper.error_context.errors

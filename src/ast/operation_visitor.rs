@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use graphql_parser::query::TypeCondition;
 
@@ -15,7 +15,7 @@ use super::AstTypeRef;
 /// Extensions
 ///
 
-trait FieldByNameExtension {
+pub trait FieldByNameExtension {
     fn field_by_name(&self, name: &String) -> Option<SchemaFieldDef>;
     fn input_field_by_name(&self, name: &String) -> Option<InputValue>;
 }
@@ -76,6 +76,7 @@ impl OperationDefinitionExtension for OperationDefinition {
 
 pub trait SchemaDocumentExtension {
     fn type_by_name(&self, name: &String) -> Option<TypeDefinition>;
+    fn type_map(&self) -> HashMap<String, TypeDefinition>;
     fn directive_by_name(&self, name: &String) -> Option<DirectiveDefinition>;
     fn object_type_by_name(&self, name: &String) -> Option<ObjectType>;
     fn schema_definition(&self) -> Option<schema::SchemaDefinition>;
@@ -151,12 +152,27 @@ impl SchemaDocumentExtension for SchemaDocument {
             _ => None,
         }
     }
+
+    fn type_map(&self) -> HashMap<String, TypeDefinition> {
+        let mut type_map = HashMap::new();
+
+        for def in &self.definitions {
+            if let schema::Definition::TypeDefinition(type_def) = def {
+                type_map.insert(type_def.name().clone(), type_def.clone());
+            }
+        }
+
+        type_map
+    }
 }
 
 /// OperationVisitor
 pub struct OperationVisitorContext<'a, UserContext> {
     pub user_context: &'a mut UserContext,
     pub schema: &'a SchemaDocument,
+    pub known_fragments: HashMap<String, FragmentDefinition>,
+    pub directives: HashMap<String, DirectiveDefinition>,
+
     type_stack: Vec<Option<TypeDefinition>>,
     parent_type_stack: Vec<Option<TypeDefinition>>,
     input_type_stack: Vec<Option<TypeDefinition>>,
@@ -165,7 +181,11 @@ pub struct OperationVisitorContext<'a, UserContext> {
 }
 
 impl<'a, UserContext> OperationVisitorContext<'a, UserContext> {
-    pub fn new(user_context: &'a mut UserContext, schema: &'a SchemaDocument) -> Self {
+    pub fn new(
+        user_context: &'a mut UserContext,
+        operation: &'a Document,
+        schema: &'a SchemaDocument,
+    ) -> Self {
         OperationVisitorContext {
             user_context,
             schema,
@@ -174,6 +194,22 @@ impl<'a, UserContext> OperationVisitorContext<'a, UserContext> {
             input_type_stack: vec![],
             type_literal_stack: vec![],
             input_type_literal_stack: vec![],
+            known_fragments: HashMap::<String, FragmentDefinition>::from_iter(
+                operation.definitions.iter().filter_map(|def| match def {
+                    Definition::Fragment(fragment) => {
+                        Some((fragment.name.clone(), fragment.clone()))
+                    }
+                    _ => None,
+                }),
+            ),
+            directives: HashMap::<String, DirectiveDefinition>::from_iter(
+                schema.definitions.iter().filter_map(|def| match def {
+                    schema::Definition::DirectiveDefinition(directive_def) => {
+                        Some((directive_def.name.clone(), directive_def.clone()))
+                    }
+                    _ => None,
+                }),
+            ),
         }
     }
 
@@ -463,10 +499,22 @@ fn visit_selection<'a, Visitor, UserContext>(
             visitor.leave_fragment_spread(context, fragment_spread);
         }
         Selection::InlineFragment(inline_fragment) => {
-            visitor.enter_inline_fragment(context, inline_fragment);
-            visit_directives(visitor, &inline_fragment.directives, context);
-            visit_selection_set(visitor, &inline_fragment.selection_set, context);
-            visitor.leave_inline_fragment(context, inline_fragment);
+            if let Some(TypeCondition::On(fragment_condition)) = &inline_fragment.type_condition {
+                context.with_type(
+                    Some(Type::NamedType(fragment_condition.clone())),
+                    |context| {
+                        visitor.enter_inline_fragment(context, inline_fragment);
+                        visit_directives(visitor, &inline_fragment.directives, context);
+                        visit_selection_set(visitor, &inline_fragment.selection_set, context);
+                        visitor.leave_inline_fragment(context, inline_fragment);
+                    },
+                );
+            } else {
+                visitor.enter_inline_fragment(context, inline_fragment);
+                visit_directives(visitor, &inline_fragment.directives, context);
+                visit_selection_set(visitor, &inline_fragment.selection_set, context);
+                visitor.leave_inline_fragment(context, inline_fragment);
+            }
         }
     }
 }

@@ -3,8 +3,6 @@ use crate::ast::ext::{
 };
 use crate::static_graphql::schema::{self, TypeDefinition};
 
-use super::TypeInfoRegistry;
-
 pub struct DefaultVisitorContext;
 
 pub fn find_schema_definition(schema: &schema::Document) -> Option<&schema::SchemaDefinition> {
@@ -40,7 +38,7 @@ pub fn get_named_type(t: &schema::Type) -> String {
  * This function is commutative.
  */
 pub fn do_types_overlap(
-    type_info_registry: &TypeInfoRegistry,
+    schema: &schema::Document,
     t1: &schema::TypeDefinition,
     t2: &schema::TypeDefinition,
 ) -> bool {
@@ -50,7 +48,7 @@ pub fn do_types_overlap(
 
     if t1.is_abstract_type() {
         if t2.is_abstract_type() {
-            let possible_types = t1.possible_types(type_info_registry);
+            let possible_types = t1.possible_types(schema);
 
             return possible_types
                 .into_iter()

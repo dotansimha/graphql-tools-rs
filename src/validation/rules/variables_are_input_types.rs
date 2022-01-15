@@ -3,8 +3,8 @@ use crate::ast::operation_visitor::SchemaDocumentExtension;
 use crate::ast::{
     visit_document, AstTypeRef, OperationVisitor, OperationVisitorContext, TypeDefinitionExtension,
 };
-use crate::validation::utils::ValidationError;
-use crate::validation::utils::{ValidationContext, ValidationErrorContext};
+use crate::validation::utils::ValidationErrorContext;
+use crate::validation::utils::{ValidationContext, ValidationError};
 
 /// Variables are input types
 ///
@@ -44,7 +44,7 @@ impl ValidationRule for VariablesAreInputTypes {
         visit_document(
             &mut VariablesAreInputTypes {},
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut error_context, &ctx.schema),
+            &mut OperationVisitorContext::new(&mut error_context, &ctx.operation, &ctx.schema),
         );
 
         error_context.errors

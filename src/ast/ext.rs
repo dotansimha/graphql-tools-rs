@@ -6,7 +6,7 @@ use crate::static_graphql::schema::{
     self, Field, InputValue, InterfaceType, ObjectType, TypeDefinition, UnionType,
 };
 
-use super::{get_named_type, TypeInfoElementRef, TypeInfoRegistry};
+use super::{get_named_type, SchemaDocumentExtension, TypeInfoElementRef};
 
 pub trait InputValueHelpers {
     fn is_required(&self) -> bool;
@@ -218,23 +218,23 @@ impl ImplementingInterfaceExtension for TypeDefinition {
     }
 }
 
-pub trait PossibleTypesExtension<'a> {
-    fn possible_types(&self, type_info_registry: &TypeInfoRegistry) -> Vec<ObjectType>;
+pub trait PossibleTypesExtension {
+    fn possible_types(&self, schema: &schema::Document) -> Vec<ObjectType>;
 }
 
-impl<'a> PossibleTypesExtension<'a> for TypeDefinition {
-    fn possible_types(&self, type_info_registry: &TypeInfoRegistry) -> Vec<ObjectType> {
+impl PossibleTypesExtension for TypeDefinition {
+    fn possible_types(&self, schema: &schema::Document) -> Vec<ObjectType> {
         match self {
             TypeDefinition::Object(_) => vec![],
             TypeDefinition::InputObject(_) => vec![],
             TypeDefinition::Enum(_) => vec![],
             TypeDefinition::Scalar(_) => vec![],
-            TypeDefinition::Interface(i) => type_info_registry
-                .type_by_name
+            TypeDefinition::Interface(i) => schema
+                .type_map()
                 .iter()
                 .filter_map(|(_type_name, type_def)| {
                     if let TypeDefinition::Object(o) = type_def {
-                        if i.is_implemented_by(*type_def) {
+                        if i.is_implemented_by(type_def) {
                             return Some(o.clone());
                         }
                     }
@@ -246,9 +246,7 @@ impl<'a> PossibleTypesExtension<'a> for TypeDefinition {
                 .types
                 .iter()
                 .filter_map(|type_name| {
-                    if let Some(TypeDefinition::Object(o)) =
-                        type_info_registry.type_by_name.get(type_name)
-                    {
+                    if let Some(TypeDefinition::Object(o)) = schema.type_by_name(type_name) {
                         return Some(o.clone());
                     }
 
