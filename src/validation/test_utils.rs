@@ -199,7 +199,18 @@ type QueryRoot {
   catOrDog: CatOrDog
   complicatedArgs: ComplicatedArgs
 }
+
+type SubscriptionRoot {
+  fieldB: String
+}
+
+type MutationRoot {
+  fieldB: String
+}
+
 schema {
+  subscription: SubscriptionRoot
+  mutation: MutationRoot
   query: QueryRoot
 }
 directive @onField on FIELD";

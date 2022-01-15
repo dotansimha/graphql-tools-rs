@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use super::ValidationRule;
-use crate::ast::AstNodeWithName;
+use crate::ast::{visit_document, AstNodeWithName, OperationVisitor, OperationVisitorContext};
 use crate::static_graphql::query::*;
+use crate::validation::utils::ValidationContext;
 use crate::validation::utils::ValidationError;
-use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 
 /// Unique operation names
 ///
@@ -13,18 +13,17 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// See https://spec.graphql.org/draft/#sec-Operation-Name-Uniqueness
 pub struct UniqueOperationNames;
 
-impl QueryVisitor<FoundOperations> for UniqueOperationNames {
+impl<'a> OperationVisitor<'a, FoundOperations> for UniqueOperationNames {
     fn enter_operation_definition(
-        &self,
-        node: &OperationDefinition,
-        visitor_context: &mut FoundOperations,
+        &mut self,
+        visitor_context: &mut OperationVisitorContext<FoundOperations>,
+        operation_definition: &OperationDefinition,
     ) {
-        if let Some(name) = node.node_name() {
-            visitor_context.store_finding(&name);
+        if let Some(name) = operation_definition.node_name() {
+            visitor_context.user_context.store_finding(&name);
         }
     }
 }
-
 struct FoundOperations {
     findings_counter: HashMap<String, i32>,
 }
@@ -44,10 +43,15 @@ impl FoundOperations {
 
 impl ValidationRule for UniqueOperationNames {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut found_operations = FoundOperations::new();
-        self.visit_document(&ctx.operation.clone(), &mut found_operations);
+        let mut visitor_helper = FoundOperations::new();
 
-        found_operations
+        visit_document(
+            &mut UniqueOperationNames {},
+            &ctx.operation,
+            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.schema),
+        );
+
+        visitor_helper
             .findings_counter
             .into_iter()
             .filter(|(_key, value)| *value > 1)
@@ -64,10 +68,11 @@ fn no_operations() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(UniqueOperationNames {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "fragment fragA on Type {
-          field
+          field 
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -79,10 +84,11 @@ fn one_anon_operation() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(UniqueOperationNames {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "{
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -95,10 +101,11 @@ fn one_named_operation() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(UniqueOperationNames {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo {
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -111,13 +118,14 @@ fn multiple_operations() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(UniqueOperationNames {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo {
           field
         }
         query Bar {
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -130,7 +138,7 @@ fn multiple_operations_of_different_types() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(UniqueOperationNames {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo {
           field
         }
@@ -140,6 +148,7 @@ fn multiple_operations_of_different_types() {
         subscription Baz {
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -152,13 +161,14 @@ fn fragment_and_operation_named_the_same() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(UniqueOperationNames {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo {
           ...Foo
         }
         fragment Foo on Type {
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -171,13 +181,14 @@ fn multiple_operations_of_same_name() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(UniqueOperationNames {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo {
           fieldA
         }
         query Foo {
           fieldB
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -194,13 +205,14 @@ fn multiple_ops_of_same_name_of_different_types_mutation() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(UniqueOperationNames {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo {
           fieldA
         }
         mutation Foo {
           fieldB
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -217,13 +229,14 @@ fn multiple_ops_of_same_name_of_different_types_subscription() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(UniqueOperationNames {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo {
           fieldA
         }
         subscription Foo {
           fieldB
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
