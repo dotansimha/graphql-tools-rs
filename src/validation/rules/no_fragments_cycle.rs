@@ -1,14 +1,12 @@
 use super::ValidationRule;
+use crate::ast::{visit_document, OperationVisitor, OperationVisitorContext};
 use crate::static_graphql::query::{FragmentDefinition, FragmentSpread};
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 use crate::{
-    ast::{
-        ext::{AstNodeWithName, FragmentSpreadExtraction},
-        QueryVisitor,
-    },
+    ast::ext::{AstNodeWithName, FragmentSpreadExtraction},
     validation::utils::ValidationContext,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// No fragment cycles
 ///
@@ -18,24 +16,26 @@ use std::collections::HashMap;
 /// https://spec.graphql.org/draft/#sec-Fragment-spreads-must-not-form-cycles
 pub struct NoFragmentsCycle;
 
-struct NoFragmentsCycleHelper<'a> {
-    visited_fragments: HashMap<String, bool>,
-    errors_context: ValidationErrorContext<'a>,
+struct NoFragmentsCycleHelper {
+    visited_fragments: HashSet<String>,
+    errors_context: ValidationErrorContext,
 }
 
-impl<'a> QueryVisitor<NoFragmentsCycleHelper<'a>> for NoFragmentsCycle {
+impl<'a> OperationVisitor<'a, NoFragmentsCycleHelper> for NoFragmentsCycle {
     fn enter_fragment_definition(
-        &self,
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<NoFragmentsCycleHelper>,
         fragment: &FragmentDefinition,
-        visitor_context: &mut NoFragmentsCycleHelper<'a>,
     ) {
         let mut spread_paths: Vec<FragmentSpread> = vec![];
         let mut spread_path_index_by_name: HashMap<String, usize> = HashMap::new();
+
         detect_cycles(
             fragment,
             &mut spread_paths,
             &mut spread_path_index_by_name,
-            visitor_context,
+            &visitor_context.known_fragments,
+            &mut visitor_context.user_context,
         );
     }
 }
@@ -47,13 +47,14 @@ fn detect_cycles(
     fragment: &FragmentDefinition,
     spread_paths: &mut Vec<FragmentSpread>,
     spread_path_index_by_name: &mut HashMap<String, usize>,
+    known_fragments: &HashMap<String, FragmentDefinition>,
     ctx: &mut NoFragmentsCycleHelper,
 ) {
-    if ctx.visited_fragments.contains_key(&fragment.name) {
+    if ctx.visited_fragments.contains(&fragment.name) {
         return;
     }
 
-    ctx.visited_fragments.insert(fragment.name.clone(), true);
+    ctx.visited_fragments.insert(fragment.name.clone());
 
     let spread_nodes = fragment.selection_set.get_recursive_fragment_spreads();
 
@@ -69,8 +70,14 @@ fn detect_cycles(
 
         match spread_path_index_by_name.get(&spread_name) {
             None => {
-                if let Some(spread_def) = ctx.errors_context.ctx.fragments.get(&spread_name) {
-                    detect_cycles(spread_def, spread_paths, spread_path_index_by_name, ctx);
+                if let Some(spread_def) = known_fragments.get(&spread_name) {
+                    detect_cycles(
+                        spread_def,
+                        spread_paths,
+                        spread_path_index_by_name,
+                        known_fragments,
+                        ctx,
+                    );
                 }
             }
             Some(cycle_index) => {
@@ -103,19 +110,24 @@ fn detect_cycles(
     spread_path_index_by_name.remove(&fragment.name);
 }
 
-impl<'a> NoFragmentsCycleHelper<'a> {
-    fn new(validation_context: &'a ValidationContext<'a>) -> Self {
+impl NoFragmentsCycleHelper {
+    fn new() -> Self {
         NoFragmentsCycleHelper {
-            visited_fragments: HashMap::new(),
-            errors_context: ValidationErrorContext::new(validation_context),
+            visited_fragments: HashSet::new(),
+            errors_context: ValidationErrorContext::new(),
         }
     }
 }
 
 impl ValidationRule for NoFragmentsCycle {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut helper = NoFragmentsCycleHelper::new(ctx);
-        self.visit_document(&ctx.operation, &mut helper);
+        let mut helper = NoFragmentsCycleHelper::new();
+
+        visit_document(
+            &mut NoFragmentsCycle {},
+            &ctx.operation,
+            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+        );
 
         helper.errors_context.errors
     }
