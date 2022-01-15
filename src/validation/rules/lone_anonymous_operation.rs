@@ -1,7 +1,8 @@
 use super::ValidationRule;
+use crate::ast::{visit_document, OperationVisitor, OperationVisitorContext};
 use crate::static_graphql::query::*;
+use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
-use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 
 /// Lone Anonymous Operation
 ///
@@ -11,9 +12,13 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// https://spec.graphql.org/draft/#sec-Lone-Anonymous-Operation
 pub struct LoneAnonymousOperation;
 
-impl<'a> QueryVisitor<ValidationErrorContext<'a>> for LoneAnonymousOperation {
-    fn enter_document(&self, _node: &Document, visitor_context: &mut ValidationErrorContext<'a>) {
-        let operations_count = _node
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation {
+    fn enter_document(
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        document: &Document,
+    ) {
+        let operations_count = document
             .definitions
             .iter()
             .filter(|n| match n {
@@ -25,11 +30,11 @@ impl<'a> QueryVisitor<ValidationErrorContext<'a>> for LoneAnonymousOperation {
             })
             .count();
 
-        for definition in &_node.definitions {
+        for definition in &document.definitions {
             match definition {
                 Definition::Operation(OperationDefinition::SelectionSet(_)) => {
                     if operations_count > 1 {
-                        visitor_context.report_error(ValidationError {
+                        visitor_context.user_context.report_error(ValidationError {
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![],
@@ -38,7 +43,7 @@ impl<'a> QueryVisitor<ValidationErrorContext<'a>> for LoneAnonymousOperation {
                 }
                 Definition::Operation(OperationDefinition::Query(query)) => {
                     if query.name == None && operations_count > 1 {
-                        visitor_context.report_error(ValidationError {
+                        visitor_context.user_context.report_error(ValidationError {
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![query.position.clone()],
@@ -47,7 +52,7 @@ impl<'a> QueryVisitor<ValidationErrorContext<'a>> for LoneAnonymousOperation {
                 }
                 Definition::Operation(OperationDefinition::Mutation(mutation)) => {
                     if mutation.name == None && operations_count > 1 {
-                        visitor_context.report_error(ValidationError {
+                        visitor_context.user_context.report_error(ValidationError {
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![mutation.position.clone()],
@@ -56,7 +61,7 @@ impl<'a> QueryVisitor<ValidationErrorContext<'a>> for LoneAnonymousOperation {
                 }
                 Definition::Operation(OperationDefinition::Subscription(subscription)) => {
                     if subscription.name == None && operations_count > 1 {
-                        visitor_context.report_error(ValidationError {
+                        visitor_context.user_context.report_error(ValidationError {
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![subscription.position.clone()],
@@ -71,10 +76,15 @@ impl<'a> QueryVisitor<ValidationErrorContext<'a>> for LoneAnonymousOperation {
 
 impl ValidationRule for LoneAnonymousOperation {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut error_context = ValidationErrorContext::new(ctx);
-        self.visit_document(&ctx.operation.clone(), &mut error_context);
+        let mut visitor_helper = ValidationErrorContext::new();
 
-        error_context.errors
+        visit_document(
+            &mut LoneAnonymousOperation {},
+            &ctx.operation,
+            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.operation, &ctx.schema),
+        );
+
+        visitor_helper.errors
     }
 }
 
@@ -83,10 +93,11 @@ fn no_operations() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(LoneAnonymousOperation {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "fragment fragA on Type {
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -98,10 +109,11 @@ fn one_anon_operation() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(LoneAnonymousOperation {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "{
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -113,13 +125,14 @@ fn mutiple_named() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(LoneAnonymousOperation {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo {
           field
         }
         query Bar {
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -131,13 +144,14 @@ fn anon_operation_with_fragment() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(LoneAnonymousOperation {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "{
           ...Foo
         }
         fragment Foo on Type {
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -149,13 +163,14 @@ fn multiple_anon_operations() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(LoneAnonymousOperation {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "{
           fieldA
         }
         {
           fieldB
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -175,13 +190,14 @@ fn anon_operation_with_mutation() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(LoneAnonymousOperation {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "{
           fieldA
         }
         mutation Foo {
           fieldB
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -198,13 +214,14 @@ fn anon_operation_with_subscription() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(LoneAnonymousOperation {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "{
           fieldA
         }
         subscription Foo {
           fieldB
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 

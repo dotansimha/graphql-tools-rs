@@ -1,10 +1,7 @@
 use super::ValidationRule;
-use crate::ast::AstNodeWithName;
+use crate::ast::{visit_document, AstNodeWithName, OperationVisitor, OperationVisitorContext};
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
-use crate::{
-    ast::{ext::AstWithVariables, QueryVisitor},
-    validation::utils::ValidationContext,
-};
+use crate::{ast::ext::AstWithVariables, validation::utils::ValidationContext};
 use std::collections::HashSet;
 
 /// No undefined variables
@@ -15,70 +12,80 @@ use std::collections::HashSet;
 /// See https://spec.graphql.org/draft/#sec-All-Variable-Uses-Defined
 pub struct NoUndefinedVariables;
 
-struct NoUndefinedVariablesHelper<'a> {
-    error_ctx: ValidationErrorContext<'a>,
-    current_op_variables: HashSet<String>,
-}
-
-impl<'a> NoUndefinedVariablesHelper<'a> {
-    fn new(error_ctx: ValidationErrorContext<'a>) -> Self {
-        Self {
-            error_ctx,
-            current_op_variables: HashSet::new(),
-        }
-    }
-}
-
-impl<'a> QueryVisitor<NoUndefinedVariablesHelper<'a>> for NoUndefinedVariables {
+impl<'a> OperationVisitor<'a, NoUndefinedVariablesHelper> for NoUndefinedVariables {
     fn enter_variable_definition(
-        &self,
-        node: &crate::static_graphql::query::VariableDefinition,
-        _parent_operation: &crate::static_graphql::query::OperationDefinition,
-        visitor_context: &mut NoUndefinedVariablesHelper<'a>,
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<NoUndefinedVariablesHelper>,
+        variable_definition: &crate::static_graphql::query::VariableDefinition,
     ) {
         visitor_context
+            .user_context
             .current_op_variables
-            .insert(node.name.clone());
+            .insert(variable_definition.name.clone());
     }
 
     fn enter_operation_definition(
-        &self,
-        _node: &crate::static_graphql::query::OperationDefinition,
-        visitor_context: &mut NoUndefinedVariablesHelper<'a>,
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<NoUndefinedVariablesHelper>,
+        _: &crate::static_graphql::query::OperationDefinition,
     ) {
-        visitor_context.current_op_variables.clear();
+        visitor_context.user_context.current_op_variables.clear();
     }
 
     fn leave_operation_definition(
-        &self,
-        node: &crate::static_graphql::query::OperationDefinition,
-        visitor_context: &mut NoUndefinedVariablesHelper<'a>,
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<NoUndefinedVariablesHelper>,
+        operation_definition: &crate::static_graphql::query::OperationDefinition,
     ) {
-        let in_use = node.get_variables_in_use(&visitor_context.error_ctx.ctx.fragments);
+        let in_use = operation_definition.get_variables_in_use(&visitor_context.known_fragments);
 
         in_use.iter().for_each(|v| {
-            if !visitor_context.current_op_variables.contains(v) {
-                visitor_context.error_ctx.report_error(ValidationError {
-                    message: match node.node_name() {
-                        Some(name) => format!(
-                            "Variable \"${}\" is not defined by operation \"{}\".",
-                            v, name
-                        ),
-                        None => format!("Variable \"${}\" is not defined.", v),
-                    },
-                    locations: vec![],
-                })
+            if !visitor_context
+                .user_context
+                .current_op_variables
+                .contains(v)
+            {
+                visitor_context
+                    .user_context
+                    .error_ctx
+                    .report_error(ValidationError {
+                        message: match operation_definition.node_name() {
+                            Some(name) => format!(
+                                "Variable \"${}\" is not defined by operation \"{}\".",
+                                v, name
+                            ),
+                            None => format!("Variable \"${}\" is not defined.", v),
+                        },
+                        locations: vec![],
+                    })
             }
         });
     }
 }
 
+struct NoUndefinedVariablesHelper {
+    error_ctx: ValidationErrorContext,
+    current_op_variables: HashSet<String>,
+}
+
+impl NoUndefinedVariablesHelper {
+    fn new() -> Self {
+        Self {
+            error_ctx: ValidationErrorContext::new(),
+            current_op_variables: HashSet::new(),
+        }
+    }
+}
+
 impl ValidationRule for NoUndefinedVariables {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let error_ctx = ValidationErrorContext::new(&ctx);
-        let mut helper = NoUndefinedVariablesHelper::new(error_ctx);
+        let mut helper = NoUndefinedVariablesHelper::new();
 
-        self.visit_document(&ctx.operation.clone(), &mut helper);
+        visit_document(
+            &mut NoUndefinedVariables {},
+            &ctx.operation,
+            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+        );
 
         helper.error_ctx.errors
     }
@@ -89,10 +96,11 @@ fn all_variables_defined() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($a: String, $b: String, $c: String) {
           field(a: $a, b: $b, c: $c)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -105,7 +113,7 @@ fn all_variables_deeply_defined() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($a: String, $b: String, $c: String) {
           field(a: $a) {
             field(b: $b) {
@@ -113,6 +121,7 @@ fn all_variables_deeply_defined() {
             }
           }
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -125,7 +134,7 @@ fn all_variables_deeply_in_inline_fragments_defined() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($a: String, $b: String, $c: String) {
           ... on Type {
             field(a: $a) {
@@ -137,6 +146,7 @@ fn all_variables_deeply_in_inline_fragments_defined() {
             }
           }
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -149,7 +159,7 @@ fn all_variables_in_fragments_deeply_defined() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($a: String, $b: String, $c: String) {
           ...FragA
         }
@@ -166,6 +176,7 @@ fn all_variables_in_fragments_deeply_defined() {
         fragment FragC on Type {
           field(c: $c)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -178,7 +189,7 @@ fn variable_within_single_fragment_defined_in_multiple_operations() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($a: String) {
           ...FragA
         }
@@ -188,6 +199,7 @@ fn variable_within_single_fragment_defined_in_multiple_operations() {
         fragment FragA on Type {
           field(a: $a)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -200,7 +212,7 @@ fn variable_within_fragments_defined_in_operations() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($a: String) {
           ...FragA
         }
@@ -213,6 +225,7 @@ fn variable_within_fragments_defined_in_operations() {
         fragment FragB on Type {
           field(b: $b)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -225,7 +238,7 @@ fn variable_within_recursive_fragment_defined() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($a: String) {
           ...FragA
         }
@@ -234,6 +247,7 @@ fn variable_within_recursive_fragment_defined() {
             ...FragA
           }
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -246,10 +260,11 @@ fn variable_not_defined() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($a: String, $b: String, $c: String) {
           field(a: $a, b: $b, c: $c, d: $d)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -266,10 +281,11 @@ fn variable_not_defined_by_un_named_query() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "{
           field(a: $a)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -283,10 +299,11 @@ fn multiple_variables_not_defined() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($b: String) {
           field(a: $a, b: $b, c: $c)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -301,13 +318,14 @@ fn variable_in_fragment_not_defined_by_un_named_query() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "{
           ...FragA
         }
         fragment FragA on Type {
           field(a: $a)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -321,7 +339,7 @@ fn variable_in_fragment_not_defined_by_operation() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($a: String, $b: String) {
           ...FragA
         }
@@ -338,6 +356,7 @@ fn variable_in_fragment_not_defined_by_operation() {
         fragment FragC on Type {
           field(c: $c)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -354,7 +373,7 @@ fn multiple_variables_in_fragments_not_defined() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($b: String) {
           ...FragA
         }
@@ -371,6 +390,7 @@ fn multiple_variables_in_fragments_not_defined() {
         fragment FragC on Type {
           field(c: $c)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -385,7 +405,7 @@ fn single_variable_in_fragment_not_defined_by_multiple_operations() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($a: String) {
           ...FragAB
         }
@@ -395,6 +415,7 @@ fn single_variable_in_fragment_not_defined_by_multiple_operations() {
         fragment FragAB on Type {
           field(a: $a, b: $b)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -414,7 +435,7 @@ fn variables_in_fragment_not_defined_by_multiple_operations() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($b: String) {
           ...FragAB
         }
@@ -424,6 +445,7 @@ fn variables_in_fragment_not_defined_by_multiple_operations() {
         fragment FragAB on Type {
           field(a: $a, b: $b)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -443,7 +465,7 @@ fn variable_in_fragment_used_by_other_operation() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($b: String) {
           ...FragA
         }
@@ -456,6 +478,7 @@ fn variable_in_fragment_used_by_other_operation() {
         fragment FragB on Type {
           field(b: $b)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -474,7 +497,7 @@ fn multiple_undefined_variables_produce_multiple_errors() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(NoUndefinedVariables {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "query Foo($b: String) {
           ...FragAB
         }
@@ -489,6 +512,7 @@ fn multiple_undefined_variables_produce_multiple_errors() {
         fragment FragC on Type {
           field2(c: $c)
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
