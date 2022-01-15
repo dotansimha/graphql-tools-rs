@@ -1,9 +1,12 @@
 use super::ValidationRule;
 use crate::ast::ext::TypeDefinitionExtension;
-use crate::ast::{TypeInfo, TypeInfoElementRef, TypeInfoQueryVisitor};
+use crate::ast::{
+    visit_document, FieldByNameExtension, OperationVisitor, OperationVisitorContext,
+    SchemaDocumentExtension,
+};
+use crate::static_graphql::schema::{InputValue, TypeDefinition};
 use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
-
 /// Known argument names
 ///
 /// A GraphQL field/directive is only valid if all supplied arguments are defined by
@@ -13,61 +16,107 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Directives-Are-In-Valid-Locations
 pub struct KnownArgumentNames;
 
-impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownArgumentNames {
+enum ArgumentParent {
+    Field(String, TypeDefinition),
+    Directive(String),
+}
+
+struct KnownArgumentNamesHelper {
+    error_context: ValidationErrorContext,
+    current_known_arguments: Option<(ArgumentParent, Vec<InputValue>)>,
+}
+
+impl KnownArgumentNamesHelper {
+    fn new() -> Self {
+        KnownArgumentNamesHelper {
+            error_context: ValidationErrorContext::new(),
+            current_known_arguments: None,
+        }
+    }
+}
+
+impl<'a> OperationVisitor<'a, KnownArgumentNamesHelper> for KnownArgumentNames {
     fn enter_directive(
-        &self,
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<KnownArgumentNamesHelper>,
         directive: &crate::static_graphql::query::Directive,
-        visitor_context: &mut ValidationErrorContext<'a>,
-        _type_info: &TypeInfo,
     ) {
-        let known_directives = &visitor_context
-            .ctx
-            .type_info_registry
-            .as_ref()
-            .unwrap()
-            .directives;
+        if let Some(directive_def) = visitor_context.schema.directive_by_name(&directive.name) {
+            visitor_context.user_context.current_known_arguments = Some((
+                ArgumentParent::Directive(directive_def.name.clone()),
+                directive_def.arguments.clone(),
+            ));
+        }
+    }
 
-        if let Some(directive_def) = known_directives.get(&directive.name) {
-            let known_directive_args = &directive_def.arguments;
+    fn leave_directive(
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<KnownArgumentNamesHelper>,
+        _: &crate::static_graphql::query::Directive,
+    ) {
+        visitor_context.user_context.current_known_arguments = None;
+    }
 
-            for (directive_arg_name, _directive_value) in &directive.arguments {
-                if let None = known_directive_args
-                    .iter()
-                    .find(|input_value| input_value.name.eq(directive_arg_name))
-                {
-                    visitor_context.report_error(ValidationError {
-                        message: format!(
-                            "Unknown argument \"{}\" on directive \"@{}\".",
-                            directive_arg_name, directive.name
-                        ),
-                        locations: vec![],
-                    })
-                }
+    fn enter_field(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext<KnownArgumentNamesHelper>,
+        field: &crate::static_graphql::query::Field,
+    ) {
+        if let Some(parent_type) = visitor_context.current_type() {
+            if let Some(field_def) = parent_type.field_by_name(&field.name) {
+                visitor_context.user_context.current_known_arguments = Some((
+                    ArgumentParent::Field(
+                        field_def.name.clone(),
+                        visitor_context
+                            .current_parent_type()
+                            .expect("Missing parent type")
+                            .clone(),
+                    ),
+                    field_def.arguments.clone(),
+                ));
             }
         }
     }
 
-    fn enter_field_argument(
-        &self,
-        argument_name: &String,
-        _value: &crate::static_graphql::query::Value,
-        _parent_field: &crate::static_graphql::query::Field,
-        _visitor_context: &mut ValidationErrorContext<'a>,
-        type_info: &TypeInfo,
+    fn leave_field(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext<KnownArgumentNamesHelper>,
+        _: &crate::static_graphql::query::Field,
     ) {
-        if let Some(TypeInfoElementRef::Empty) = type_info.get_argument() {
-            if let Some(TypeInfoElementRef::Ref(field_def)) = type_info.get_field_def() {
-                if let Some(TypeInfoElementRef::Ref(parent_type)) = type_info.get_parent_type() {
-                    _visitor_context.report_error(ValidationError {
-                        locations: vec![_parent_field.position],
-                        message: format!(
-                            "Unknown argument \"{}\" on field \"{}.{}\".",
-                            argument_name,
-                            parent_type.name(),
-                            field_def.name
-                        ),
-                    });
-                }
+        visitor_context.user_context.current_known_arguments = None;
+    }
+
+    fn enter_argument(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext<KnownArgumentNamesHelper>,
+        (argument_name, _argument_value): &(String, crate::static_graphql::query::Value),
+    ) {
+        if let Some((arg_position, args)) = &visitor_context.user_context.current_known_arguments {
+            if !args.iter().any(|a| a.name.eq(argument_name)) {
+                match arg_position {
+                    ArgumentParent::Field(field_name, type_name) => visitor_context
+                        .user_context
+                        .error_context
+                        .report_error(ValidationError {
+                            message: format!(
+                                "Unknown argument \"{}\" on field \"{}.{}\".",
+                                argument_name,
+                                type_name.name(),
+                                field_name
+                            ),
+                            locations: vec![],
+                        }),
+                    ArgumentParent::Directive(directive_name) => visitor_context
+                        .user_context
+                        .error_context
+                        .report_error(ValidationError {
+                            message: format!(
+                                "Unknown argument \"{}\" on directive \"@{}\".",
+                                argument_name, directive_name
+                            ),
+                            locations: vec![],
+                        }),
+                };
             }
         }
     }
@@ -75,17 +124,15 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownArgumentNames
 
 impl ValidationRule for KnownArgumentNames {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut error_context = ValidationErrorContext::new(ctx);
+        let mut helper = KnownArgumentNamesHelper::new();
 
-        if let Some(type_info_registry) = &ctx.type_info_registry {
-            self.visit_document(
-                &ctx.operation.clone(),
-                &mut error_context,
-                &type_info_registry,
-            );
-        }
+        visit_document(
+            &mut KnownArgumentNames {},
+            &ctx.operation,
+            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+        );
 
-        error_context.errors
+        helper.error_context.errors
     }
 }
 

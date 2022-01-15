@@ -1,6 +1,8 @@
 use super::ValidationRule;
 use crate::ast::ext::AstTypeRef;
-use crate::ast::{TypeInfo, TypeInfoQueryVisitor};
+use crate::ast::{
+    visit_document, OperationVisitor, OperationVisitorContext, SchemaDocumentExtension,
+};
 use crate::static_graphql::query::TypeCondition;
 use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
@@ -13,22 +15,18 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Fragment-Spread-Type-Existence
 pub struct KnownTypeNames;
 
-impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownTypeNames {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
     fn enter_fragment_definition(
-        &self,
-        _node: &crate::static_graphql::query::FragmentDefinition,
-        _visitor_context: &mut ValidationErrorContext<'a>,
-        _type_info: &TypeInfo,
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        fragment_definition: &crate::static_graphql::query::FragmentDefinition,
     ) {
-        let TypeCondition::On(fragment_type_name) = &_node.type_condition;
+        let TypeCondition::On(fragment_type_name) = &fragment_definition.type_condition;
 
-        if let None = _visitor_context
-            .ctx
-            .find_schema_definition_by_name(fragment_type_name.clone())
-        {
+        if let None = visitor_context.schema.type_by_name(fragment_type_name) {
             if !fragment_type_name.starts_with("__") {
-                _visitor_context.errors.push(ValidationError {
-                    locations: vec![_node.position],
+                visitor_context.user_context.report_error(ValidationError {
+                    locations: vec![fragment_definition.position],
                     message: format!("Unknown type \"{}\".", fragment_type_name),
                 });
             }
@@ -36,19 +34,15 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownTypeNames {
     }
 
     fn enter_inline_fragment(
-        &self,
-        _node: &crate::static_graphql::query::InlineFragment,
-        _visitor_context: &mut ValidationErrorContext<'a>,
-        _type_info: &TypeInfo,
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        inline_fragment: &crate::static_graphql::query::InlineFragment,
     ) {
-        if let Some(TypeCondition::On(fragment_type_name)) = &_node.type_condition {
-            if let None = _visitor_context
-                .ctx
-                .find_schema_definition_by_name(fragment_type_name.clone())
-            {
+        if let Some(TypeCondition::On(fragment_type_name)) = &inline_fragment.type_condition {
+            if let None = visitor_context.schema.type_by_name(fragment_type_name) {
                 if !fragment_type_name.starts_with("__") {
-                    _visitor_context.errors.push(ValidationError {
-                        locations: vec![_node.position],
+                    visitor_context.user_context.report_error(ValidationError {
+                        locations: vec![inline_fragment.position],
                         message: format!("Unknown type \"{}\".", fragment_type_name),
                     });
                 }
@@ -57,21 +51,16 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownTypeNames {
     }
 
     fn enter_variable_definition(
-        &self,
-        _node: &crate::static_graphql::query::VariableDefinition,
-        _parent_operation: &crate::static_graphql::query::OperationDefinition,
-        _visitor_context: &mut ValidationErrorContext<'a>,
-        _type_info: &TypeInfo,
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        variable_definition: &crate::static_graphql::query::VariableDefinition,
     ) {
-        let base_type = _node.var_type.named_type();
+        let base_type = variable_definition.var_type.named_type();
 
-        if let None = _visitor_context
-            .ctx
-            .find_schema_definition_by_name(base_type.clone())
-        {
+        if let None = visitor_context.schema.type_by_name(&base_type) {
             if !base_type.starts_with("__") {
-                _visitor_context.errors.push(ValidationError {
-                    locations: vec![_node.position],
+                visitor_context.user_context.report_error(ValidationError {
+                    locations: vec![variable_definition.position],
                     message: format!("Unknown type \"{}\".", base_type),
                 });
             }
@@ -81,17 +70,15 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for KnownTypeNames {
 
 impl ValidationRule for KnownTypeNames {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut error_context = ValidationErrorContext::new(ctx);
+        let mut helper = ValidationErrorContext::new();
 
-        if let Some(type_info_registry) = &ctx.type_info_registry {
-            self.visit_document(
-                &ctx.operation.clone(),
-                &mut error_context,
-                &type_info_registry,
-            );
-        }
+        visit_document(
+            &mut KnownTypeNames {},
+            &ctx.operation,
+            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+        );
 
-        error_context.errors
+        helper.errors
     }
 }
 

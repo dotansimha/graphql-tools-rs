@@ -1,6 +1,6 @@
 use super::ValidationRule;
 use crate::ast::ext::TypeDefinitionExtension;
-use crate::ast::{TypeInfo, TypeInfoElementRef, TypeInfoQueryVisitor};
+use crate::ast::{visit_document, FieldByNameExtension, OperationVisitor, OperationVisitorContext};
 use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
@@ -12,29 +12,28 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Field-Selections
 pub struct FieldsOnCorrectType;
 
-impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for FieldsOnCorrectType {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
     fn enter_field(
-        &self,
-        _node: &crate::static_graphql::query::Field,
-        _visitor_context: &mut ValidationErrorContext<'a>,
-        _type_info: &TypeInfo,
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        field: &crate::static_graphql::query::Field,
     ) {
-        if let Some(TypeInfoElementRef::Ref(parent_type)) = _type_info.get_parent_type() {
-            let field_def = _type_info.get_field_def();
-            match field_def {
-                Some(TypeInfoElementRef::Empty) => {
-                    if !_node.name.starts_with("__") {
-                        _visitor_context.report_error(ValidationError {
-                            locations: vec![_node.position],
-                            message: format!(
-                                "Cannot query field \"{}\" on type \"{}\".",
-                                _node.name,
-                                parent_type.name()
-                            ),
-                        });
-                    }
-                }
-                _ => {}
+        if let Some(parent_type) = visitor_context.current_parent_type() {
+            let field_name = &field.name;
+            let type_name = parent_type.name();
+
+            if !field.name.starts_with("__") {
+                return;
+            }
+
+            if let None = parent_type.field_by_name(field_name) {
+                visitor_context.user_context.report_error(ValidationError {
+                    locations: vec![field.position],
+                    message: format!(
+                        "Cannot query field \"{}\" on type \"{}\".",
+                        field_name, type_name
+                    ),
+                });
             }
         }
     }
@@ -42,17 +41,15 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for FieldsOnCorrectTyp
 
 impl ValidationRule for FieldsOnCorrectType {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut error_context = ValidationErrorContext::new(ctx);
+        let mut helper = ValidationErrorContext::new();
 
-        if let Some(type_info_registry) = &ctx.type_info_registry {
-            self.visit_document(
-                &ctx.operation.clone(),
-                &mut error_context,
-                &type_info_registry,
-            );
-        }
+        visit_document(
+            &mut FieldsOnCorrectType {},
+            &ctx.operation,
+            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+        );
 
-        error_context.errors
+        helper.errors
     }
 }
 

@@ -1,8 +1,11 @@
 use super::ValidationRule;
+use crate::ast::{
+    visit_document, OperationVisitor, OperationVisitorContext, SchemaDocumentExtension,
+    TypeDefinitionExtension,
+};
 use crate::static_graphql::query::*;
-use crate::static_graphql::schema::TypeDefinition;
+use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
-use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 
 /// Fragments on composite type
 ///
@@ -13,56 +16,43 @@ use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
 /// https://spec.graphql.org/draft/#sec-Fragments-On-Composite-Types
 pub struct FragmentsOnCompositeTypes;
 
-impl<'a> QueryVisitor<ValidationErrorContext<'a>> for FragmentsOnCompositeTypes {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for FragmentsOnCompositeTypes {
     fn enter_inline_fragment(
-        &self,
-        _node: &InlineFragment,
-        _visitor_context: &mut ValidationErrorContext<'a>,
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        inline_fragment: &InlineFragment,
     ) {
-        if let Some(TypeCondition::On(type_condition)) = &_node.type_condition {
-            let gql_type = _visitor_context
-                .ctx
-                .find_schema_definition_by_name(type_condition.to_owned());
-
-            if let Some(gql_type) = gql_type {
-                match gql_type {
-                    TypeDefinition::Object(_)
-                    | TypeDefinition::Interface(_)
-                    | TypeDefinition::Union(_) => {}
-                    _ => _visitor_context.report_error(ValidationError {
-                        locations: vec![_node.position],
+        if let Some(TypeCondition::On(type_condition)) = &inline_fragment.type_condition {
+            if let Some(gql_type) = visitor_context.schema.type_by_name(type_condition) {
+                if !gql_type.is_composite_type() {
+                    visitor_context.user_context.report_error(ValidationError {
+                        locations: vec![inline_fragment.position],
                         message: format!(
                             "Fragment cannot condition on non composite type \"{}\".",
                             type_condition
                         ),
-                    }),
+                    })
                 }
             }
         }
     }
 
     fn enter_fragment_definition(
-        &self,
-        _node: &FragmentDefinition,
-        _visitor_context: &mut ValidationErrorContext<'a>,
+        &mut self,
+        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        fragment_definition: &FragmentDefinition,
     ) {
-        let TypeCondition::On(type_condition) = &_node.type_condition;
+        let TypeCondition::On(type_condition) = &fragment_definition.type_condition;
 
-        if let Some(gql_type) = _visitor_context
-            .ctx
-            .find_schema_definition_by_name(type_condition.to_owned())
-        {
-            match gql_type {
-                TypeDefinition::Object(_)
-                | TypeDefinition::Interface(_)
-                | TypeDefinition::Union(_) => {}
-                _ => _visitor_context.report_error(ValidationError {
-                    locations: vec![_node.position],
+        if let Some(gql_type) = visitor_context.schema.type_by_name(type_condition) {
+            if !gql_type.is_composite_type() {
+                visitor_context.user_context.report_error(ValidationError {
+                    locations: vec![fragment_definition.position],
                     message: format!(
                         "Fragment \"{}\" cannot condition on non composite type \"{}\".",
-                        _node.name, type_condition
+                        fragment_definition.name, type_condition
                     ),
-                }),
+                })
             }
         }
     }
@@ -70,10 +60,15 @@ impl<'a> QueryVisitor<ValidationErrorContext<'a>> for FragmentsOnCompositeTypes 
 
 impl ValidationRule for FragmentsOnCompositeTypes {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut error_context = ValidationErrorContext::new(ctx);
-        self.visit_document(&ctx.operation.clone(), &mut error_context);
+        let mut helper = ValidationErrorContext::new();
 
-        error_context.errors
+        visit_document(
+            &mut FragmentsOnCompositeTypes {},
+            &ctx.operation,
+            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+        );
+
+        helper.errors
     }
 }
 
@@ -82,10 +77,11 @@ fn object_is_valid_fragment_type() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(FragmentsOnCompositeTypes {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "fragment validFragment on Dog {
           barks
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -97,10 +93,11 @@ fn interface_is_valid_fragment_type() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(FragmentsOnCompositeTypes {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "fragment validFragment on Pet {
           name
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -112,12 +109,13 @@ fn object_is_valid_inline_fragment_type() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(FragmentsOnCompositeTypes {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "fragment validFragment on Pet {
           ... on Dog {
             barks
           }
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -129,12 +127,13 @@ fn interface_is_valid_inline_fragment_type() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(FragmentsOnCompositeTypes {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "fragment validFragment on Mammal {
           ... on Canine {
             name
           }
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -146,12 +145,13 @@ fn inline_fragment_without_type_is_valid() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(FragmentsOnCompositeTypes {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "fragment validFragment on Pet {
           ... {
             name
           }
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -163,10 +163,11 @@ fn union_is_valid_fragment_type() {
     use crate::validation::test_utils::*;
 
     let mut plan = create_plan_from_rule(Box::new(FragmentsOnCompositeTypes {}));
-    let errors = test_operation_without_schema(
+    let errors = test_operation_with_schema(
         "fragment validFragment on CatOrDog {
           __typename
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
