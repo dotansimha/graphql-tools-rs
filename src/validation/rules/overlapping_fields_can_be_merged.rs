@@ -1,8 +1,15 @@
+use graphql_parser::Pos;
+
 use super::ValidationRule;
+use crate::ast::{visit_document, OperationVisitor, OperationVisitorContext};
 use crate::static_graphql::query::*;
+use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
-use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
-use std::collections::{HashMap, HashSet};
+use std::borrow::Borrow;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::hash::Hash;
 
 /// Overlapping fields can be merged
 ///
@@ -13,137 +20,156 @@ use std::collections::{HashMap, HashSet};
 /// See https://spec.graphql.org/draft/#sec-Field-Selection-Merging
 pub struct OverlappingFieldsCanBeMerged;
 
-struct FindOverlappingFieldsThatCanBeMergedHelper<'a> {
-    discoverd_fields: HashMap<String, Field>,
-    validation_context: &'a ValidationErrorContext<'a>,
-    selection_set_errors: Vec<ValidationError>,
-    visited_fragments: HashSet<String>,
+#[derive(Debug)]
+struct Conflict(ConflictReason, Vec<Pos>, Vec<Pos>);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct ConflictReason(String, ConflictReasonMessage);
+
+#[derive(Debug)]
+struct AstAndDef<'a>(Option<&'a str>, &'a Field, Option<&'a Type>);
+
+type AstAndDefCollection<'a> = OrderedMap<&'a str, Vec<AstAndDef<'a>>>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum ConflictReasonMessage {
+    Message(String),
+    Nested(Vec<ConflictReason>),
 }
 
-impl<'a> FindOverlappingFieldsThatCanBeMergedHelper<'a> {
-    fn new(ctx: &'a ValidationErrorContext<'a>) -> Self {
-        Self {
-            discoverd_fields: HashMap::new(),
-            selection_set_errors: Vec::new(),
-            validation_context: ctx,
-            visited_fragments: HashSet::new(),
+struct PairSet {
+    data: HashMap<String, HashMap<String, bool>>,
+}
+
+struct OrderedMap<K, V> {
+    data: HashMap<K, V>,
+    insert_order: Vec<K>,
+}
+
+struct OrderedMapIter<'a, K: 'a, V: 'a> {
+    map: &'a HashMap<K, V>,
+    inner: ::std::slice::Iter<'a, K>,
+}
+
+impl<K: Eq + Hash + Clone, V> OrderedMap<K, V> {
+    fn new() -> OrderedMap<K, V> {
+        OrderedMap {
+            data: HashMap::new(),
+            insert_order: Vec::new(),
         }
     }
 
-    fn store_finding(&mut self, field: &Field, parent_type_name: Option<String>) {
-        let base_field_name = field.alias.as_ref().unwrap_or(&field.name).clone();
-        let field_identifier = match parent_type_name {
-            Some(ref type_name) => format!("{}.{}", type_name, base_field_name.clone()),
-            None => base_field_name.clone(),
-        };
+    fn iter(&self) -> OrderedMapIter<K, V> {
+        OrderedMapIter {
+            map: &self.data,
+            inner: self.insert_order.iter(),
+        }
+    }
 
-        if let Some(existing) = self.discoverd_fields.get(&field_identifier) {
-            if !existing.name.eq(&field.name) {
-                self.selection_set_errors.push(ValidationError {
-                    locations: vec![field.position, existing.position],
-                    message: format!(
-                        "Fields \"{}\" conflict because \"{}\" and \"{}\" are different fields. Use different aliases on the fields to fetch both if this was intentional.",
-                        base_field_name, existing.name, field.name
-                    ),
-                })
-            }
+    fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.data.get(k)
+    }
 
-            if existing.arguments.len() != field.arguments.len() {
-                self.selection_set_errors.push(ValidationError {
-                locations: vec![field.position, existing.position],
-                message: format!(
-                    "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
-                    field.name
-                ),
-                });
+    fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.data.get_mut(k)
+    }
+
+    fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.data.contains_key(k)
+    }
+
+    fn insert(&mut self, k: K, v: V) -> Option<V> {
+        let result = self.data.insert(k.clone(), v);
+        if result.is_none() {
+            self.insert_order.push(k);
+        }
+        result
+    }
+}
+
+impl<'a, K: Eq + Hash + 'a, V: 'a> Iterator for OrderedMapIter<'a, K, V> {
+    type Item = (&'a K, &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner
+            .next()
+            .and_then(|key| self.map.get(key).map(|value| (key, value)))
+    }
+}
+
+impl PairSet {
+    fn new() -> PairSet {
+        PairSet {
+            data: HashMap::new(),
+        }
+    }
+
+    pub fn contains(&self, a: &String, b: &String, mutex: bool) -> bool {
+        if let Some(result) = self.data.get(a).and_then(|s| s.get(b)) {
+            if !mutex {
+                !result
             } else {
-                for (arg_name, arg_value) in &existing.arguments {
-                    let arg_record_in_new_field = field
-                        .arguments
-                        .to_owned()
-                        .into_iter()
-                        .find(|(arg_name_in_new_field, _)| arg_name_in_new_field == arg_name);
-
-                    match arg_record_in_new_field {
-                        Some((_other_name, other_value)) if other_value.eq(arg_value) => {}
-                        _ => {
-                            self.selection_set_errors.push(ValidationError {
-                            locations: vec![field.position, existing.position],
-                            message: format!(
-                                "Fields \"{}\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.",
-                                field.name
-                            ),
-                            });
-                        }
-                    }
-                }
+                true
             }
         } else {
-            self.discoverd_fields
-                .insert(field_identifier, field.clone());
+            false
         }
     }
 
-    pub fn find_in_selection_set(
-        &mut self,
-        selection_set: &SelectionSet,
-        parent_type_name: Option<String>,
-    ) {
-        for selection in &selection_set.items {
-            match selection {
-                Selection::Field(field) => self.store_finding(field, parent_type_name.to_owned()),
-                Selection::InlineFragment(inline_fragment) => {
-                    match inline_fragment.type_condition {
-                        Some(TypeCondition::On(ref type_condition)) => self.find_in_selection_set(
-                            &inline_fragment.selection_set,
-                            Some(type_condition.clone()),
-                        ),
-                        _ => self.find_in_selection_set(&inline_fragment.selection_set, None),
-                    }
-                }
+    pub fn insert(&mut self, a: &String, b: &String, mutex: bool) {
+        self.data
+            .entry(a.clone())
+            .or_insert_with(HashMap::new)
+            .insert(b.clone(), mutex);
 
-                Selection::FragmentSpread(fragment_spread) => {
-                  if !self.visited_fragments.contains(&fragment_spread.fragment_name) {
-                    self.visited_fragments.insert(fragment_spread.fragment_name.clone());
+        self.data
+            .entry(b.clone())
+            .or_insert_with(HashMap::new)
+            .insert(a.clone(), mutex);
+    }
+}
 
-                    if let Some(fragment) = self
-                        .validation_context
-                        .ctx
-                        .fragments
-                        .get(&fragment_spread.fragment_name)
-                        .cloned()
-                    {
-                        match fragment.type_condition {
-                            TypeCondition::On(type_condition) => self.find_in_selection_set(
-                                &fragment.selection_set,
-                                Some(type_condition.clone()),
-                            ),
-                        }
-                    }
-                }
-              }
-            }
+struct OverlappingFieldsCanBeMergedHelper {
+    error_context: ValidationErrorContext,
+    named_fragments: HashMap<String, FragmentDefinition>,
+    compared_fragments: PairSet,
+}
+
+impl OverlappingFieldsCanBeMergedHelper {
+    fn new() -> Self {
+        Self {
+            error_context: ValidationErrorContext::new(),
+            named_fragments: HashMap::new(),
+            compared_fragments: PairSet::new(),
         }
     }
 }
 
-impl<'a> QueryVisitor<ValidationErrorContext<'a>> for OverlappingFieldsCanBeMerged {
-    fn enter_selection_set(&self, node: &SelectionSet, ctx: &mut ValidationErrorContext<'a>) {
-        let mut finder = FindOverlappingFieldsThatCanBeMergedHelper::new(ctx);
-        finder.find_in_selection_set(&node, None);
-
-        for error in finder.selection_set_errors {
-            ctx.errors.push(error);
-        }
-    }
-}
+impl<'a> OperationVisitor<'a, OverlappingFieldsCanBeMergedHelper> for OverlappingFieldsCanBeMerged {}
 
 impl ValidationRule for OverlappingFieldsCanBeMerged {
     fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut error_context = ValidationErrorContext::new(ctx);
-        self.visit_document(&ctx.operation.clone(), &mut error_context);
+        let mut helper = OverlappingFieldsCanBeMergedHelper::new();
 
-        error_context.errors
+        visit_document(
+            &mut OverlappingFieldsCanBeMerged {},
+            &ctx.operation,
+            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+        );
+
+        helper.error_context.errors
     }
 }
 
@@ -493,5 +519,538 @@ fn report_each_conflict_once() {
       "Fields \"x\" conflict because \"a\" and \"b\" are different fields. Use different aliases on the fields to fetch both if this was intentional.",
       "Fields \"x\" conflict because \"b\" and \"a\" are different fields. Use different aliases on the fields to fetch both if this was intentional.",
       "Fields \"x\" conflict because \"a\" and \"b\" are different fields. Use different aliases on the fields to fetch both if this was intentional."
+    ]);
+}
+
+#[cfg(test)]
+pub static OVERLAPPING_RULE_TEST_SCHEMA: &str = "
+interface SomeBox {
+  deepBox: SomeBox
+  unrelatedField: String
+}
+type StringBox implements SomeBox {
+  scalar: String
+  deepBox: StringBox
+  unrelatedField: String
+  listStringBox: [StringBox]
+  stringBox: StringBox
+  intBox: IntBox
+}
+type IntBox implements SomeBox {
+  scalar: Int
+  deepBox: IntBox
+  unrelatedField: String
+  listStringBox: [StringBox]
+  stringBox: StringBox
+  intBox: IntBox
+}
+interface NonNullStringBox1 {
+  scalar: String!
+}
+type NonNullStringBox1Impl implements SomeBox & NonNullStringBox1 {
+  scalar: String!
+  unrelatedField: String
+  deepBox: SomeBox
+}
+interface NonNullStringBox2 {
+  scalar: String!
+}
+type NonNullStringBox2Impl implements SomeBox & NonNullStringBox2 {
+  scalar: String!
+  unrelatedField: String
+  deepBox: SomeBox
+}
+type Connection {
+  edges: [Edge]
+}
+type Edge {
+  node: Node
+}
+type Node {
+  id: ID
+  name: String
+}
+type Query {
+  someBox: SomeBox
+  connection: Connection
+}";
+
+#[test]
+fn conflicting_return_types_which_potentially_overlap() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          someBox {
+            ...on IntBox {
+              scalar
+            }
+            ...on NonNullStringBox1 {
+              scalar
+            }
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Fields \"scalar\" conflict because they return conflicting types \"Int\" and \"String!\". Use different aliases on the fields to fetch both if this was intentional."
+    ]);
+}
+
+#[test]
+fn compatible_return_shapes_on_different_return_types() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          someBox {
+            ... on SomeBox {
+              deepBox {
+                unrelatedField
+              }
+            }
+            ... on StringBox {
+              deepBox {
+                unrelatedField
+              }
+            }
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}
+
+#[test]
+fn disallows_differing_return_types_despite_no_overlap() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          someBox {
+            ... on IntBox {
+              scalar
+            }
+            ... on StringBox {
+              scalar
+            }
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Fields \"scalar\" conflict because they return conflicting types \"Int\" and \"String\". Use different aliases on the fields to fetch both if this was intentional."
+    ]);
+}
+
+#[test]
+fn reports_correctly_when_a_non_exclusive_follows_an_exclusive() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          someBox {
+            ... on IntBox {
+              deepBox {
+                ...X
+              }
+            }
+          }
+          someBox {
+            ... on StringBox {
+              deepBox {
+                ...Y
+              }
+            }
+          }
+          memoed: someBox {
+            ... on IntBox {
+              deepBox {
+                ...X
+              }
+            }
+          }
+          memoed: someBox {
+            ... on StringBox {
+              deepBox {
+                ...Y
+              }
+            }
+          }
+          other: someBox {
+            ...X
+          }
+          other: someBox {
+            ...Y
+          }
+        }
+        fragment X on SomeBox {
+          scalar
+        }
+        fragment Y on SomeBox {
+          scalar: unrelatedField
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Fields \"other\" conflict because subfields \"scalar\" conflict because \"scalar\" and \"unrelatedField\" are different fields. Use different aliases on the fields to fetch both if this was intentional."
+    ]);
+}
+
+#[test]
+fn disallows_differing_return_type_nullability_despite_no_overlap() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          someBox {
+            ... on NonNullStringBox1 {
+              scalar
+            }
+            ... on StringBox {
+              scalar
+            }
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Fields \"scalar\" conflict because they return conflicting types \"String!\" and \"String\". Use different aliases on the fields to fetch both if this was intentional."
+    ]);
+}
+
+#[test]
+fn disallows_differing_return_type_list_despite_no_overlap() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          someBox {
+            ... on IntBox {
+              box: listStringBox {
+                scalar
+              }
+            }
+            ... on StringBox {
+              box: stringBox {
+                scalar
+              }
+            }
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Fields \"box\" conflict because they return conflicting types \"[StringBox]\" and \"StringBox\". Use different aliases on the fields to fetch both if this was intentional."
+    ]);
+
+    let errors = test_operation_with_schema(
+        "{
+            someBox {
+              ... on IntBox {
+                box: stringBox {
+                  scalar
+                }
+              }
+              ... on StringBox {
+                box: listStringBox {
+                  scalar
+                }
+              }
+            }
+          }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Fields \"box\" conflict because they return conflicting types \"StringBox\" and \"[StringBox]\". Use different aliases on the fields to fetch both if this was intentional."
+    ]);
+}
+
+#[test]
+fn disallows_differing_subfields() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          someBox {
+            ... on IntBox {
+              box: stringBox {
+                val: scalar
+                val: unrelatedField
+              }
+            }
+            ... on StringBox {
+              box: stringBox {
+                val: scalar
+              }
+            }
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Fields \"val\" conflict because \"scalar\" and \"unrelatedField\" are different fields. Use different aliases on the fields to fetch both if this was intentional."
+    ]);
+}
+
+#[test]
+fn disallows_differing_deep_return_types_despite_no_overlap() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          someBox {
+            ... on IntBox {
+              box: stringBox {
+                scalar
+              }
+            }
+            ... on StringBox {
+              box: intBox {
+                scalar
+              }
+            }
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Fields \"box\" conflict because subfields \"scalar\" conflict because they return conflicting types \"String\" and \"Int\". Use different aliases on the fields to fetch both if this was intentional."
+    ]);
+}
+
+#[test]
+fn allows_non_conflicting_overlapping_types() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          someBox {
+            ... on IntBox {
+              scalar: unrelatedField
+            }
+            ... on StringBox {
+              scalar
+            }
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}
+
+#[test]
+fn same_wrapped_scalar_return_types() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          someBox {
+            ...on NonNullStringBox1 {
+              scalar
+            }
+            ...on NonNullStringBox2 {
+              scalar
+            }
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}
+
+#[test]
+fn allows_inline_fragments_without_type_condition() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          a
+          ... {
+            a
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}
+
+#[test]
+fn compares_deep_types_including_list() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          connection {
+            ...edgeID
+            edges {
+              node {
+                id: name
+              }
+            }
+          }
+        }
+        fragment edgeID on Connection {
+          edges {
+            node {
+              id
+            }
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Fields \"edges\" conflict because subfields \"node\" conflict because subfields \"id\" conflict because \"name\" and \"id\" are different fields. Use different aliases on the fields to fetch both if this was intentional."
+    ]);
+}
+
+#[test]
+fn ignores_unknown_types() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_with_schema(
+        "{
+          someBox {
+            ...on UnknownType {
+              scalar
+            }
+            ...on NonNullStringBox2 {
+              scalar
+            }
+          }
+        }",
+        OVERLAPPING_RULE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}
+
+#[test]
+fn does_not_infinite_loop_on_recursive_fragment() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_without_schema(
+        "fragment fragA on Human { name, relatives { name, ...fragA } }",
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}
+
+#[test]
+fn does_not_infinite_loop_on_immediately_recursive_fragment() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors =
+        test_operation_without_schema("fragment fragA on Human { name, ...fragA }", &mut plan);
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}
+
+#[test]
+fn does_not_infinite_loop_on_transitively_recursive_fragment() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_without_schema(
+        "
+        fragment fragA on Human { name, ...fragB }
+        fragment fragB on Human { name, ...fragC }
+        fragment fragC on Human { name, ...fragA }
+      ",
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 0);
+}
+
+#[test]
+fn finds_invalid_case_even_with_immediately_recursive_fragment() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    let errors = test_operation_without_schema(
+        "
+        fragment sameAliasesWithDifferentFieldTargets on Dog {
+          ...sameAliasesWithDifferentFieldTargets
+          fido: name
+          fido: nickname
+        }
+      ",
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec![
+      "Fields \"fido\" conflict because \"name\" and \"nickname\" are different fields. Use different aliases on the fields to fetch both if this was intentional."
     ]);
 }
