@@ -20,17 +20,13 @@ impl<'a> ValidationContext<'a> {
     }
 }
 
-pub struct ValidationErrorContext<'a> {
-    pub ctx: &'a ValidationContext<'a>,
+pub struct ValidationErrorContext {
     pub errors: Vec<ValidationError>,
 }
 
-impl<'a> ValidationErrorContext<'a> {
-    pub fn new(ctx: &'a ValidationContext<'a>) -> ValidationErrorContext<'a> {
-        ValidationErrorContext {
-            ctx,
-            errors: vec![],
-        }
+impl ValidationErrorContext {
+    pub fn new() -> ValidationErrorContext {
+        ValidationErrorContext { errors: vec![] }
     }
 
     pub fn report_error(&mut self, error: ValidationError) {
