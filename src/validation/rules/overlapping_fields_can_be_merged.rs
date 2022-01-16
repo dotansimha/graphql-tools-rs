@@ -29,6 +29,61 @@ pub struct OverlappingFieldsCanBeMerged {
     compared_fragments: PairSet,
 }
 
+/**
+ * Algorithm:
+ *
+ * Conflicts occur when two fields exist in a query which will produce the same
+ * response name, but represent differing values, thus creating a conflict.
+ * The algorithm below finds all conflicts via making a series of comparisons
+ * between fields. In order to compare as few fields as possible, this makes
+ * a series of comparisons "within" sets of fields and "between" sets of fields.
+ *
+ * Given any selection set, a collection produces both a set of fields by
+ * also including all inline fragments, as well as a list of fragments
+ * referenced by fragment spreads.
+ *
+ * A) Each selection set represented in the document first compares "within" its
+ * collected set of fields, finding any conflicts between every pair of
+ * overlapping fields.
+ * Note: This is the *only time* that a the fields "within" a set are compared
+ * to each other. After this only fields "between" sets are compared.
+ *
+ * B) Also, if any fragment is referenced in a selection set, then a
+ * comparison is made "between" the original set of fields and the
+ * referenced fragment.
+ *
+ * C) Also, if multiple fragments are referenced, then comparisons
+ * are made "between" each referenced fragment.
+ *
+ * D) When comparing "between" a set of fields and a referenced fragment, first
+ * a comparison is made between each field in the original set of fields and
+ * each field in the the referenced set of fields.
+ *
+ * E) Also, if any fragment is referenced in the referenced selection set,
+ * then a comparison is made "between" the original set of fields and the
+ * referenced fragment (recursively referring to step D).
+ *
+ * F) When comparing "between" two fragments, first a comparison is made between
+ * each field in the first referenced set of fields and each field in the the
+ * second referenced set of fields.
+ *
+ * G) Also, any fragments referenced by the first must be compared to the
+ * second, and any fragments referenced by the second must be compared to the
+ * first (recursively referring to step F).
+ *
+ * H) When comparing two fields, if both have selection sets, then a comparison
+ * is made "between" both selection sets, first comparing the set of fields in
+ * the first selection set with the set of fields in the second.
+ *
+ * I) Also, if any fragment is referenced in either selection set, then a
+ * comparison is made "between" the other set of fields and the
+ * referenced fragment.
+ *
+ * J) Also, if two fragments are referenced in both selection sets, then a
+ * comparison is made "between" the two fragments.
+ *
+ */
+
 #[derive(Debug)]
 struct Conflict(ConflictReason, Vec<Pos>, Vec<Pos>);
 
@@ -156,6 +211,9 @@ impl OverlappingFieldsCanBeMerged {
         }
     }
 
+    // Find all conflicts found "within" a selection set, including those found
+    // via spreading in fragments. Called when visiting each SelectionSet in the
+    // GraphQL Document.
     fn find_conflicts_within_selection_set(
         &mut self,
         schema: &SchemaDocument,
