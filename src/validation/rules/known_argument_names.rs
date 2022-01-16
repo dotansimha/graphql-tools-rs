@@ -16,6 +16,7 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Directives-Are-In-Valid-Locations
 pub struct KnownArgumentNames;
 
+#[derive(Debug)]
 enum ArgumentParent {
     Field(String, TypeDefinition),
     Directive(String),
@@ -62,7 +63,7 @@ impl<'a> OperationVisitor<'a, KnownArgumentNamesHelper> for KnownArgumentNames {
         visitor_context: &mut OperationVisitorContext<KnownArgumentNamesHelper>,
         field: &crate::static_graphql::query::Field,
     ) {
-        if let Some(parent_type) = visitor_context.current_type() {
+        if let Some(parent_type) = visitor_context.current_parent_type() {
             if let Some(field_def) = parent_type.field_by_name(&field.name) {
                 visitor_context.user_context.current_known_arguments = Some((
                     ArgumentParent::Field(
