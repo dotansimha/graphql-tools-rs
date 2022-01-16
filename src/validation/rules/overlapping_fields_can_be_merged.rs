@@ -161,14 +161,19 @@ impl OverlappingFieldsCanBeMerged {
         schema: &SchemaDocument,
         parent_type: Option<&TypeDefinition>,
         selection_set: &SelectionSet,
+        visited_fragments: &mut Vec<String>,
     ) -> Vec<Conflict> {
         let mut conflicts = Vec::<Conflict>::new();
 
         let (field_map, fragment_names) =
             self.get_fields_and_fragment_names(schema, parent_type, selection_set);
 
-        self.collect_conflicts_within(schema, &mut conflicts, &field_map);
+        // (A) Find find all conflicts "within" the fields of this selection set.
+        // Note: this is the *only place* `collect_conflicts_within` is called.
+        self.collect_conflicts_within(schema, &mut conflicts, &field_map, visited_fragments);
 
+        // (B) Then collect conflicts between these fields and those represented by
+        // each spread fragment name found.
         for (i, frag_name1) in fragment_names.iter().enumerate() {
             self.collect_conflicts_between_fields_and_fragment(
                 schema,
@@ -176,8 +181,13 @@ impl OverlappingFieldsCanBeMerged {
                 &field_map,
                 frag_name1,
                 false,
+                visited_fragments,
             );
 
+            // (C) Then compare this fragment with all other fragments found in this
+            // selection set to collect conflicts between fragments spread together.
+            // This compares each item in the list of fragment names to every other
+            // item in that same list (except for itself).
             for frag_name2 in &fragment_names[i + 1..] {
                 self.collect_conflicts_between_fragments(
                     schema,
@@ -185,6 +195,7 @@ impl OverlappingFieldsCanBeMerged {
                     frag_name1,
                     frag_name2,
                     false,
+                    visited_fragments,
                 );
             }
         }
@@ -192,18 +203,32 @@ impl OverlappingFieldsCanBeMerged {
         conflicts
     }
 
+    // Collect all Conflicts "within" one collection of fields.
     fn collect_conflicts_within(
         &mut self,
         schema: &SchemaDocument,
         conflicts: &mut Vec<Conflict>,
         field_map: &OrderedMap<String, Vec<AstAndDef>>,
+        visited_fragments: &mut Vec<String>,
     ) {
+        // A field map is a keyed collection, where each key represents a response
+        // name and the value at that key is a list of all fields which provide that
+        // response name. For every response name, if there are multiple fields, they
+        // must be compared to find a potential conflict.
         for (out_field_name, fields) in field_map.iter() {
+            // This compares every field in the list to every other field in this list
+            // (except to itself). If the list only has one item, nothing needs to
+            // be compared.
             for (index, first) in fields.iter().enumerate() {
                 for second in &fields[index + 1..] {
-                    if let Some(conflict) =
-                        self.is_conflicting(schema, out_field_name, first, second, false)
-                    {
+                    if let Some(conflict) = self.find_conflict(
+                        schema,
+                        out_field_name,
+                        first,
+                        second,
+                        false, // within one collection is never mutually exclusive
+                        visited_fragments,
+                    ) {
                         conflicts.push(conflict)
                     }
                 }
@@ -229,37 +254,68 @@ impl OverlappingFieldsCanBeMerged {
         })
     }
 
+    // Two types conflict if both types could not apply to a value simultaneously.
+    // Composite types are ignored as their individual field types will be compared
+    // later recursively. However List and Non-Null types must match.
     fn is_type_conflict(&self, schema: &SchemaDocument, t1: &Type, t2: &Type) -> bool {
-        match (t1, t2) {
-            (Type::ListType(t1), Type::ListType(t2)) => self.is_type_conflict(schema, t1, t2),
-            (Type::NonNullType(t1), Type::NonNullType(t2)) => self.is_type_conflict(schema, t1, t2),
-            (Type::NamedType(t1), Type::NamedType(t2)) => {
-                let schema_type1 = schema.type_by_name(t1);
-                let schema_type2 = schema.type_by_name(t2);
-
-                if schema_type1.map(|t| t.is_leaf_type()).unwrap_or(false)
-                    || schema_type2.map(|t| t.is_leaf_type()).unwrap_or(false)
-                {
-                    t1.ne(t2)
-                } else {
-                    false
-                }
+        if let Type::ListType(t1) = t1 {
+            if let Type::ListType(t2) = t2 {
+                return self.is_type_conflict(schema, t1, t2);
+            } else {
+                return true;
             }
-            _ => true,
+        }
+
+        if let Type::ListType(_) = t2 {
+            return true;
+        }
+
+        if let Type::NonNullType(t1) = t1 {
+            if let Type::NonNullType(t2) = t2 {
+                return self.is_type_conflict(schema, t1, t2);
+            } else {
+                return true;
+            }
+        }
+
+        if let Type::NonNullType(_) = t2 {
+            return true;
+        }
+
+        let schema_type1 = schema.type_by_name(&t1.inner_type());
+        let schema_type2 = schema.type_by_name(&t2.inner_type());
+
+        if schema_type1.map(|t| t.is_leaf_type()).unwrap_or(false)
+            || schema_type2.map(|t| t.is_leaf_type()).unwrap_or(false)
+        {
+            return t1 != t2;
+        } else {
+            return false;
         }
     }
 
-    fn is_conflicting(
+    // Determines if there is a conflict between two particular fields, including
+    // comparing their sub-fields.
+    fn find_conflict(
         &mut self,
         schema: &SchemaDocument,
         out_field_name: &String,
         first: &AstAndDef,
         second: &AstAndDef,
         parents_mutually_exclusive: bool,
+        visited_fragments: &mut Vec<String>,
     ) -> Option<Conflict> {
         let AstAndDef(ref parent_type1, ref field1, ref field1_def) = *first;
         let AstAndDef(ref parent_type2, ref field2, ref field2_def) = *second;
 
+        // If it is known that two fields could not possibly apply at the same
+        // time, due to the parent types, then it is safe to permit them to diverge
+        // in aliased field or arguments used as they will not present any ambiguity
+        // by differing.
+        // It is known that two parent types could never overlap if they are
+        // different Object types. Interface or Union types might overlap - if not
+        // in the current state of the schema, then perhaps in some future version,
+        // thus may not safely diverge.
         let mutually_exclusive = parents_mutually_exclusive
             || (parent_type1.name().ne(&parent_type2.name())
                 && parent_type1.is_object_type()
@@ -314,21 +370,29 @@ impl OverlappingFieldsCanBeMerged {
             }
         }
 
-        let conflicts = self.find_conflicts_between_sub_selection_sets(
-            schema,
-            mutually_exclusive,
-            t1.map(|v| v.inner_type()),
-            &field1.selection_set,
-            t2.map(|v| v.inner_type()),
-            &field2.selection_set,
-        );
+        // Collect and compare sub-fields. Use the same "visited fragment names" list
+        // for both collections so fields in a fragment reference are never
+        // compared to themselves.
+        if field1.selection_set.items.len() > 0 && field2.selection_set.items.len() > 0 {
+            let conflicts = self.find_conflicts_between_sub_selection_sets(
+                schema,
+                mutually_exclusive,
+                t1.map(|v| v.inner_type()),
+                &field1.selection_set,
+                t2.map(|v| v.inner_type()),
+                &field2.selection_set,
+                visited_fragments,
+            );
 
-        return self.subfield_conflicts(
-            &conflicts,
-            out_field_name,
-            field1.position,
-            field1.position,
-        );
+            return self.subfield_conflicts(
+                &conflicts,
+                out_field_name,
+                field1.position,
+                field1.position,
+            );
+        }
+
+        None
     }
 
     fn subfield_conflicts(
@@ -358,6 +422,9 @@ impl OverlappingFieldsCanBeMerged {
         ))
     }
 
+    // Find all conflicts found between two selection sets, including those found
+    // via spreading in fragments. Called when determining if conflicts exist
+    // between the sub-fields of two overlapping fields.
     fn find_conflicts_between_sub_selection_sets(
         &mut self,
         schema: &SchemaDocument,
@@ -366,6 +433,7 @@ impl OverlappingFieldsCanBeMerged {
         selection_set1: &SelectionSet,
         parent_type_name2: Option<String>,
         selection_set2: &SelectionSet,
+        visited_fragments: &mut Vec<String>,
     ) -> Vec<Conflict> {
         let mut conflicts = Vec::<Conflict>::new();
         let parent_type1 = parent_type_name1.and_then(|t| schema.type_by_name(&t));
@@ -376,14 +444,18 @@ impl OverlappingFieldsCanBeMerged {
         let (field_map2, fragment_names2) =
             self.get_fields_and_fragment_names(schema, parent_type2.as_ref(), selection_set2);
 
+        // (H) First, collect all conflicts between these two collections of field.
         self.collect_conflicts_between(
             schema,
             &mut conflicts,
             mutually_exclusive,
             &field_map1,
             &field_map2,
+            visited_fragments,
         );
 
+        // (I) Then collect conflicts between the first collection of fields and
+        // those referenced by each fragment name associated with the second.
         for fragment_name in &fragment_names2 {
             self.collect_conflicts_between_fields_and_fragment(
                 schema,
@@ -391,9 +463,12 @@ impl OverlappingFieldsCanBeMerged {
                 &field_map1,
                 fragment_name,
                 mutually_exclusive,
+                visited_fragments,
             );
         }
 
+        // (I) Then collect conflicts between the second collection of fields and
+        // those referenced by each fragment name associated with the first.
         for fragment_name in &fragment_names1 {
             self.collect_conflicts_between_fields_and_fragment(
                 schema,
@@ -401,9 +476,13 @@ impl OverlappingFieldsCanBeMerged {
                 &field_map2,
                 fragment_name,
                 mutually_exclusive,
+                visited_fragments,
             );
         }
 
+        // (J) Also collect conflicts between any fragment names by the first and
+        // fragment names by the second. This compares each item in the first set of
+        // names to each item in the second set of names.
         for fragment_name1 in &fragment_names1 {
             for fragment_name2 in &fragment_names2 {
                 self.collect_conflicts_between_fragments(
@@ -412,6 +491,7 @@ impl OverlappingFieldsCanBeMerged {
                     fragment_name1,
                     fragment_name2,
                     mutually_exclusive,
+                    visited_fragments,
                 );
             }
         }
@@ -426,6 +506,7 @@ impl OverlappingFieldsCanBeMerged {
         field_map: &OrderedMap<String, Vec<AstAndDef>>,
         fragment_name: &String,
         mutually_exclusive: bool,
+        visited_fragments: &mut Vec<String>,
     ) {
         let fragment = match self.named_fragments.get(fragment_name) {
             Some(f) => f,
@@ -435,25 +516,39 @@ impl OverlappingFieldsCanBeMerged {
         let (field_map2, fragment_names2) =
             self.get_referenced_fields_and_fragment_names(schema, fragment);
 
+        if fragment_names2.contains(fragment_name) {
+            return;
+        }
+
         self.collect_conflicts_between(
             schema,
             conflicts,
             mutually_exclusive,
             field_map,
             &field_map2,
+            visited_fragments,
         );
 
         for fragment_name2 in &fragment_names2 {
+            if visited_fragments.contains(fragment_name2) {
+                return;
+            }
+
+            visited_fragments.push(fragment_name2.clone());
+
             self.collect_conflicts_between_fields_and_fragment(
                 schema,
                 conflicts,
                 field_map,
                 fragment_name2,
                 mutually_exclusive,
+                visited_fragments,
             );
         }
     }
 
+    // Collect all conflicts found between two fragments, including via spreading in
+    // any nested fragments.
     fn collect_conflicts_between_fragments(
         &mut self,
         schema: &SchemaDocument,
@@ -461,10 +556,23 @@ impl OverlappingFieldsCanBeMerged {
         fragment_name1: &String,
         fragment_name2: &String,
         mutually_exclusive: bool,
+        visited_fragments: &mut Vec<String>,
     ) {
+        // No need to compare a fragment to itself.
         if fragment_name1.eq(fragment_name2) {
             return;
         }
+
+        // Memoize so two fragments are not compared for conflicts more than once.
+        if self
+            .compared_fragments
+            .contains(fragment_name1, fragment_name2, mutually_exclusive)
+        {
+            return;
+        }
+
+        self.compared_fragments
+            .insert(fragment_name1, fragment_name2, mutually_exclusive);
 
         let fragment1 = match self.named_fragments.get(fragment_name1) {
             Some(f) => f,
@@ -476,34 +584,24 @@ impl OverlappingFieldsCanBeMerged {
             None => return,
         };
 
-        {
-            if self.compared_fragments.borrow().contains(
-                fragment_name1,
-                fragment_name2,
-                mutually_exclusive,
-            ) {
-                return;
-            }
-        }
-
-        {
-            self.compared_fragments
-                .insert(fragment_name1, fragment_name2, mutually_exclusive);
-        }
-
         let (field_map1, fragment_names1) =
             self.get_referenced_fields_and_fragment_names(schema, fragment1);
         let (field_map2, fragment_names2) =
             self.get_referenced_fields_and_fragment_names(schema, fragment2);
 
+        // (F) First, collect all conflicts between these two collections of fields
+        // (not including any nested fragments).
         self.collect_conflicts_between(
             schema,
             conflicts,
             mutually_exclusive,
             &field_map1,
             &field_map2,
+            visited_fragments,
         );
 
+        // (G) Then collect conflicts between the first fragment and any nested
+        // fragments spread in the second fragment.
         for fragment_name2 in &fragment_names2 {
             self.collect_conflicts_between_fragments(
                 schema,
@@ -511,9 +609,12 @@ impl OverlappingFieldsCanBeMerged {
                 fragment_name1,
                 fragment_name2,
                 mutually_exclusive,
+                visited_fragments,
             );
         }
 
+        // (G) Then collect conflicts between the second fragment and any nested
+        // fragments spread in the first fragment.
         for fragment_name1 in &fragment_names1 {
             self.collect_conflicts_between_fragments(
                 schema,
@@ -521,10 +622,13 @@ impl OverlappingFieldsCanBeMerged {
                 fragment_name1,
                 fragment_name2,
                 mutually_exclusive,
+                visited_fragments,
             );
         }
     }
 
+    // Given a reference to a fragment, return the represented collection of fields
+    // as well as a list of nested fragment names referenced via fragment spreads.
     fn get_referenced_fields_and_fragment_names(
         &self,
         schema: &SchemaDocument,
@@ -536,6 +640,11 @@ impl OverlappingFieldsCanBeMerged {
         self.get_fields_and_fragment_names(schema, fragment_type.as_ref(), &fragment.selection_set)
     }
 
+    // Collect all Conflicts between two collections of fields. This is similar to,
+    // but different from the `collectConflictsWithin` function above. This check
+    // assumes that `collectConflictsWithin` has already been called on each
+    // provided collection of fields. This is true because this validator traverses
+    // each individual selection set.
     fn collect_conflicts_between(
         &mut self,
         schema: &SchemaDocument,
@@ -543,17 +652,24 @@ impl OverlappingFieldsCanBeMerged {
         mutually_exclusive: bool,
         field_map1: &OrderedMap<String, Vec<AstAndDef>>,
         field_map2: &OrderedMap<String, Vec<AstAndDef>>,
+        visited_fragments: &mut Vec<String>,
     ) {
+        // A field map is a keyed collection, where each key represents a response
+        // name and the value at that key is a list of all fields which provide that
+        // response name. For any response name which appears in both provided field
+        // maps, each field from the first field map must be compared to every field
+        // in the second field map to find potential conflicts.
         for (response_name, fields1) in field_map1.iter() {
             if let Some(fields2) = field_map2.get(response_name) {
                 for field1 in fields1 {
                     for field2 in fields2 {
-                        if let Some(conflict) = self.is_conflicting(
+                        if let Some(conflict) = self.find_conflict(
                             schema,
                             response_name,
                             field1,
                             field2,
                             mutually_exclusive,
+                            visited_fragments,
                         ) {
                             conflicts.push(conflict);
                         }
@@ -563,6 +679,9 @@ impl OverlappingFieldsCanBeMerged {
         }
     }
 
+    // Given a selection set, return the collection of fields (a mapping of response
+    // name to field nodes and definitions) as well as a list of fragment names
+    // referenced via fragment spreads.
     fn get_fields_and_fragment_names(
         &self,
         schema: &SchemaDocument,
@@ -608,9 +727,9 @@ impl OverlappingFieldsCanBeMerged {
                         .push(AstAndDef(parent_type.cloned(), field.clone(), field_def));
                 }
                 Selection::FragmentSpread(fragment_spread) => {
-                    if !fragment_names
+                    if let None = fragment_names
                         .iter()
-                        .any(|n| n.eq(&fragment_spread.fragment_name))
+                        .find(|n| (*n).eq(&fragment_spread.fragment_name))
                     {
                         fragment_names.push(fragment_spread.fragment_name.clone());
                     }
@@ -660,8 +779,13 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for OverlappingFieldsCanBe
     ) {
         let parent_type = visitor_context.current_parent_type();
         let schema = visitor_context.schema;
-        let found_conflicts =
-            self.find_conflicts_within_selection_set(&schema, parent_type, selection_set);
+        let mut visited_fragments = Vec::<String>::new();
+        let found_conflicts = self.find_conflicts_within_selection_set(
+            &schema,
+            parent_type,
+            selection_set,
+            &mut visited_fragments,
+        );
 
         for Conflict(ConflictReason(reason_name, reason_msg), mut p1, p2) in found_conflicts {
             p1.extend(p2);
@@ -1614,6 +1738,7 @@ fn finds_invalid_case_even_with_immediately_recursive_fragment() {
     );
 
     let messages = get_messages(&errors);
+    println!("{:?}", messages);
     assert_eq!(messages.len(), 1);
     assert_eq!(messages, vec![
       "Fields \"fido\" conflict because \"name\" and \"nickname\" are different fields. Use different aliases on the fields to fetch both if this was intentional."
