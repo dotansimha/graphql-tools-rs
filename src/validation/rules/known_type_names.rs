@@ -1,7 +1,7 @@
 use super::ValidationRule;
-use crate::ast::ext::AstTypeRef;
 use crate::ast::{
     visit_document, OperationVisitor, OperationVisitorContext, SchemaDocumentExtension,
+    TypeExtension,
 };
 use crate::static_graphql::query::TypeCondition;
 use crate::validation::utils::ValidationContext;
@@ -55,7 +55,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
         visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
         variable_definition: &crate::static_graphql::query::VariableDefinition,
     ) {
-        let base_type = variable_definition.var_type.named_type();
+        let base_type = variable_definition.var_type.inner_type();
 
         if let None = visitor_context.schema.type_by_name(&base_type) {
             if !base_type.starts_with("__") {

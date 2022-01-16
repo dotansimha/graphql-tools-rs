@@ -1,8 +1,12 @@
+use std::collections::{HashMap, HashSet};
+
 use super::ValidationRule;
-use crate::ast::{visit_document, AstNodeWithName, OperationVisitor, OperationVisitorContext};
-use crate::static_graphql::query::OperationDefinition;
+use crate::ast::{
+    visit_document, AstNodeWithName, OperationVisitor, OperationVisitorContext, ValueExtension,
+};
+use crate::static_graphql::query::{self, OperationDefinition};
+use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
-use crate::{ast::ext::AstWithVariables, validation::utils::ValidationContext};
 
 /// No unused fragments
 ///
@@ -10,34 +14,154 @@ use crate::{ast::ext::AstWithVariables, validation::utils::ValidationContext};
 /// are used, either directly or within a spread fragment.
 ///
 /// See https://spec.graphql.org/draft/#sec-All-Variables-Used
-pub struct NoUnusedVariables;
+pub struct NoUnusedVariables {
+    current_scope: Option<Scope>,
+    defined_variables: HashMap<Option<String>, HashSet<String>>,
+    used_variables: HashMap<Scope, Vec<String>>,
+    spreads: HashMap<Scope, Vec<String>>,
+}
+
+impl NoUnusedVariables {
+    pub fn new() -> Self {
+        Self {
+            current_scope: None,
+            defined_variables: HashMap::new(),
+            used_variables: HashMap::new(),
+            spreads: HashMap::new(),
+        }
+    }
+}
+
+impl NoUnusedVariables {
+    fn find_used_vars(
+        &self,
+        from: &Scope,
+        defined: &HashSet<String>,
+        used: &mut HashSet<String>,
+        visited: &mut HashSet<Scope>,
+    ) {
+        if visited.contains(from) {
+            return;
+        }
+
+        visited.insert(from.clone());
+
+        if let Some(used_vars) = self.used_variables.get(from) {
+            for var in used_vars {
+                if defined.contains(var) {
+                    used.insert(var.clone());
+                }
+            }
+        }
+
+        if let Some(spreads) = self.spreads.get(from) {
+            for spread in spreads {
+                self.find_used_vars(&Scope::Fragment(spread.clone()), defined, used, visited);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Scope {
+    Operation(Option<String>),
+    Fragment(String),
+}
 
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables {
-    fn leave_operation_definition(
+    fn enter_operation_definition(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
-        operation: &OperationDefinition,
+        _: &mut OperationVisitorContext<ValidationErrorContext>,
+        operation_definition: &OperationDefinition,
     ) {
-        let variables = operation.get_variables();
-        let in_use = operation.get_variables_in_use(&visitor_context.known_fragments);
+        let op_name = operation_definition.node_name();
+        self.current_scope = Some(Scope::Operation(op_name.clone()));
+        self.defined_variables.insert(op_name, HashSet::new());
+    }
 
-        variables
-            .iter()
-            .filter(|variable_name| !in_use.contains(&variable_name.name))
-            .for_each(|unused_variable_name| {
-                visitor_context.user_context.report_error(ValidationError {
-                    locations: vec![],
-                    message: match operation.node_name() {
-                        Some(name) => format!(
-                            "Variable \"${}\" is never used in operation \"{}\".",
-                            unused_variable_name.name, name
-                        ),
-                        None => {
-                            format!("Variable \"${}\" is never used.", unused_variable_name.name)
-                        }
-                    },
-                });
-            });
+    fn enter_fragment_definition(
+        &mut self,
+        _: &mut OperationVisitorContext<ValidationErrorContext>,
+        fragment_definition: &query::FragmentDefinition,
+    ) {
+        self.current_scope = Some(Scope::Fragment(fragment_definition.name.clone()));
+    }
+
+    fn enter_fragment_spread(
+        &mut self,
+        _: &mut OperationVisitorContext<ValidationErrorContext>,
+        fragment_spread: &query::FragmentSpread,
+    ) {
+        if let Some(scope) = &self.current_scope {
+            self.spreads
+                .entry(scope.clone())
+                .or_insert_with(Vec::new)
+                .push(fragment_spread.fragment_name.clone());
+        }
+    }
+
+    fn enter_variable_definition(
+        &mut self,
+        _: &mut OperationVisitorContext<ValidationErrorContext>,
+        variable_definition: &query::VariableDefinition,
+    ) {
+        if let Some(Scope::Operation(ref name)) = self.current_scope {
+            if let Some(vars) = self.defined_variables.get_mut(name) {
+                vars.insert(variable_definition.name.clone());
+            }
+        }
+    }
+
+    fn enter_argument(
+        &mut self,
+        _: &mut OperationVisitorContext<ValidationErrorContext>,
+        (_arg_name, arg_value): &(String, query::Value),
+    ) {
+        if let Some(ref scope) = self.current_scope {
+            self.used_variables
+                .entry(scope.clone())
+                .or_insert_with(Vec::new)
+                .append(&mut arg_value.variables_in_use());
+        }
+    }
+
+    fn leave_document(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext<ValidationErrorContext>,
+        _: &query::Document,
+    ) {
+        for (op_name, def_vars) in &self.defined_variables {
+            let mut used = HashSet::new();
+            let mut visited = HashSet::new();
+
+            self.find_used_vars(
+                &Scope::Operation(op_name.clone()),
+                &def_vars,
+                &mut used,
+                &mut visited,
+            );
+
+            def_vars
+                .iter()
+                .filter(|var| !used.contains(*var))
+                .for_each(|var| {
+                    visitor_context.user_context.report_error(ValidationError {
+                        message: error_message(&var, op_name),
+                        locations: vec![],
+                    })
+                })
+        }
+    }
+}
+
+fn error_message(var_name: &String, op_name: &Option<String>) -> String {
+    if let Some(op_name) = op_name {
+        format!(
+            r#"Variable "${}" is never used in operation "{}"."#,
+            var_name, op_name
+        )
+    } else {
+        format!(r#"Variable "${}" is never used."#, var_name)
     }
 }
 
@@ -46,7 +170,7 @@ impl ValidationRule for NoUnusedVariables {
         let mut visitor_helper = ValidationErrorContext::new();
 
         visit_document(
-            &mut NoUnusedVariables {},
+            &mut NoUnusedVariables::new(),
             &ctx.operation,
             &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.operation, &ctx.schema),
         );
@@ -59,7 +183,7 @@ impl ValidationRule for NoUnusedVariables {
 fn use_all_variables() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query ($a: String, $b: String, $c: String) {
         field(a: $a, b: $b, c: $c)
@@ -75,7 +199,7 @@ fn use_all_variables() {
 fn use_all_variables_deeply() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query Foo($a: String, $b: String, $c: String) {
       field(a: $a) {
@@ -96,7 +220,7 @@ fn use_all_variables_deeply() {
 fn use_all_variables_deeply_in_inline_fragments() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         " query Foo($a: String, $b: String, $c: String) {
       ... on Type {
@@ -121,7 +245,7 @@ fn use_all_variables_deeply_in_inline_fragments() {
 fn use_all_variables_in_fragments() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query Foo($a: String, $b: String, $c: String) {
       ...FragA
@@ -150,7 +274,7 @@ fn use_all_variables_in_fragments() {
 fn variables_used_by_fragment_in_multiple_operations() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query Foo($a: String) {
       ...FragA
@@ -175,7 +299,7 @@ fn variables_used_by_fragment_in_multiple_operations() {
 fn variables_used_by_recursive_fragment() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query Foo($a: String) {
       ...FragA
@@ -196,7 +320,7 @@ fn variables_used_by_recursive_fragment() {
 fn variables_not_used() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query ($a: String, $b: String, $c: String) {
           field(a: $a, b: $b)
@@ -215,7 +339,7 @@ fn variables_not_used() {
 fn multiple_variables_not_used() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query Foo($a: String, $b: String, $c: String) {
           field(b: $b)
@@ -227,6 +351,7 @@ fn multiple_variables_not_used() {
     let messages = get_messages(&errors);
 
     assert_eq!(messages.len(), 2);
+    println!("messages: {:?}", messages);
     assert!(messages.contains(&&"Variable \"$a\" is never used in operation \"Foo\".".to_owned()));
     assert!(messages.contains(&&"Variable \"$c\" is never used in operation \"Foo\".".to_owned()));
 }
@@ -235,7 +360,7 @@ fn multiple_variables_not_used() {
 fn variables_not_used_in_fragments() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query Foo($a: String, $b: String, $c: String) {
           ...FragA
@@ -267,7 +392,7 @@ fn variables_not_used_in_fragments() {
 fn multiple_variables_not_used_in_fragments() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query Foo($a: String, $b: String, $c: String) {
           ...FragA
@@ -300,7 +425,7 @@ fn multiple_variables_not_used_in_fragments() {
 fn variables_not_used_by_unreferences_fragment() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query Foo($b: String) {
           ...FragA
@@ -325,7 +450,7 @@ fn variables_not_used_by_unreferences_fragment() {
 fn variables_not_used_by_fragment_used_by_other_operation() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query Foo($b: String) {
           ...FragA
@@ -354,7 +479,7 @@ fn variables_not_used_by_fragment_used_by_other_operation() {
 fn should_also_check_directives_usage() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query foo($skip: Boolean!) {
           field @skip(if: $skip)
@@ -372,7 +497,7 @@ fn should_also_check_directives_usage() {
 fn nested_variable_should_work_as_well() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedVariables::new()));
     let errors = test_operation_with_schema(
         "query foo($t: Boolean!) {
           field(boop: { test: $t})

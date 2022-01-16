@@ -4,181 +4,22 @@ use graphql_parser::query::TypeCondition;
 
 use crate::static_graphql::{
     query::*,
-    schema::{self, DirectiveDefinition, Field as SchemaFieldDef, InputValue},
-    schema::{Document as SchemaDocument, ObjectType, TypeDefinition},
+    schema::{self},
 };
 
-use crate::ast::ext::TypeDefinitionExtension;
-
-use super::AstTypeRef;
-
-/// Extensions
-///
-
-pub trait FieldByNameExtension {
-    fn field_by_name(&self, name: &String) -> Option<SchemaFieldDef>;
-    fn input_field_by_name(&self, name: &String) -> Option<InputValue>;
-}
-
-impl FieldByNameExtension for TypeDefinition {
-    fn field_by_name(&self, name: &String) -> Option<SchemaFieldDef> {
-        match self {
-            TypeDefinition::Object(object) => object
-                .fields
-                .iter()
-                .find(|field| field.name.eq(name))
-                .cloned(),
-            TypeDefinition::Interface(interface) => interface
-                .fields
-                .iter()
-                .find(|field| field.name.eq(name))
-                .cloned(),
-            _ => None,
-        }
-    }
-
-    fn input_field_by_name(&self, name: &String) -> Option<InputValue> {
-        match self {
-            TypeDefinition::InputObject(input_object) => input_object
-                .fields
-                .iter()
-                .find(|field| field.name.eq(name))
-                .cloned(),
-            _ => None,
-        }
-    }
-}
-
-trait OperationDefinitionExtension {
-    fn variable_definitions(&self) -> &[VariableDefinition];
-    fn selection_set(&self) -> &SelectionSet;
-}
-
-impl OperationDefinitionExtension for OperationDefinition {
-    fn variable_definitions(&self) -> &[VariableDefinition] {
-        match self {
-            OperationDefinition::Query(query) => &query.variable_definitions,
-            OperationDefinition::SelectionSet(_) => &[],
-            OperationDefinition::Mutation(mutation) => &mutation.variable_definitions,
-            OperationDefinition::Subscription(subscription) => &subscription.variable_definitions,
-        }
-    }
-
-    fn selection_set(&self) -> &SelectionSet {
-        match self {
-            OperationDefinition::Query(query) => &query.selection_set,
-            OperationDefinition::SelectionSet(selection_set) => &selection_set,
-            OperationDefinition::Mutation(mutation) => &mutation.selection_set,
-            OperationDefinition::Subscription(subscription) => &subscription.selection_set,
-        }
-    }
-}
-
-pub trait SchemaDocumentExtension {
-    fn type_by_name(&self, name: &String) -> Option<TypeDefinition>;
-    fn type_map(&self) -> HashMap<String, TypeDefinition>;
-    fn directive_by_name(&self, name: &String) -> Option<DirectiveDefinition>;
-    fn object_type_by_name(&self, name: &String) -> Option<ObjectType>;
-    fn schema_definition(&self) -> schema::SchemaDefinition;
-    fn query_type(&self) -> ObjectType;
-    fn mutation_type(&self) -> Option<ObjectType>;
-    fn subscription_type(&self) -> Option<ObjectType>;
-}
-
-impl SchemaDocumentExtension for SchemaDocument {
-    fn type_by_name(&self, name: &String) -> Option<TypeDefinition> {
-        for def in &self.definitions {
-            if let schema::Definition::TypeDefinition(type_def) = def {
-                if type_def.name().eq(name) {
-                    return Some(type_def.clone());
-                }
-            }
-        }
-
-        None
-    }
-
-    fn directive_by_name(&self, name: &String) -> Option<DirectiveDefinition> {
-        for def in &self.definitions {
-            if let schema::Definition::DirectiveDefinition(directive_def) = def {
-                if directive_def.name.eq(name) {
-                    return Some(directive_def.clone());
-                }
-            }
-        }
-
-        None
-    }
-
-    fn schema_definition(&self) -> schema::SchemaDefinition {
-        self.definitions
-            .iter()
-            .find_map(|definition| match definition {
-                schema::Definition::SchemaDefinition(schema_definition) => {
-                    Some(schema_definition.clone())
-                }
-                _ => None,
-            })
-            .unwrap_or(schema::SchemaDefinition {
-                query: Some("Query".to_string()),
-                ..Default::default()
-            })
-    }
-
-    fn query_type(&self) -> ObjectType {
-        let schema_definition = self.schema_definition();
-
-        self.object_type_by_name(
-            schema_definition
-                .query
-                .as_ref()
-                .unwrap_or(&"Query".to_string()),
-        )
-        .unwrap()
-    }
-
-    fn mutation_type(&self) -> Option<ObjectType> {
-        self.schema_definition()
-            .mutation
-            .and_then(|name| self.object_type_by_name(&name))
-    }
-
-    fn subscription_type(&self) -> Option<ObjectType> {
-        self.schema_definition()
-            .subscription
-            .and_then(|name| self.object_type_by_name(&name))
-    }
-
-    fn object_type_by_name(&self, name: &String) -> Option<ObjectType> {
-        match self.type_by_name(name) {
-            Some(TypeDefinition::Object(object_def)) => Some(object_def),
-            _ => None,
-        }
-    }
-
-    fn type_map(&self) -> HashMap<String, TypeDefinition> {
-        let mut type_map = HashMap::new();
-
-        for def in &self.definitions {
-            if let schema::Definition::TypeDefinition(type_def) = def {
-                type_map.insert(type_def.name().clone(), type_def.clone());
-            }
-        }
-
-        type_map
-    }
-}
-
+use super::{
+    FieldByNameExtension, OperationDefinitionExtension, SchemaDocumentExtension, TypeExtension,
+};
 /// OperationVisitor
 pub struct OperationVisitorContext<'a, UserContext> {
     pub user_context: &'a mut UserContext,
-    pub schema: &'a SchemaDocument,
+    pub schema: &'a schema::Document,
     pub known_fragments: HashMap<String, FragmentDefinition>,
-    pub directives: HashMap<String, DirectiveDefinition>,
+    pub directives: HashMap<String, schema::DirectiveDefinition>,
 
-    type_stack: Vec<Option<TypeDefinition>>,
-    parent_type_stack: Vec<Option<TypeDefinition>>,
-    input_type_stack: Vec<Option<TypeDefinition>>,
+    type_stack: Vec<Option<schema::TypeDefinition>>,
+    parent_type_stack: Vec<Option<schema::TypeDefinition>>,
+    input_type_stack: Vec<Option<schema::TypeDefinition>>,
     type_literal_stack: Vec<Option<Type>>,
     input_type_literal_stack: Vec<Option<Type>>,
 }
@@ -187,7 +28,7 @@ impl<'a, UserContext> OperationVisitorContext<'a, UserContext> {
     pub fn new(
         user_context: &'a mut UserContext,
         operation: &'a Document,
-        schema: &'a SchemaDocument,
+        schema: &'a schema::Document,
     ) -> Self {
         OperationVisitorContext {
             user_context,
@@ -205,7 +46,7 @@ impl<'a, UserContext> OperationVisitorContext<'a, UserContext> {
                     _ => None,
                 }),
             ),
-            directives: HashMap::<String, DirectiveDefinition>::from_iter(
+            directives: HashMap::<String, schema::DirectiveDefinition>::from_iter(
                 schema.definitions.iter().filter_map(|def| match def {
                     schema::Definition::DirectiveDefinition(directive_def) => {
                         Some((directive_def.name.clone(), directive_def.clone()))
@@ -222,7 +63,7 @@ impl<'a, UserContext> OperationVisitorContext<'a, UserContext> {
     {
         if let Some(ref t) = t {
             self.type_stack
-                .push(self.schema.type_by_name(&t.named_type()));
+                .push(self.schema.type_by_name(&t.inner_type()));
         } else {
             self.type_stack.push(None);
         }
@@ -249,7 +90,7 @@ impl<'a, UserContext> OperationVisitorContext<'a, UserContext> {
     {
         if let Some(ref t) = t {
             self.input_type_stack
-                .push(self.schema.type_by_name(&t.named_type()));
+                .push(self.schema.type_by_name(&t.inner_type()));
         } else {
             self.input_type_stack.push(None);
         }
@@ -260,11 +101,11 @@ impl<'a, UserContext> OperationVisitorContext<'a, UserContext> {
         self.input_type_stack.pop();
     }
 
-    pub fn current_type(&self) -> Option<&TypeDefinition> {
+    pub fn current_type(&self) -> Option<&schema::TypeDefinition> {
         self.type_stack.last().unwrap_or(&None).as_ref()
     }
 
-    pub fn current_parent_type(&self) -> Option<&TypeDefinition> {
+    pub fn current_parent_type(&self) -> Option<&schema::TypeDefinition> {
         self.parent_type_stack.last().unwrap_or(&None).as_ref()
     }
 
@@ -357,7 +198,7 @@ fn visit_directives<'a, Visitor, UserContext>(
 
 fn visit_arguments<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    arguments_definition: Option<&Vec<InputValue>>,
+    arguments_definition: Option<&Vec<schema::InputValue>>,
     arguments: &Vec<(String, Value)>,
     context: &mut OperationVisitorContext<'a, UserContext>,
 ) where
@@ -430,7 +271,7 @@ fn visit_input_value<'a, Visitor, UserContext>(
             for (sub_key, sub_value) in v.iter() {
                 let input_type = context
                     .current_input_type_literal()
-                    .and_then(|v| context.schema.type_by_name(&v.named_type()))
+                    .and_then(|v| context.schema.type_by_name(&v.inner_type()))
                     .and_then(|v| v.input_field_by_name(&sub_key))
                     .and_then(|v| Some(v.value_type));
 

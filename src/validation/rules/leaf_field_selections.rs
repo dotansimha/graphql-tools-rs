@@ -1,10 +1,6 @@
 use super::ValidationRule;
-// use crate::static_graphql::query::*;
 use crate::{
-    ast::{
-        ext::*, get_named_type, visit_document, OperationVisitor, OperationVisitorContext,
-        SchemaDocumentExtension, TypeInfo, TypeInfoElementRef, TypeInfoQueryVisitor,
-    },
+    ast::{visit_document, OperationVisitor, OperationVisitorContext, TypeDefinitionExtension},
     validation::utils::{ValidationContext, ValidationError, ValidationErrorContext},
 };
 

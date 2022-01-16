@@ -1,9 +1,10 @@
 use super::ValidationRule;
-use crate::ast::utils::do_types_overlap;
 use crate::ast::{
-    visit_document, OperationVisitor, OperationVisitorContext, SchemaDocumentExtension,
+    visit_document, ImplementingInterfaceExtension, OperationVisitor, OperationVisitorContext,
+    PossibleTypesExtension, SchemaDocumentExtension,
 };
 use crate::static_graphql::query::TypeCondition;
+use crate::static_graphql::schema::{self, TypeDefinition};
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 use crate::{ast::ext::TypeDefinitionExtension, validation::utils::ValidationContext};
 
@@ -15,6 +16,47 @@ use crate::{ast::ext::TypeDefinitionExtension, validation::utils::ValidationCont
 ///
 /// https://spec.graphql.org/draft/#sec-Fragment-spread-is-possible
 pub struct PossibleFragmentSpreads;
+
+/**
+ * Provided two composite types, determine if they "overlap". Two composite
+ * types overlap when the Sets of possible concrete types for each intersect.
+ *
+ * This is often used to determine if a fragment of a given type could possibly
+ * be visited in a context of another type.
+ *
+ * This function is commutative.
+ */
+pub fn do_types_overlap(
+    schema: &schema::Document,
+    t1: &schema::TypeDefinition,
+    t2: &schema::TypeDefinition,
+) -> bool {
+    if t1.name().eq(&t2.name()) {
+        return true;
+    }
+
+    if t1.is_abstract_type() {
+        if t2.is_abstract_type() {
+            let possible_types = t1.possible_types(schema);
+
+            return possible_types
+                .into_iter()
+                .filter(|possible_type| {
+                    t2.has_sub_type(&TypeDefinition::Object(possible_type.clone()))
+                })
+                .count()
+                > 0;
+        }
+
+        return t1.has_sub_type(t2);
+    }
+
+    if t2.is_abstract_type() {
+        return t2.has_sub_type(t1);
+    }
+
+    false
+}
 
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpreads {
     fn enter_inline_fragment(

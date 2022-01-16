@@ -1,12 +1,165 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use crate::ast::QueryVisitor;
-use crate::static_graphql::query::{self, FragmentSpread, OperationDefinition, Type, Value};
+use crate::static_graphql::query::{
+    self, FragmentSpread, OperationDefinition, SelectionSet, Type, Value, VariableDefinition,
+};
 use crate::static_graphql::schema::{
-    self, Field, InputValue, InterfaceType, ObjectType, TypeDefinition, UnionType,
+    self, DirectiveDefinition, InputValue, InterfaceType, ObjectType, TypeDefinition, UnionType,
 };
 
-use super::{get_named_type, SchemaDocumentExtension, TypeInfoElementRef};
+pub trait FieldByNameExtension {
+    fn field_by_name(&self, name: &String) -> Option<schema::Field>;
+    fn input_field_by_name(&self, name: &String) -> Option<InputValue>;
+}
+
+impl FieldByNameExtension for TypeDefinition {
+    fn field_by_name(&self, name: &String) -> Option<schema::Field> {
+        match self {
+            TypeDefinition::Object(object) => object
+                .fields
+                .iter()
+                .find(|field| field.name.eq(name))
+                .cloned(),
+            TypeDefinition::Interface(interface) => interface
+                .fields
+                .iter()
+                .find(|field| field.name.eq(name))
+                .cloned(),
+            _ => None,
+        }
+    }
+
+    fn input_field_by_name(&self, name: &String) -> Option<InputValue> {
+        match self {
+            TypeDefinition::InputObject(input_object) => input_object
+                .fields
+                .iter()
+                .find(|field| field.name.eq(name))
+                .cloned(),
+            _ => None,
+        }
+    }
+}
+
+pub trait OperationDefinitionExtension {
+    fn variable_definitions(&self) -> &[VariableDefinition];
+    fn selection_set(&self) -> &SelectionSet;
+}
+
+impl OperationDefinitionExtension for OperationDefinition {
+    fn variable_definitions(&self) -> &[VariableDefinition] {
+        match self {
+            OperationDefinition::Query(query) => &query.variable_definitions,
+            OperationDefinition::SelectionSet(_) => &[],
+            OperationDefinition::Mutation(mutation) => &mutation.variable_definitions,
+            OperationDefinition::Subscription(subscription) => &subscription.variable_definitions,
+        }
+    }
+
+    fn selection_set(&self) -> &SelectionSet {
+        match self {
+            OperationDefinition::Query(query) => &query.selection_set,
+            OperationDefinition::SelectionSet(selection_set) => &selection_set,
+            OperationDefinition::Mutation(mutation) => &mutation.selection_set,
+            OperationDefinition::Subscription(subscription) => &subscription.selection_set,
+        }
+    }
+}
+
+pub trait SchemaDocumentExtension {
+    fn type_by_name(&self, name: &String) -> Option<TypeDefinition>;
+    fn type_map(&self) -> HashMap<String, TypeDefinition>;
+    fn directive_by_name(&self, name: &String) -> Option<DirectiveDefinition>;
+    fn object_type_by_name(&self, name: &String) -> Option<ObjectType>;
+    fn schema_definition(&self) -> schema::SchemaDefinition;
+    fn query_type(&self) -> ObjectType;
+    fn mutation_type(&self) -> Option<ObjectType>;
+    fn subscription_type(&self) -> Option<ObjectType>;
+}
+
+impl SchemaDocumentExtension for schema::Document {
+    fn type_by_name(&self, name: &String) -> Option<TypeDefinition> {
+        for def in &self.definitions {
+            if let schema::Definition::TypeDefinition(type_def) = def {
+                if type_def.name().eq(name) {
+                    return Some(type_def.clone());
+                }
+            }
+        }
+
+        None
+    }
+
+    fn directive_by_name(&self, name: &String) -> Option<DirectiveDefinition> {
+        for def in &self.definitions {
+            if let schema::Definition::DirectiveDefinition(directive_def) = def {
+                if directive_def.name.eq(name) {
+                    return Some(directive_def.clone());
+                }
+            }
+        }
+
+        None
+    }
+
+    fn schema_definition(&self) -> schema::SchemaDefinition {
+        self.definitions
+            .iter()
+            .find_map(|definition| match definition {
+                schema::Definition::SchemaDefinition(schema_definition) => {
+                    Some(schema_definition.clone())
+                }
+                _ => None,
+            })
+            .unwrap_or(schema::SchemaDefinition {
+                query: Some("Query".to_string()),
+                ..Default::default()
+            })
+    }
+
+    fn query_type(&self) -> ObjectType {
+        let schema_definition = self.schema_definition();
+
+        self.object_type_by_name(
+            schema_definition
+                .query
+                .as_ref()
+                .unwrap_or(&"Query".to_string()),
+        )
+        .unwrap()
+    }
+
+    fn mutation_type(&self) -> Option<ObjectType> {
+        self.schema_definition()
+            .mutation
+            .and_then(|name| self.object_type_by_name(&name))
+    }
+
+    fn subscription_type(&self) -> Option<ObjectType> {
+        self.schema_definition()
+            .subscription
+            .and_then(|name| self.object_type_by_name(&name))
+    }
+
+    fn object_type_by_name(&self, name: &String) -> Option<ObjectType> {
+        match self.type_by_name(name) {
+            Some(TypeDefinition::Object(object_def)) => Some(object_def),
+            _ => None,
+        }
+    }
+
+    fn type_map(&self) -> HashMap<String, TypeDefinition> {
+        let mut type_map = HashMap::new();
+
+        for def in &self.definitions {
+            if let schema::Definition::TypeDefinition(type_def) = def {
+                type_map.insert(type_def.name().clone(), type_def.clone());
+            }
+        }
+
+        type_map
+    }
+}
 
 pub trait TypeExtension {
     fn inner_type(&self) -> String;
@@ -24,6 +177,7 @@ impl TypeExtension for Type {
 
 pub trait ValueExtension {
     fn compare(&self, other: &Self) -> bool;
+    fn variables_in_use(&self) -> Vec<String>;
 }
 
 impl ValueExtension for Value {
@@ -42,6 +196,18 @@ impl ValueExtension for Value {
             _ => false,
         }
     }
+
+    fn variables_in_use(&self) -> Vec<String> {
+        match self {
+            Value::Variable(v) => vec![v.clone()],
+            Value::List(list) => list.iter().flat_map(|v| v.variables_in_use()).collect(),
+            Value::Object(object) => object
+                .iter()
+                .flat_map(|(_, v)| v.variables_in_use())
+                .collect(),
+            _ => vec![],
+        }
+    }
 }
 
 pub trait InputValueHelpers {
@@ -57,161 +223,6 @@ impl InputValueHelpers for InputValue {
         }
 
         false
-    }
-}
-
-pub trait AstWithVariables {
-    fn get_variables(&self) -> Vec<query::VariableDefinition>;
-    fn get_variables_in_use(
-        &self,
-        fragments: &HashMap<String, query::FragmentDefinition>,
-    ) -> HashSet<String>;
-}
-
-impl AstWithVariables for OperationDefinition {
-    fn get_variables(&self) -> Vec<query::VariableDefinition> {
-        match self {
-            OperationDefinition::Query(query) => query.variable_definitions.clone(),
-            OperationDefinition::SelectionSet(_anon_query) => vec![],
-            OperationDefinition::Mutation(mutation) => mutation.variable_definitions.clone(),
-            OperationDefinition::Subscription(subscription) => {
-                subscription.variable_definitions.clone()
-            }
-        }
-    }
-
-    fn get_variables_in_use(
-        &self,
-        fragments: &HashMap<String, query::FragmentDefinition>,
-    ) -> HashSet<String> {
-        struct GetVariablesInUse;
-
-        struct GetVariablesInUseHelper<'a> {
-            variables_in_use: HashSet<String>,
-            available_fragments: &'a HashMap<String, query::FragmentDefinition>,
-            visited_fragments: HashSet<String>,
-        }
-
-        impl<'a> QueryVisitor<GetVariablesInUseHelper<'a>> for GetVariablesInUse {
-            fn enter_fragment_spread(
-                &self,
-                _node: &FragmentSpread,
-                _visitor_context: &mut GetVariablesInUseHelper,
-            ) {
-                if !_visitor_context
-                    .visited_fragments
-                    .contains(&_node.fragment_name)
-                {
-                    _visitor_context
-                        .visited_fragments
-                        .insert(_node.fragment_name.clone());
-
-                    if let Some(fragment_def) = _visitor_context
-                        .available_fragments
-                        .get(&_node.fragment_name)
-                    {
-                        self.__visit_selection_set(&fragment_def.selection_set, _visitor_context);
-                    }
-                }
-            }
-
-            fn enter_variable(
-                &self,
-                _name: &String,
-                _parent_arg: (&String, &query::Value),
-                _visitor_context: &mut GetVariablesInUseHelper,
-            ) {
-                _visitor_context.variables_in_use.insert(_name.clone());
-            }
-        }
-
-        let visitor = GetVariablesInUse {};
-        let doc = query::Document {
-            definitions: vec![query::Definition::Operation(self.clone())],
-        };
-        let mut helper = GetVariablesInUseHelper {
-            variables_in_use: HashSet::new(),
-            available_fragments: fragments,
-            visited_fragments: HashSet::new(),
-        };
-        visitor.visit_document(&doc, &mut helper);
-
-        helper.variables_in_use
-    }
-}
-
-pub trait AstNodeWithFields {
-    fn find_field(&self, name: String) -> Option<&Field>;
-}
-
-impl AstNodeWithFields for ObjectType {
-    fn find_field(&self, name: String) -> Option<&Field> {
-        self.fields.iter().find(|f| f.name == name)
-    }
-}
-
-impl AstNodeWithFields for InterfaceType {
-    fn find_field(&self, name: String) -> Option<&Field> {
-        self.fields.iter().find(|f| f.name == name)
-    }
-}
-
-impl AstNodeWithFields for UnionType {
-    fn find_field(&self, _name: String) -> Option<&Field> {
-        None
-    }
-}
-
-pub trait AstTypeRef {
-    fn named_type(&self) -> String;
-}
-
-impl AstTypeRef for query::Type {
-    fn named_type(&self) -> String {
-        get_named_type(self)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum CompositeType {
-    Object(schema::ObjectType),
-    Interface(schema::InterfaceType),
-    Union(schema::UnionType),
-}
-
-impl TypeInfoElementRef<CompositeType> {
-    pub fn find_field(&self, name: String) -> Option<&Field> {
-        match self {
-            TypeInfoElementRef::Empty => None,
-            TypeInfoElementRef::Ref(composite_type) => composite_type.find_field(name),
-        }
-    }
-}
-
-impl CompositeType {
-    pub fn find_field(&self, name: String) -> Option<&Field> {
-        match self {
-            CompositeType::Object(o) => o.find_field(name),
-            CompositeType::Interface(i) => i.find_field(name),
-            CompositeType::Union(u) => u.find_field(name),
-        }
-    }
-
-    pub fn from_type_definition(t: &schema::TypeDefinition) -> Option<Self> {
-        match t {
-            schema::TypeDefinition::Object(o) => Some(CompositeType::Object(o.clone())),
-            schema::TypeDefinition::Interface(i) => Some(CompositeType::Interface(i.clone())),
-            schema::TypeDefinition::Union(u) => Some(CompositeType::Union(u.clone())),
-            _ => None,
-        }
-    }
-
-    pub fn as_type_definition(&self) -> schema::TypeDefinition {
-        match self {
-            CompositeType::Object(o) => schema::TypeDefinition::Object(o.clone()),
-            CompositeType::Interface(o) => schema::TypeDefinition::Interface(o.clone()),
-            CompositeType::Union(o) => schema::TypeDefinition::Union(o.clone()),
-        }
     }
 }
 
@@ -334,58 +345,6 @@ impl AbstractTypeDefinitionExtension for InterfaceType {
             .iter()
             .find(|v| self.name.eq(*v))
             .is_some()
-    }
-}
-
-impl TypeDefinitionExtension for CompositeType {
-    fn is_leaf_type(&self) -> bool {
-        false
-    }
-
-    fn is_composite_type(&self) -> bool {
-        true
-    }
-
-    fn is_input_type(&self) -> bool {
-        false
-    }
-
-    fn name(&self) -> String {
-        match self {
-            CompositeType::Object(o) => o.name.clone(),
-            CompositeType::Interface(i) => i.name.clone(),
-            CompositeType::Union(u) => u.name.clone(),
-        }
-    }
-
-    fn is_abstract_type(&self) -> bool {
-        match self {
-            CompositeType::Object(_o) => false,
-            CompositeType::Interface(_i) => true,
-            CompositeType::Union(_u) => true,
-        }
-    }
-
-    fn is_object_type(&self) -> bool {
-        match self {
-            CompositeType::Object(_o) => true,
-            _ => false,
-        }
-    }
-
-    fn is_union_type(&self) -> bool {
-        match self {
-            CompositeType::Union(_o) => true,
-            _ => false,
-        }
-    }
-
-    fn is_enum_type(&self) -> bool {
-        false
-    }
-
-    fn is_scalar_type(&self) -> bool {
-        false
     }
 }
 

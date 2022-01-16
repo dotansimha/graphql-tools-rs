@@ -1,7 +1,7 @@
 use super::ValidationRule;
-use crate::ast::operation_visitor::SchemaDocumentExtension;
 use crate::ast::{
-    visit_document, AstTypeRef, OperationVisitor, OperationVisitorContext, TypeDefinitionExtension,
+    visit_document, OperationVisitor, OperationVisitorContext, SchemaDocumentExtension,
+    TypeDefinitionExtension, TypeExtension,
 };
 use crate::validation::utils::ValidationErrorContext;
 use crate::validation::utils::{ValidationContext, ValidationError};
@@ -22,7 +22,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesAreInputTypes
     ) {
         if let Some(var_schema_type) = context
             .schema
-            .type_by_name(&variable_definition.var_type.named_type())
+            .type_by_name(&variable_definition.var_type.inner_type())
         {
             if !var_schema_type.is_input_type() {
                 context.user_context.report_error(ValidationError {
