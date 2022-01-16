@@ -1,12 +1,48 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::ast::QueryVisitor;
-use crate::static_graphql::query::{self, FragmentSpread, OperationDefinition, Type};
+use crate::static_graphql::query::{self, FragmentSpread, OperationDefinition, Type, Value};
 use crate::static_graphql::schema::{
     self, Field, InputValue, InterfaceType, ObjectType, TypeDefinition, UnionType,
 };
 
 use super::{get_named_type, SchemaDocumentExtension, TypeInfoElementRef};
+
+pub trait TypeExtension {
+    fn inner_type(&self) -> String;
+}
+
+impl TypeExtension for Type {
+    fn inner_type(&self) -> String {
+        match self {
+            Type::NamedType(name) => name.clone(),
+            Type::ListType(child) => child.inner_type(),
+            Type::NonNullType(child) => child.inner_type(),
+        }
+    }
+}
+
+pub trait ValueExtension {
+    fn compare(&self, other: &Self) -> bool;
+}
+
+impl ValueExtension for Value {
+    fn compare(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Null, Value::Null) => true,
+            (Value::Boolean(a), Value::Boolean(b)) => a == b,
+            (Value::Int(a), Value::Int(b)) => a == b,
+            (Value::Float(a), Value::Float(b)) => a == b,
+            (Value::String(a), Value::String(b)) => a.eq(b),
+            (Value::Enum(a), Value::Enum(b)) => a.eq(b),
+            (Value::List(a), Value::List(b)) => a.iter().zip(b.iter()).all(|(a, b)| a.compare(b)),
+            (Value::Object(a), Value::Object(b)) => {
+                a.iter().zip(b.iter()).all(|(a, b)| a.1.compare(b.1))
+            }
+            _ => false,
+        }
+    }
+}
 
 pub trait InputValueHelpers {
     fn is_required(&self) -> bool;
@@ -187,6 +223,10 @@ pub trait TypeDefinitionExtension {
     fn is_leaf_type(&self) -> bool;
     fn is_composite_type(&self) -> bool;
     fn is_input_type(&self) -> bool;
+    fn is_object_type(&self) -> bool;
+    fn is_union_type(&self) -> bool;
+    fn is_enum_type(&self) -> bool;
+    fn is_scalar_type(&self) -> bool;
     fn is_abstract_type(&self) -> bool;
     fn name(&self) -> String;
 }
@@ -325,6 +365,93 @@ impl TypeDefinitionExtension for CompositeType {
             CompositeType::Union(_u) => true,
         }
     }
+
+    fn is_object_type(&self) -> bool {
+        match self {
+            CompositeType::Object(_o) => true,
+            _ => false,
+        }
+    }
+
+    fn is_union_type(&self) -> bool {
+        match self {
+            CompositeType::Union(_o) => true,
+            _ => false,
+        }
+    }
+
+    fn is_enum_type(&self) -> bool {
+        false
+    }
+
+    fn is_scalar_type(&self) -> bool {
+        false
+    }
+}
+
+impl TypeDefinitionExtension for Option<schema::TypeDefinition> {
+    fn is_leaf_type(&self) -> bool {
+        match self {
+            Some(t) => t.is_leaf_type(),
+            _ => false,
+        }
+    }
+
+    fn is_composite_type(&self) -> bool {
+        match self {
+            Some(t) => t.is_composite_type(),
+            _ => false,
+        }
+    }
+
+    fn is_input_type(&self) -> bool {
+        match self {
+            Some(t) => t.is_input_type(),
+            _ => false,
+        }
+    }
+
+    fn is_object_type(&self) -> bool {
+        match self {
+            Some(t) => t.is_object_type(),
+            _ => false,
+        }
+    }
+
+    fn is_union_type(&self) -> bool {
+        match self {
+            Some(t) => t.is_union_type(),
+            _ => false,
+        }
+    }
+
+    fn is_enum_type(&self) -> bool {
+        match self {
+            Some(t) => t.is_enum_type(),
+            _ => false,
+        }
+    }
+
+    fn is_scalar_type(&self) -> bool {
+        match self {
+            Some(t) => t.is_scalar_type(),
+            _ => false,
+        }
+    }
+
+    fn is_abstract_type(&self) -> bool {
+        match self {
+            Some(t) => t.is_abstract_type(),
+            _ => false,
+        }
+    }
+
+    fn name(&self) -> String {
+        match self {
+            Some(t) => t.name(),
+            _ => "".to_string(),
+        }
+    }
 }
 
 impl TypeDefinitionExtension for schema::TypeDefinition {
@@ -341,34 +468,27 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
 
     fn is_abstract_type(&self) -> bool {
         match self {
-            schema::TypeDefinition::Object(_o) => false,
             schema::TypeDefinition::Interface(_i) => true,
             schema::TypeDefinition::Union(_u) => true,
-            schema::TypeDefinition::Scalar(_u) => false,
-            schema::TypeDefinition::Enum(_u) => false,
-            schema::TypeDefinition::InputObject(_u) => false,
+            _ => false,
         }
     }
 
     fn is_leaf_type(&self) -> bool {
         match self {
-            schema::TypeDefinition::Object(_o) => false,
-            schema::TypeDefinition::Interface(_i) => false,
-            schema::TypeDefinition::Union(_u) => false,
             schema::TypeDefinition::Scalar(_u) => true,
             schema::TypeDefinition::Enum(_u) => true,
             schema::TypeDefinition::InputObject(_u) => false,
+            _ => false,
         }
     }
 
     fn is_input_type(&self) -> bool {
         match self {
-            schema::TypeDefinition::Object(_o) => false,
-            schema::TypeDefinition::Interface(_i) => false,
-            schema::TypeDefinition::Union(_u) => false,
             schema::TypeDefinition::Scalar(_u) => true,
             schema::TypeDefinition::Enum(_u) => true,
             schema::TypeDefinition::InputObject(_u) => true,
+            _ => false,
         }
     }
 
@@ -377,9 +497,35 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
             schema::TypeDefinition::Object(_o) => true,
             schema::TypeDefinition::Interface(_i) => true,
             schema::TypeDefinition::Union(_u) => true,
-            schema::TypeDefinition::Scalar(_u) => false,
-            schema::TypeDefinition::Enum(_u) => false,
-            schema::TypeDefinition::InputObject(_u) => false,
+            _ => false,
+        }
+    }
+
+    fn is_object_type(&self) -> bool {
+        match self {
+            schema::TypeDefinition::Object(_o) => true,
+            _ => false,
+        }
+    }
+
+    fn is_union_type(&self) -> bool {
+        match self {
+            schema::TypeDefinition::Union(_o) => true,
+            _ => false,
+        }
+    }
+
+    fn is_enum_type(&self) -> bool {
+        match self {
+            schema::TypeDefinition::Enum(_o) => true,
+            _ => false,
+        }
+    }
+
+    fn is_scalar_type(&self) -> bool {
+        match self {
+            schema::TypeDefinition::Scalar(_o) => true,
+            _ => false,
         }
     }
 }

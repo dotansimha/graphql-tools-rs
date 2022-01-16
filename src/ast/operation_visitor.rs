@@ -79,7 +79,7 @@ pub trait SchemaDocumentExtension {
     fn type_map(&self) -> HashMap<String, TypeDefinition>;
     fn directive_by_name(&self, name: &String) -> Option<DirectiveDefinition>;
     fn object_type_by_name(&self, name: &String) -> Option<ObjectType>;
-    fn schema_definition(&self) -> Option<schema::SchemaDefinition>;
+    fn schema_definition(&self) -> schema::SchemaDefinition;
     fn query_type(&self) -> ObjectType;
     fn mutation_type(&self) -> Option<ObjectType>;
     fn subscription_type(&self) -> Option<ObjectType>;
@@ -110,7 +110,7 @@ impl SchemaDocumentExtension for SchemaDocument {
         None
     }
 
-    fn schema_definition(&self) -> Option<schema::SchemaDefinition> {
+    fn schema_definition(&self) -> schema::SchemaDefinition {
         self.definitions
             .iter()
             .find_map(|definition| match definition {
@@ -119,31 +119,34 @@ impl SchemaDocumentExtension for SchemaDocument {
                 }
                 _ => None,
             })
+            .unwrap_or(schema::SchemaDefinition {
+                query: Some("Query".to_string()),
+                ..Default::default()
+            })
     }
 
     fn query_type(&self) -> ObjectType {
-        let schema_definition = self.schema_definition().unwrap();
+        let schema_definition = self.schema_definition();
 
-        self.object_type_by_name(schema_definition.query.as_ref().unwrap())
-            .unwrap()
+        self.object_type_by_name(
+            schema_definition
+                .query
+                .as_ref()
+                .unwrap_or(&"Query".to_string()),
+        )
+        .unwrap()
     }
 
     fn mutation_type(&self) -> Option<ObjectType> {
-        let schema_definition = self.schema_definition().unwrap();
-
-        match &schema_definition.mutation {
-            Some(mutation_name) => self.object_type_by_name(&mutation_name),
-            None => None,
-        }
+        self.schema_definition()
+            .mutation
+            .and_then(|name| self.object_type_by_name(&name))
     }
 
     fn subscription_type(&self) -> Option<ObjectType> {
-        let schema_definition = self.schema_definition().unwrap();
-
-        match &schema_definition.subscription {
-            Some(subscription_name) => self.object_type_by_name(&subscription_name),
-            None => None,
-        }
+        self.schema_definition()
+            .subscription
+            .and_then(|name| self.object_type_by_name(&name))
     }
 
     fn object_type_by_name(&self, name: &String) -> Option<ObjectType> {
@@ -300,30 +303,31 @@ fn visit_definitions<'a, Visitor, UserContext>(
         let schema_type_name = match definition {
             Definition::Fragment(fragment) => {
                 let TypeCondition::On(name) = &fragment.type_condition;
-                name.clone()
+                Some(name.clone())
             }
             Definition::Operation(operation) => match operation {
-                OperationDefinition::Query(_) => context.schema.query_type().name.clone(),
-                OperationDefinition::SelectionSet(_) => context.schema.query_type().name.clone(),
-                OperationDefinition::Mutation(_) => {
-                    context.schema.mutation_type().unwrap().name.clone()
+                OperationDefinition::Query(_) => Some(context.schema.query_type().name.clone()),
+                OperationDefinition::SelectionSet(_) => {
+                    Some(context.schema.query_type().name.clone())
                 }
+                OperationDefinition::Mutation(_) => context.schema.mutation_type().map(|t| t.name),
                 OperationDefinition::Subscription(_) => {
-                    context.schema.subscription_type().unwrap().name.clone()
+                    context.schema.subscription_type().map(|t| t.name)
                 }
             },
         };
 
-        context.with_type(Some(Type::NamedType(schema_type_name.clone())), |context| {
-            match definition {
+        context.with_type(
+            schema_type_name.map(|v| Type::NamedType(v)),
+            |context| match definition {
                 Definition::Fragment(fragment) => {
                     visit_fragment_definition(visitor, fragment, context)
                 }
                 Definition::Operation(operation) => {
                     visit_operation_definition(visitor, operation, context)
                 }
-            }
-        });
+            },
+        );
     }
 }
 

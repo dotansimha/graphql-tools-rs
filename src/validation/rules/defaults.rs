@@ -23,7 +23,7 @@ pub fn default_rules_validation_plan() -> ValidationPlan {
     plan.add_rule(Box::new(UniqueFragmentNames {}));
     plan.add_rule(Box::new(KnownFragmentNames {}));
     plan.add_rule(Box::new(NoUnusedFragments {}));
-    plan.add_rule(Box::new(OverlappingFieldsCanBeMerged {}));
+    plan.add_rule(Box::new(OverlappingFieldsCanBeMerged::new()));
     plan.add_rule(Box::new(NoFragmentsCycle {}));
     plan.add_rule(Box::new(PossibleFragmentSpreads {}));
     plan.add_rule(Box::new(NoUnusedVariables {}));
