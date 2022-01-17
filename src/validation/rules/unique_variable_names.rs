@@ -6,7 +6,6 @@ use graphql_parser::Pos;
 use super::ValidationRule;
 use crate::ast::{visit_document, OperationVisitor, OperationVisitorContext};
 use crate::static_graphql::query::*;
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
 /// Unique variable names
@@ -14,53 +13,42 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// A GraphQL operation is only valid if all its variables are uniquely named.
 ///
 /// See https://spec.graphql.org/draft/#sec-Variable-Uniqueness
-pub struct UniqueVariableNames {}
-
-struct UniqueVariableNamesHelper {
+pub struct UniqueVariableNames {
     found_records: HashMap<String, Pos>,
-    error_context: ValidationErrorContext,
 }
 
-impl UniqueVariableNamesHelper {
-    fn new() -> Self {
-        UniqueVariableNamesHelper {
+impl UniqueVariableNames {
+    pub fn new() -> Self {
+        UniqueVariableNames {
             found_records: HashMap::new(),
-            error_context: ValidationErrorContext::new(),
         }
     }
 }
 
-impl<'a> OperationVisitor<'a, UniqueVariableNamesHelper> for UniqueVariableNames {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueVariableNames {
     fn enter_operation_definition(
         &mut self,
-        visitor_context: &mut OperationVisitorContext<UniqueVariableNamesHelper>,
+        _: &mut OperationVisitorContext,
+        _: &mut ValidationErrorContext,
         _operation_definition: &OperationDefinition,
     ) {
-        visitor_context.user_context.found_records.clear();
+        self.found_records.clear();
     }
 
     fn enter_variable_definition(
         &mut self,
-        visitor_context: &mut OperationVisitorContext<UniqueVariableNamesHelper>,
+        _: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         variable_definition: &VariableDefinition,
     ) {
-        match visitor_context
-            .user_context
-            .found_records
-            .entry(variable_definition.name.clone())
-        {
-            Entry::Occupied(entry) => {
-                visitor_context
-                    .user_context
-                    .error_context
-                    .report_error(ValidationError {
-                        locations: vec![*entry.get(), variable_definition.position],
-                        message: format!(
-                            "There can only be one variable named \"${}\".",
-                            variable_definition.name
-                        ),
-                    })
-            }
+        match self.found_records.entry(variable_definition.name.clone()) {
+            Entry::Occupied(entry) => user_context.report_error(ValidationError {
+                locations: vec![*entry.get(), variable_definition.position],
+                message: format!(
+                    "There can only be one variable named \"${}\".",
+                    variable_definition.name
+                ),
+            }),
             Entry::Vacant(entry) => {
                 entry.insert(variable_definition.position);
             }
@@ -69,16 +57,17 @@ impl<'a> OperationVisitor<'a, UniqueVariableNamesHelper> for UniqueVariableNames
 }
 
 impl ValidationRule for UniqueVariableNames {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut visitor_helper = UniqueVariableNamesHelper::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
-            &mut UniqueVariableNames {},
+            &mut UniqueVariableNames::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        visitor_helper.error_context.errors
     }
 }
 
@@ -86,7 +75,7 @@ impl ValidationRule for UniqueVariableNames {
 fn unique_variable_names() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(UniqueVariableNames {}));
+    let mut plan = create_plan_from_rule(Box::new(UniqueVariableNames::new()));
     let errors = test_operation_with_schema(
         "query A($x: Int, $y: String) { __typename }
         query B($x: String, $y: Int) { __typename }",
@@ -101,7 +90,7 @@ fn unique_variable_names() {
 fn duplicate_variable_names() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(UniqueVariableNames {}));
+    let mut plan = create_plan_from_rule(Box::new(UniqueVariableNames::new()));
     let errors = test_operation_with_schema(
         "query A($x: Int, $x: Int, $x: String) { __typename }
         query B($y: String, $y: Int) { __typename }

@@ -1,7 +1,7 @@
 use super::ValidationRule;
 use crate::{
     ast::{visit_document, OperationVisitor, OperationVisitorContext, TypeDefinitionExtension},
-    validation::utils::{ValidationContext, ValidationError, ValidationErrorContext},
+    validation::utils::{ValidationError, ValidationErrorContext},
 };
 
 /// Leaf Field Selections
@@ -11,10 +11,17 @@ use crate::{
 /// https://spec.graphql.org/draft/#sec-Leaf-Field-Selections
 pub struct LeafFieldSelections;
 
+impl LeafFieldSelections {
+    pub fn new() -> Self {
+        LeafFieldSelections
+    }
+}
+
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for LeafFieldSelections {
     fn enter_field(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         field: &crate::static_graphql::query::Field,
     ) {
         if let (Some(field_type), Some(field_type_literal)) = (
@@ -25,7 +32,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LeafFieldSelections {
 
             if field_type.is_leaf_type() {
                 if field_selection_count > 0 {
-                    visitor_context.user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {
                         locations: vec![field.position],
                         message: format!(
                   "Field \"{}\" must not have a selection since type \"{}\" has no subfields.",
@@ -36,7 +43,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LeafFieldSelections {
                 }
             } else {
                 if field_selection_count == 0 {
-                    visitor_context.user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {
               locations: vec![field.position],
               message: format!(
                   "Field \"{}\" of type \"{}\" must have a selection of subfields. Did you mean \"{} {{ ... }}\"?",
@@ -52,16 +59,17 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LeafFieldSelections {
 }
 
 impl ValidationRule for LeafFieldSelections {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut helper = ValidationErrorContext::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
-            &mut LeafFieldSelections {},
+            &mut LeafFieldSelections::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        helper.errors
     }
 }
 

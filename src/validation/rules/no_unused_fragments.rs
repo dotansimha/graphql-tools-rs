@@ -1,7 +1,6 @@
 use super::ValidationRule;
 use crate::ast::{visit_document, OperationVisitor, OperationVisitorContext};
 use crate::static_graphql::query::*;
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
 /// No unused fragments
@@ -10,76 +9,66 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// within operations, or spread within other fragments spread within operations.
 ///
 /// See https://spec.graphql.org/draft/#sec-Fragments-Must-Be-Used
-pub struct NoUnusedFragments;
+pub struct NoUnusedFragments {
+    fragments_in_use: Vec<String>,
+}
 
-impl<'a> OperationVisitor<'a, NoUnusedFragmentsHelper> for NoUnusedFragments {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedFragments {
     fn enter_fragment_spread(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<NoUnusedFragmentsHelper>,
+        _: &mut OperationVisitorContext,
+        _: &mut ValidationErrorContext,
         fragment_spread: &FragmentSpread,
     ) {
-        visitor_context
-            .user_context
-            .fragments_in_use
+        self.fragments_in_use
             .push(fragment_spread.fragment_name.clone());
     }
 
     fn leave_document(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<NoUnusedFragmentsHelper>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         _document: &Document,
     ) {
         visitor_context
             .known_fragments
             .iter()
             .filter_map(|(fragment_name, _fragment)| {
-                if !visitor_context
-                    .user_context
-                    .fragments_in_use
-                    .contains(&fragment_name)
-                {
+                if !self.fragments_in_use.contains(&fragment_name) {
                     Some(fragment_name.clone())
                 } else {
                     None
                 }
             })
             .for_each(|unused_fragment_name| {
-                visitor_context
-                    .user_context
-                    .error_context
-                    .report_error(ValidationError {
-                        locations: vec![],
-                        message: format!("Fragment \"{}\" is never used.", unused_fragment_name),
-                    });
+                user_context.report_error(ValidationError {
+                    locations: vec![],
+                    message: format!("Fragment \"{}\" is never used.", unused_fragment_name),
+                });
             });
     }
 }
 
-struct NoUnusedFragmentsHelper {
-    error_context: ValidationErrorContext,
-    fragments_in_use: Vec<String>,
-}
-
-impl NoUnusedFragmentsHelper {
-    fn new() -> Self {
-        NoUnusedFragmentsHelper {
-            error_context: ValidationErrorContext::new(),
+impl NoUnusedFragments {
+    pub fn new() -> Self {
+        NoUnusedFragments {
             fragments_in_use: Vec::new(),
         }
     }
 }
 
 impl ValidationRule for NoUnusedFragments {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut helper = NoUnusedFragmentsHelper::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
-            &mut NoUnusedFragments {},
+            &mut NoUnusedFragments::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        helper.error_context.errors
     }
 }
 
@@ -87,7 +76,7 @@ impl ValidationRule for NoUnusedFragments {
 fn all_fragment_names_are_used() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedFragments {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedFragments::new()));
     let errors = test_operation_with_schema(
         "{
           human(id: 4) {
@@ -118,7 +107,7 @@ fn all_fragment_names_are_used() {
 fn all_fragment_names_are_used_by_multiple_operations() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedFragments {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedFragments::new()));
     let errors = test_operation_with_schema(
         "query Foo {
           human(id: 4) {
@@ -152,7 +141,7 @@ fn all_fragment_names_are_used_by_multiple_operations() {
 fn contains_unknown_fragments() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedFragments {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedFragments::new()));
     let errors = test_operation_with_schema(
         "query Foo {
           human(id: 4) {
@@ -195,7 +184,7 @@ fn contains_unknown_fragments() {
 fn contains_unknown_fragments_with_ref_cycle() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedFragments {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedFragments::new()));
     let errors = test_operation_with_schema(
         "query Foo {
           human(id: 4) {
@@ -245,7 +234,7 @@ fn contains_unknown_fragments_with_ref_cycle() {
 fn contains_unknown_and_undef_fragments() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(NoUnusedFragments {}));
+    let mut plan = create_plan_from_rule(Box::new(NoUnusedFragments::new()));
     let errors = test_operation_with_schema(
         "query Foo {
           human(id: 4) {

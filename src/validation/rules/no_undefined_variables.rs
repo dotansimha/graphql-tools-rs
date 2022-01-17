@@ -3,7 +3,6 @@ use crate::ast::{
     visit_document, AstNodeWithName, OperationVisitor, OperationVisitorContext, ValueExtension,
 };
 use crate::static_graphql::query::{self, OperationDefinition};
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 use std::collections::{HashMap, HashSet};
 
@@ -75,7 +74,8 @@ pub enum Scope {
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
     fn enter_operation_definition(
         &mut self,
-        _: &mut OperationVisitorContext<ValidationErrorContext>,
+        _: &mut OperationVisitorContext,
+        _: &mut ValidationErrorContext,
         operation_definition: &OperationDefinition,
     ) {
         let op_name = operation_definition.node_name();
@@ -85,7 +85,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
 
     fn enter_fragment_definition(
         &mut self,
-        _: &mut OperationVisitorContext<ValidationErrorContext>,
+        _: &mut OperationVisitorContext,
+        _: &mut ValidationErrorContext,
         fragment_definition: &query::FragmentDefinition,
     ) {
         self.current_scope = Some(Scope::Fragment(fragment_definition.name.clone()));
@@ -93,7 +94,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
 
     fn enter_fragment_spread(
         &mut self,
-        _: &mut OperationVisitorContext<ValidationErrorContext>,
+        _: &mut OperationVisitorContext,
+        _: &mut ValidationErrorContext,
         fragment_spread: &query::FragmentSpread,
     ) {
         if let Some(scope) = &self.current_scope {
@@ -106,7 +108,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
 
     fn enter_variable_definition(
         &mut self,
-        _: &mut OperationVisitorContext<ValidationErrorContext>,
+        _: &mut OperationVisitorContext,
+        _: &mut ValidationErrorContext,
         variable_definition: &query::VariableDefinition,
     ) {
         if let Some(Scope::Operation(ref name)) = self.current_scope {
@@ -118,7 +121,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
 
     fn enter_argument(
         &mut self,
-        _: &mut OperationVisitorContext<ValidationErrorContext>,
+        _: &mut OperationVisitorContext,
+        _: &mut ValidationErrorContext,
         (_arg_name, arg_value): &(String, query::Value),
     ) {
         if let Some(ref scope) = self.current_scope {
@@ -131,7 +135,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
 
     fn leave_document(
         &mut self,
-        visitor_context: &mut OperationVisitorContext<ValidationErrorContext>,
+        _: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         _: &query::Document,
     ) {
         for (op_name, def_vars) in &self.defined_variables {
@@ -146,7 +151,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
             );
 
             unused.iter().for_each(|var| {
-                visitor_context.user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {
                     message: error_message(&var, op_name),
                     locations: vec![],
                 })
@@ -167,16 +172,17 @@ fn error_message(var_name: &String, op_name: &Option<String>) -> String {
 }
 
 impl ValidationRule for NoUndefinedVariables {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut helper = ValidationErrorContext::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
             &mut NoUndefinedVariables::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        helper.errors
     }
 }
 

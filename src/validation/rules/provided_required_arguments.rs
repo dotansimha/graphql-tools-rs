@@ -5,7 +5,6 @@ use crate::ast::{
 };
 use crate::static_graphql::query::Value;
 use crate::static_graphql::schema::InputValue;
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
 /// Provided required arguments
@@ -16,10 +15,17 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Required-Arguments
 pub struct ProvidedRequiredArguments;
 
+impl ProvidedRequiredArguments {
+    pub fn new() -> Self {
+        ProvidedRequiredArguments
+    }
+}
+
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for ProvidedRequiredArguments {
     fn enter_field(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         field: &crate::static_graphql::query::Field,
     ) {
         if let Some(parent_type) = visitor_context.current_parent_type() {
@@ -28,7 +34,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ProvidedRequiredArgume
                     validate_arguments(&field.arguments, &field_def.arguments);
 
                 for missing in missing_required_args {
-                    visitor_context.user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {
               locations: vec![field.position],
               message: format!("Field \"{}\" argument \"{}\" of type \"{}\" is required, but it was not provided.",
               field.name, missing.name, missing.value_type),
@@ -40,7 +46,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ProvidedRequiredArgume
 
     fn enter_directive(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         directive: &crate::static_graphql::query::Directive,
     ) {
         let known_directives = &visitor_context.directives;
@@ -50,7 +57,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ProvidedRequiredArgume
                 validate_arguments(&directive.arguments, &directive_def.arguments);
 
             for missing in missing_required_args {
-                visitor_context.user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {
               locations: vec![directive.position],
               message: format!("Directive \"@{}\" argument \"{}\" of type \"{}\" is required, but it was not provided.",
               directive.name, missing.name, missing.value_type),
@@ -82,16 +89,17 @@ fn validate_arguments<'a>(
 }
 
 impl ValidationRule for ProvidedRequiredArguments {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut visitor_helper = ValidationErrorContext::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
-            &mut ProvidedRequiredArguments {},
+            &mut ProvidedRequiredArguments::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        visitor_helper.errors
     }
 }
 

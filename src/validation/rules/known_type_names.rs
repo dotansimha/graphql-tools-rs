@@ -4,7 +4,6 @@ use crate::ast::{
     TypeExtension,
 };
 use crate::static_graphql::query::TypeCondition;
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
 /// Known type names
@@ -15,17 +14,24 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Fragment-Spread-Type-Existence
 pub struct KnownTypeNames;
 
+impl KnownTypeNames {
+    pub fn new() -> Self {
+        KnownTypeNames
+    }
+}
+
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
     fn enter_fragment_definition(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut crate::ast::OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         fragment_definition: &crate::static_graphql::query::FragmentDefinition,
     ) {
         let TypeCondition::On(fragment_type_name) = &fragment_definition.type_condition;
 
         if let None = visitor_context.schema.type_by_name(fragment_type_name) {
             if !fragment_type_name.starts_with("__") {
-                visitor_context.user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {
                     locations: vec![fragment_definition.position],
                     message: format!("Unknown type \"{}\".", fragment_type_name),
                 });
@@ -35,13 +41,14 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
 
     fn enter_inline_fragment(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         inline_fragment: &crate::static_graphql::query::InlineFragment,
     ) {
         if let Some(TypeCondition::On(fragment_type_name)) = &inline_fragment.type_condition {
             if let None = visitor_context.schema.type_by_name(fragment_type_name) {
                 if !fragment_type_name.starts_with("__") {
-                    visitor_context.user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {
                         locations: vec![inline_fragment.position],
                         message: format!("Unknown type \"{}\".", fragment_type_name),
                     });
@@ -52,14 +59,15 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
 
     fn enter_variable_definition(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         variable_definition: &crate::static_graphql::query::VariableDefinition,
     ) {
         let base_type = variable_definition.var_type.inner_type();
 
         if let None = visitor_context.schema.type_by_name(&base_type) {
             if !base_type.starts_with("__") {
-                visitor_context.user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {
                     locations: vec![variable_definition.position],
                     message: format!("Unknown type \"{}\".", base_type),
                 });
@@ -69,16 +77,17 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
 }
 
 impl ValidationRule for KnownTypeNames {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut helper = ValidationErrorContext::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
-            &mut KnownTypeNames {},
+            &mut KnownTypeNames::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        helper.errors
     }
 }
 

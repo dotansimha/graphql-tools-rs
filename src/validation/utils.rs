@@ -1,13 +1,7 @@
-use crate::static_graphql::{query, schema};
 use graphql_parser::Pos;
 use std::fmt::Debug;
 
 #[derive(Debug)]
-pub struct ValidationContext<'a> {
-    pub operation: &'a query::Document,
-    pub schema: &'a schema::Document,
-}
-
 pub struct ValidationErrorContext {
     pub errors: Vec<ValidationError>,
 }

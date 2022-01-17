@@ -4,7 +4,6 @@ use crate::ast::{
     TypeDefinitionExtension,
 };
 use crate::static_graphql::query::*;
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
 /// Fragments on composite type
@@ -16,16 +15,23 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// https://spec.graphql.org/draft/#sec-Fragments-On-Composite-Types
 pub struct FragmentsOnCompositeTypes;
 
+impl FragmentsOnCompositeTypes {
+  pub fn new() -> Self {
+        FragmentsOnCompositeTypes
+    }
+}
+
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for FragmentsOnCompositeTypes {
     fn enter_inline_fragment(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         inline_fragment: &InlineFragment,
     ) {
         if let Some(TypeCondition::On(type_condition)) = &inline_fragment.type_condition {
             if let Some(gql_type) = visitor_context.schema.type_by_name(type_condition) {
                 if !gql_type.is_composite_type() {
-                    visitor_context.user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {
                         locations: vec![inline_fragment.position],
                         message: format!(
                             "Fragment cannot condition on non composite type \"{}\".",
@@ -39,14 +45,15 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FragmentsOnCompositeTy
 
     fn enter_fragment_definition(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         fragment_definition: &FragmentDefinition,
     ) {
         let TypeCondition::On(type_condition) = &fragment_definition.type_condition;
 
         if let Some(gql_type) = visitor_context.schema.type_by_name(type_condition) {
             if !gql_type.is_composite_type() {
-                visitor_context.user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {
                     locations: vec![fragment_definition.position],
                     message: format!(
                         "Fragment \"{}\" cannot condition on non composite type \"{}\".",
@@ -59,16 +66,17 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FragmentsOnCompositeTy
 }
 
 impl ValidationRule for FragmentsOnCompositeTypes {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut helper = ValidationErrorContext::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
-            &mut FragmentsOnCompositeTypes {},
+            &mut FragmentsOnCompositeTypes::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        helper.errors
     }
 }
 

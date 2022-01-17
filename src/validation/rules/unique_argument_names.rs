@@ -5,7 +5,6 @@ use graphql_parser::Pos;
 use super::ValidationRule;
 use crate::ast::{visit_document, OperationVisitor, OperationVisitorContext};
 use crate::static_graphql::query::Value;
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
 /// Unique argument names
@@ -16,17 +15,24 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Argument-Names
 pub struct UniqueArgumentNames;
 
+impl UniqueArgumentNames {
+    pub fn new() -> Self {
+        UniqueArgumentNames
+    }
+}
+
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueArgumentNames {
     fn enter_field(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        _: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         field: &crate::static_graphql::query::Field,
     ) {
         let found_args = collect_from_arguments(field.position, &field.arguments);
 
         found_args.iter().for_each(|(arg_name, positions)| {
             if positions.len() > 1 {
-                visitor_context.user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {
                     message: format!("There can be only one argument named \"{}\".", arg_name),
                     locations: positions.clone(),
                 })
@@ -36,14 +42,15 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueArgumentNames {
 
     fn enter_directive(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        _: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         directive: &crate::static_graphql::query::Directive,
     ) {
         let found_args = collect_from_arguments(directive.position, &directive.arguments);
 
         found_args.iter().for_each(|(arg_name, positions)| {
             if positions.len() > 1 {
-                visitor_context.user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {
                     message: format!("There can be only one argument named \"{}\".", arg_name),
                     locations: positions.clone(),
                 })
@@ -69,16 +76,17 @@ fn collect_from_arguments(
 }
 
 impl ValidationRule for UniqueArgumentNames {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut visitor_helper = ValidationErrorContext::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
-            &mut UniqueArgumentNames {},
+            &mut UniqueArgumentNames::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        visitor_helper.errors
     }
 }
 

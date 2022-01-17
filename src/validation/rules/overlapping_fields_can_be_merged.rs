@@ -11,7 +11,6 @@ use crate::static_graphql::query::*;
 use crate::static_graphql::schema::{
     Document as SchemaDocument, Field as FieldDefinition, TypeDefinition,
 };
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 use std::borrow::Borrow;
 use std::collections::HashMap;
@@ -819,7 +818,8 @@ impl OverlappingFieldsCanBeMerged {
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for OverlappingFieldsCanBeMerged {
     fn enter_document(
         &mut self,
-        _visitor_context: &mut OperationVisitorContext<ValidationErrorContext>,
+        _visitor_context: &mut OperationVisitorContext,
+        _: &mut ValidationErrorContext,
         document: &Document,
     ) {
         for definition in &document.definitions {
@@ -832,7 +832,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for OverlappingFieldsCanBe
 
     fn enter_selection_set(
         &mut self,
-        visitor_context: &mut OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         selection_set: &SelectionSet,
     ) {
         let parent_type = visitor_context.current_parent_type();
@@ -848,7 +849,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for OverlappingFieldsCanBe
         for Conflict(ConflictReason(reason_name, reason_msg), mut p1, p2) in found_conflicts {
             p1.extend(p2);
 
-            visitor_context.user_context.report_error(ValidationError {
+            user_context.report_error(ValidationError {
                 message: error_message(&reason_name, &reason_msg),
                 locations: p1,
             });
@@ -885,16 +886,17 @@ fn format_reason(reason: &ConflictReasonMessage) -> String {
 }
 
 impl ValidationRule for OverlappingFieldsCanBeMerged {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut helper = ValidationErrorContext::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
             &mut OverlappingFieldsCanBeMerged::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        helper.errors
     }
 }
 

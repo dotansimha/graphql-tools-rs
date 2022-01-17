@@ -1,9 +1,12 @@
 use super::{
     rules::ValidationRule,
-    utils::{ValidationContext, ValidationError},
+    utils::{ValidationError, ValidationErrorContext},
 };
 
-use crate::static_graphql::{query, schema};
+use crate::{
+    ast::OperationVisitorContext,
+    static_graphql::{query, schema},
+};
 
 pub struct ValidationPlan {
     pub rules: Vec<Box<dyn ValidationRule>>,
@@ -28,15 +31,15 @@ pub fn validate<'a>(
     operation: &'a query::Document,
     validation_plan: &'a ValidationPlan,
 ) -> Vec<ValidationError> {
-    let validation_context = ValidationContext { operation, schema };
+    let mut error_collector = ValidationErrorContext::new();
+    let mut validation_context = OperationVisitorContext::new(operation, schema);
 
-    let validation_errors = validation_plan
+    validation_plan
         .rules
         .iter()
-        .flat_map(|rule| rule.validate(&validation_context))
-        .collect::<Vec<_>>();
+        .for_each(|rule| rule.validate(&mut validation_context, &mut error_collector));
 
-    validation_errors
+    error_collector.errors
 }
 
 #[test]

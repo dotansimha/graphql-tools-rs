@@ -1,7 +1,6 @@
 use super::ValidationRule;
 use crate::ast::{visit_document, OperationVisitor, OperationVisitorContext};
 use crate::static_graphql::query::*;
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
 /// Lone Anonymous Operation
@@ -12,10 +11,17 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// https://spec.graphql.org/draft/#sec-Lone-Anonymous-Operation
 pub struct LoneAnonymousOperation;
 
+impl LoneAnonymousOperation {
+    pub fn new() -> Self {
+        LoneAnonymousOperation
+    }
+}
+
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation {
     fn enter_document(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        _: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         document: &Document,
     ) {
         let operations_count = document
@@ -34,7 +40,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation
             match definition {
                 Definition::Operation(OperationDefinition::SelectionSet(_)) => {
                     if operations_count > 1 {
-                        visitor_context.user_context.report_error(ValidationError {
+                        user_context.report_error(ValidationError {
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![],
@@ -43,7 +49,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation
                 }
                 Definition::Operation(OperationDefinition::Query(query)) => {
                     if query.name == None && operations_count > 1 {
-                        visitor_context.user_context.report_error(ValidationError {
+                        user_context.report_error(ValidationError {
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![query.position.clone()],
@@ -52,7 +58,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation
                 }
                 Definition::Operation(OperationDefinition::Mutation(mutation)) => {
                     if mutation.name == None && operations_count > 1 {
-                        visitor_context.user_context.report_error(ValidationError {
+                        user_context.report_error(ValidationError {
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![mutation.position.clone()],
@@ -61,7 +67,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation
                 }
                 Definition::Operation(OperationDefinition::Subscription(subscription)) => {
                     if subscription.name == None && operations_count > 1 {
-                        visitor_context.user_context.report_error(ValidationError {
+                        user_context.report_error(ValidationError {
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![subscription.position.clone()],
@@ -75,16 +81,17 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation
 }
 
 impl ValidationRule for LoneAnonymousOperation {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut visitor_helper = ValidationErrorContext::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
-            &mut LoneAnonymousOperation {},
+            &mut LoneAnonymousOperation::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        visitor_helper.errors
     }
 }
 

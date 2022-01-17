@@ -6,11 +6,11 @@ use crate::static_graphql::{
     query::{self, Selection, TypeCondition},
     schema::{self, TypeDefinition},
 };
-pub fn collect_fields<'a, UserContext>(
+pub fn collect_fields<'a>(
     selection_set: &query::SelectionSet,
     parent_type: &schema::TypeDefinition,
     known_fragments: &HashMap<String, query::FragmentDefinition>,
-    context: &'a OperationVisitorContext<'a, UserContext>,
+    context: &'a OperationVisitorContext<'a>,
 ) -> HashMap<String, Vec<query::Field>> {
     let mut map = HashMap::new();
     let mut visited_fragments_names: Vec<String> = Vec::new();
@@ -27,10 +27,10 @@ pub fn collect_fields<'a, UserContext>(
     map
 }
 
-fn does_fragment_condition_match<'a, UserContext>(
+fn does_fragment_condition_match<'a>(
     fragment_condition: &'a Option<TypeCondition>,
     current_selection_set_type: &'a TypeDefinition,
-    context: &'a OperationVisitorContext<'a, UserContext>,
+    context: &'a OperationVisitorContext<'a>,
 ) -> bool {
     if let Some(TypeCondition::On(type_name)) = fragment_condition {
         if let Some(conditional_type) = context.schema.type_by_name(type_name) {
@@ -60,11 +60,11 @@ fn does_fragment_condition_match<'a, UserContext>(
     }
 }
 
-fn collect_fields_inner<'a, UserContext>(
+fn collect_fields_inner<'a>(
     selection_set: &query::SelectionSet,
     parent_type: &schema::TypeDefinition,
     known_fragments: &HashMap<String, query::FragmentDefinition>,
-    context: &'a OperationVisitorContext<'a, UserContext>,
+    context: &'a OperationVisitorContext<'a>,
     result_arr: &mut HashMap<String, Vec<query::Field>>,
     visited_fragments_names: &mut Vec<String>,
 ) {

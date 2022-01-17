@@ -1,9 +1,9 @@
-use super::ValidationRule;
 use crate::ast::ext::TypeDefinitionExtension;
 use crate::ast::{visit_document, FieldByNameExtension, OperationVisitor, OperationVisitorContext};
 use crate::static_graphql::query::{Field, OperationDefinition, Selection};
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
+
+use super::ValidationRule;
 
 /// Fields on correct type
 ///
@@ -13,10 +13,17 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Field-Selections
 pub struct FieldsOnCorrectType;
 
+impl FieldsOnCorrectType {
+    pub fn new() -> Self {
+        FieldsOnCorrectType
+    }
+}
+
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
     fn enter_operation_definition(
         &mut self,
-        visitor_context: &mut OperationVisitorContext<ValidationErrorContext>,
+        _: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         operation: &OperationDefinition,
     ) {
         // https://spec.graphql.org/October2021/#note-bc213
@@ -24,7 +31,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
             for selection in &subscription.selection_set.items {
                 if let Selection::Field(field) = selection {
                     if field.name == "__typename" {
-                        visitor_context.user_context.report_error(ValidationError {
+                        user_context.report_error(ValidationError {
                           message: "`__typename` may not be included as a root field in a subscription operation".to_string(),
                           locations: vec![subscription.position],
                         });
@@ -36,7 +43,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
 
     fn enter_field(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         field: &Field,
     ) {
         if let Some(parent_type) = visitor_context.current_parent_type() {
@@ -48,7 +56,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
             }
 
             if let None = parent_type.field_by_name(field_name) {
-                visitor_context.user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {
                     locations: vec![field.position],
                     message: format!(
                         "Cannot query field \"{}\" on type \"{}\".",
@@ -61,16 +69,17 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
 }
 
 impl ValidationRule for FieldsOnCorrectType {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut helper = ValidationErrorContext::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
-            &mut FieldsOnCorrectType {},
+            &mut FieldsOnCorrectType::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        helper.errors
     }
 }
 

@@ -2,7 +2,6 @@ use super::ValidationRule;
 use crate::ast::{collect_fields, OperationVisitor, SchemaDocumentExtension, OperationVisitorContext, visit_document};
 use crate::static_graphql::query::OperationDefinition;
 use crate::static_graphql::schema::TypeDefinition;
-use crate::validation::utils::ValidationContext;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
 /// Unique operation names
@@ -12,10 +11,17 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Operation-Name-Uniqueness
 pub struct SingleFieldSubscriptions;
 
+impl SingleFieldSubscriptions {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptions {
     fn enter_operation_definition(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         operation: &OperationDefinition,
     ) {
         match operation {
@@ -44,7 +50,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptio
                       }
                   };
   
-                  visitor_context.user_context.report_error(ValidationError {
+                  user_context.report_error(ValidationError {
                       locations: vec![subscription.position],
                       message: error_message,
                   });
@@ -69,7 +75,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptio
                               .to_owned(),
                       };
   
-                      visitor_context.user_context.report_error(ValidationError {
+                      user_context.report_error(ValidationError {
                         locations: vec![subscription.position],
                         message: error_message,
                     });
@@ -82,17 +88,18 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptio
 }
 
 impl ValidationRule for SingleFieldSubscriptions {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-      let mut visitor_helper = ValidationErrorContext::new();
-
-      visit_document(
-          &mut SingleFieldSubscriptions {},
-          &ctx.operation,
-          &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.operation, &ctx.schema),
-      );
-
-      visitor_helper.errors
-    }
+  fn validate<'a>(
+    &self,
+    ctx: &'a mut OperationVisitorContext,
+    error_collector: &mut ValidationErrorContext,
+) {
+    visit_document(
+        &mut SingleFieldSubscriptions::new(),
+        &ctx.operation,
+        ctx,
+        error_collector,
+    );
+}
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
 use super::ValidationRule;
+use crate::ast::ext::TypeDefinitionExtension;
 use crate::ast::{
     visit_document, ImplementingInterfaceExtension, OperationVisitor, OperationVisitorContext,
     PossibleTypesExtension, SchemaDocumentExtension,
@@ -6,7 +7,6 @@ use crate::ast::{
 use crate::static_graphql::query::TypeCondition;
 use crate::static_graphql::schema::{self, TypeDefinition};
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
-use crate::{ast::ext::TypeDefinitionExtension, validation::utils::ValidationContext};
 
 /// Possible fragment spread
 ///
@@ -16,6 +16,12 @@ use crate::{ast::ext::TypeDefinitionExtension, validation::utils::ValidationCont
 ///
 /// https://spec.graphql.org/draft/#sec-Fragment-spread-is-possible
 pub struct PossibleFragmentSpreads;
+
+impl PossibleFragmentSpreads {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
 
 /**
  * Provided two composite types, determine if they "overlap". Two composite
@@ -61,7 +67,8 @@ pub fn do_types_overlap(
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpreads {
     fn enter_inline_fragment(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         _inline_fragment: &crate::static_graphql::query::InlineFragment,
     ) {
         if let Some(frag_schema_type) = visitor_context.current_type() {
@@ -70,7 +77,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpread
                     && parent_type.is_composite_type()
                     && !do_types_overlap(&visitor_context.schema, frag_schema_type, &parent_type)
                 {
-                    visitor_context.user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {
                       locations: vec![],
                       message: format!("Fragment cannot be spread here as objects of type \"{}\" can never be of type \"{}\".", parent_type.name(), frag_schema_type.name()),
                     })
@@ -81,7 +88,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpread
 
     fn enter_fragment_spread(
         &mut self,
-        visitor_context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         fragment_spread: &crate::static_graphql::query::FragmentSpread,
     ) {
         if let Some(actual_fragment) = visitor_context
@@ -96,7 +104,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpread
                         && parent_type.is_composite_type()
                         && !do_types_overlap(&visitor_context.schema, &fragment_type, &parent_type)
                     {
-                        visitor_context.user_context.report_error(ValidationError {
+                        user_context.report_error(ValidationError {
                         locations: vec![],
                         message: format!("Fragment \"{}\" cannot be spread here as objects of type \"{}\" can never be of type \"{}\".", actual_fragment.name, parent_type.name(), fragment_type_name),
                       })
@@ -108,16 +116,17 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpread
 }
 
 impl ValidationRule for PossibleFragmentSpreads {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut visitor_helper = ValidationErrorContext::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
-            &mut PossibleFragmentSpreads {},
+            &mut PossibleFragmentSpreads::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut visitor_helper, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        visitor_helper.errors
     }
 }
 

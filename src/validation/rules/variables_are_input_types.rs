@@ -3,8 +3,8 @@ use crate::ast::{
     visit_document, OperationVisitor, OperationVisitorContext, SchemaDocumentExtension,
     TypeDefinitionExtension, TypeExtension,
 };
+use crate::validation::utils::ValidationError;
 use crate::validation::utils::ValidationErrorContext;
-use crate::validation::utils::{ValidationContext, ValidationError};
 
 /// Variables are input types
 ///
@@ -14,10 +14,17 @@ use crate::validation::utils::{ValidationContext, ValidationError};
 /// See https://spec.graphql.org/draft/#sec-Variables-Are-Input-Types
 pub struct VariablesAreInputTypes;
 
+impl VariablesAreInputTypes {
+    pub fn new() -> Self {
+        VariablesAreInputTypes
+    }
+}
+
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesAreInputTypes {
     fn enter_variable_definition(
         &mut self,
-        context: &mut crate::ast::OperationVisitorContext<ValidationErrorContext>,
+        context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
         variable_definition: &crate::static_graphql::query::VariableDefinition,
     ) {
         if let Some(var_schema_type) = context
@@ -25,7 +32,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesAreInputTypes
             .type_by_name(&variable_definition.var_type.inner_type())
         {
             if !var_schema_type.is_input_type() {
-                context.user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {
                     message: format!(
                         "Variable \"${}\" cannot be non-input type \"{}\".",
                         variable_definition.name, variable_definition.var_type
@@ -38,16 +45,17 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesAreInputTypes
 }
 
 impl ValidationRule for VariablesAreInputTypes {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut error_context = ValidationErrorContext::new();
-
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
         visit_document(
-            &mut VariablesAreInputTypes {},
+            &mut VariablesAreInputTypes::new(),
             &ctx.operation,
-            &mut OperationVisitorContext::new(&mut error_context, &ctx.operation, &ctx.schema),
+            ctx,
+            error_collector,
         );
-
-        error_context.errors
     }
 }
 
