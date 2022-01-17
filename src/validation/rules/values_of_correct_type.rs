@@ -1,17 +1,193 @@
+use crate::ast::ext::TypeDefinitionExtension;
+use crate::ast::TypeExtension;
+use crate::static_graphql::query::{Type, Value};
+use crate::static_graphql::schema::{self, TypeDefinition};
+use crate::validation::utils::ValidationError;
 use crate::{
-    ast::{visit_document, OperationVisitor, OperationVisitorContext},
+    ast::{
+        visit_document, FieldByNameExtension, OperationVisitor, OperationVisitorContext,
+        SchemaDocumentExtension,
+    },
+    static_graphql::{query, schema::InputValue},
     validation::utils::ValidationErrorContext,
 };
 
 use super::ValidationRule;
 
-struct ValuesOfCorrectType {}
-
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {}
+pub struct ValuesOfCorrectType {
+    current_args: Option<Vec<InputValue>>,
+}
 
 impl ValuesOfCorrectType {
-    fn new() -> Self {
-        Self {}
+    pub fn new() -> Self {
+        Self { current_args: None }
+    }
+
+    pub fn is_valid_literal_value(
+        &self,
+        schema: &schema::Document,
+        type_def: &Option<TypeDefinition>,
+        arg_type: &Type,
+        arg_value: &Value,
+    ) -> bool {
+        match arg_type {
+            Type::NonNullType(ref inner) => {
+                if let Value::Null = arg_value {
+                    return false;
+                } else {
+                    return self.is_valid_literal_value(schema, type_def, inner, arg_value);
+                }
+            }
+            Type::ListType(ref inner) => match *arg_value {
+                Value::List(ref items) => items
+                    .iter()
+                    .all(|i| self.is_valid_literal_value(schema, type_def, inner, &i)),
+                ref v => self.is_valid_literal_value(schema, type_def, inner, v),
+            },
+            Type::NamedType(t) => {
+                match (arg_value, type_def) {
+                    (Value::Int(_), Some(TypeDefinition::Enum(_))) => return false,
+                    (Value::Boolean(_), Some(TypeDefinition::Enum(_))) => return false,
+                    (Value::String(_), Some(TypeDefinition::Enum(_))) => return false,
+                    (Value::Float(_), Some(TypeDefinition::Enum(_))) => return false,
+                    (_, _) => {}
+                };
+
+                match *arg_value {
+                    Value::Null | Value::Variable(_) => true,
+                    Value::Boolean(_)
+                    | Value::Float(_)
+                    | Value::Int(_)
+                    | Value::String(_)
+                    | Value::Enum(_) => {
+                        return false;
+                        /*
+                        if let Some(parse_fn) = t.input_value_parse_fn() {
+                              parse_fn(v).is_ok()
+                          } else {
+                              false
+                          }
+                           */
+                    }
+                    Value::List(_) => false,
+                    Value::Object(ref obj) => {
+                        false
+                        /*
+                         if let MetaType::InputObject(InputObjectMeta {
+                               ref input_fields, ..
+                           }) = *t
+                           {
+                               let mut remaining_required_fields = input_fields
+                                   .iter()
+                                   .filter_map(|f| {
+                                       if f.arg_type.is_non_null() {
+                                           Some(&f.name)
+                                       } else {
+                                           None
+                                       }
+                                   })
+                                   .collect::<HashSet<_>>();
+
+                               let all_types_ok = obj.iter().all(|&(ref key, ref value)| {
+                                   remaining_required_fields.remove(&key.item);
+                                   if let Some(ref arg_type) = input_fields
+                                       .iter()
+                                       .filter(|f| f.name == key.item)
+                                       .map(|f| schema.make_type(&f.arg_type))
+                                       .next()
+                                   {
+                                       is_valid_literal_value(schema, arg_type, &value.item)
+                                   } else {
+                                       false
+                                   }
+                               });
+
+                               all_types_ok && remaining_required_fields.is_empty()
+                           } else {
+                               false
+                           }
+                        */
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
+    fn enter_directive(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext<'a>,
+        _: &mut ValidationErrorContext,
+        directive: &query::Directive,
+    ) {
+        self.current_args = visitor_context
+            .directives
+            .get(&directive.name)
+            .map(|directive_definition| directive_definition.arguments.clone());
+    }
+
+    fn leave_directive(
+        &mut self,
+        _: &mut OperationVisitorContext<'a>,
+        _: &mut ValidationErrorContext,
+        _: &query::Directive,
+    ) {
+        self.current_args = None;
+    }
+
+    fn enter_field(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext<'a>,
+        _: &mut ValidationErrorContext,
+        field: &query::Field,
+    ) {
+        self.current_args = visitor_context
+            .current_parent_type()
+            .and_then(|parent_type| visitor_context.schema.type_by_name(&parent_type.name()))
+            .and_then(|t| t.field_by_name(&field.name))
+            .map(|field_def| field_def.arguments.clone());
+    }
+
+    fn leave_field(
+        &mut self,
+        _: &mut OperationVisitorContext<'a>,
+        _: &mut ValidationErrorContext,
+        _: &query::Field,
+    ) {
+        self.current_args = None;
+    }
+
+    fn enter_argument(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext<'a>,
+        user_context: &mut ValidationErrorContext,
+        (arg_name, arg_value): &(String, query::Value),
+    ) {
+        if let Some(argument) = self
+            .current_args
+            .as_ref()
+            .and_then(|args| args.iter().find(|a| a.name.eq(arg_name)))
+        {
+            let schema_type = visitor_context
+                .schema
+                .type_by_name(&argument.value_type.inner_type());
+
+            if !self.is_valid_literal_value(
+                visitor_context.schema,
+                &schema_type,
+                &argument.value_type,
+                &arg_value,
+            ) {
+                user_context.report_error(ValidationError {
+                    message: format!(
+                        "Invalid value for argument \"{}\", expected type \"{}\"",
+                        arg_name, argument.value_type
+                    ),
+                    locations: vec![],
+                });
+            }
+        }
     }
 }
 
