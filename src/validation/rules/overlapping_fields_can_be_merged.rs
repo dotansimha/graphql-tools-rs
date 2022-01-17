@@ -1798,7 +1798,6 @@ fn finds_invalid_case_even_with_immediately_recursive_fragment() {
     );
 
     let messages = get_messages(&errors);
-    println!("{:?}", messages);
     assert_eq!(messages.len(), 1);
     assert_eq!(messages, vec![
       "Fields \"fido\" conflict because \"name\" and \"nickname\" are different fields. Use different aliases on the fields to fetch both if this was intentional."

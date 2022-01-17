@@ -1,5 +1,8 @@
 use super::ValidationRule;
-use crate::ast::{collect_fields, OperationVisitor, SchemaDocumentExtension, OperationVisitorContext, visit_document};
+use crate::ast::{
+    collect_fields, visit_document, OperationVisitor, OperationVisitorContext,
+    SchemaDocumentExtension,
+};
 use crate::static_graphql::query::OperationDefinition;
 use crate::static_graphql::schema::TypeDefinition;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
@@ -26,43 +29,39 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptio
     ) {
         match operation {
             OperationDefinition::Subscription(subscription) => {
-              if let Some(subscription_type) = visitor_context
-              .schema
-              .subscription_type()
-          {
-              let operation_name = subscription.name.as_ref();
-  
-              let selection_set_fields = collect_fields(
-                  &subscription.selection_set,
-                  &TypeDefinition::Object(subscription_type.clone()),
-                  &visitor_context.known_fragments,
-                visitor_context,
-              );
-  
-              if selection_set_fields.len() > 1 {
-                  let error_message = match operation_name {
-                      Some(operation_name) => format!(
-                          "Subscription \"{}\" must select only one top level field.",
-                          operation_name
-                      ),
-                      None => {
-                          "Anonymous Subscription must select only one top level field.".to_owned()
-                      }
-                  };
-  
-                  user_context.report_error(ValidationError {
-                      locations: vec![subscription.position],
-                      message: error_message,
-                  });
-              }
-  
-              selection_set_fields
+                if let Some(subscription_type) = visitor_context.schema.subscription_type() {
+                    let operation_name = subscription.name.as_ref();
+
+                    let selection_set_fields = collect_fields(
+                        &subscription.selection_set,
+                        &TypeDefinition::Object(subscription_type.clone()),
+                        &visitor_context.known_fragments,
+                        visitor_context,
+                    );
+
+                    if selection_set_fields.len() > 1 {
+                        let error_message = match operation_name {
+                            Some(operation_name) => format!(
+                                "Subscription \"{}\" must select only one top level field.",
+                                operation_name
+                            ),
+                            None => "Anonymous Subscription must select only one top level field."
+                                .to_owned(),
+                        };
+
+                        user_context.report_error(ValidationError {
+                            locations: vec![subscription.position],
+                            message: error_message,
+                        });
+                    }
+
+                    selection_set_fields
                   .into_iter()
                   .filter_map(|(field_name, fields_records)| {
                       if field_name.starts_with("__") {
                           return Some((field_name, fields_records));
                       }
-  
+
                       None
                   })
                   .for_each(|(_field_name, _fields_records)| {
@@ -74,13 +73,13 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptio
                           None => "Anonymous Subscription must not select an introspection top level field."
                               .to_owned(),
                       };
-  
+
                       user_context.report_error(ValidationError {
                         locations: vec![subscription.position],
                         message: error_message,
                     });
                   })
-          }
+                }
             }
             _ => {}
         }
@@ -88,18 +87,18 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptio
 }
 
 impl ValidationRule for SingleFieldSubscriptions {
-  fn validate<'a>(
-    &self,
-    ctx: &'a mut OperationVisitorContext,
-    error_collector: &mut ValidationErrorContext,
-) {
-    visit_document(
-        &mut SingleFieldSubscriptions::new(),
-        &ctx.operation,
-        ctx,
-        error_collector,
-    );
-}
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
+        visit_document(
+            &mut SingleFieldSubscriptions::new(),
+            &ctx.operation,
+            ctx,
+            error_collector,
+        );
+    }
 }
 
 #[cfg(test)]

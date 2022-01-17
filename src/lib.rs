@@ -8,7 +8,7 @@
 pub mod ast;
 
 pub mod static_graphql {
-  macro_rules! static_graphql {
+    macro_rules! static_graphql {
     ($m:ident, $m2:ident, {$($n:ident,)*}) => {
         pub mod $m {
             use graphql_parser::$m2 as $m;
@@ -20,16 +20,16 @@ pub mod static_graphql {
     };
   }
 
-  static_graphql!(query, query, {
-    Document, Value, OperationDefinition, InlineFragment, TypeCondition,
-    FragmentSpread, Field, Selection, SelectionSet, FragmentDefinition,
-    Directive, VariableDefinition, Type, Query, Definition, Subscription, Mutation,
-  });
-  static_graphql!(schema, schema, {
-    Field, Directive, InterfaceType, ObjectType, Value, TypeDefinition,
-    EnumType, Type, Document, ScalarType, InputValue, DirectiveDefinition,
-    UnionType, InputObjectType, EnumValue, SchemaDefinition,
-  });
+    static_graphql!(query, query, {
+      Document, Value, OperationDefinition, InlineFragment, TypeCondition,
+      FragmentSpread, Field, Selection, SelectionSet, FragmentDefinition,
+      Directive, VariableDefinition, Type, Query, Definition, Subscription, Mutation,
+    });
+    static_graphql!(schema, schema, {
+      Field, Directive, InterfaceType, ObjectType, Value, TypeDefinition,
+      EnumType, Type, Document, ScalarType, InputValue, DirectiveDefinition,
+      UnionType, InputObjectType, EnumValue, SchemaDefinition,
+    });
 }
 
 pub mod validation;

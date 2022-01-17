@@ -316,6 +316,5 @@ fn misplaced_directives() {
         &mut plan,
     );
 
-    println!("{:?}", get_messages(&errors));
     assert_eq!(get_messages(&errors).len(), 11);
 }

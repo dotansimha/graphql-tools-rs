@@ -16,7 +16,7 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 pub struct FragmentsOnCompositeTypes;
 
 impl FragmentsOnCompositeTypes {
-  pub fn new() -> Self {
+    pub fn new() -> Self {
         FragmentsOnCompositeTypes
     }
 }
