@@ -1,8 +1,7 @@
 use super::ValidationRule;
-// use crate::static_graphql::query::*;
 use crate::{
-    ast::{ext::*, get_named_type, TypeInfo, TypeInfoElementRef, TypeInfoQueryVisitor},
-    validation::utils::{ValidationContext, ValidationError, ValidationErrorContext},
+    ast::{visit_document, OperationVisitor, OperationVisitorContext, TypeDefinitionExtension},
+    validation::utils::{ValidationError, ValidationErrorContext},
 };
 
 /// Leaf Field Selections
@@ -12,47 +11,47 @@ use crate::{
 /// https://spec.graphql.org/draft/#sec-Leaf-Field-Selections
 pub struct LeafFieldSelections;
 
-impl TypeInfoQueryVisitor<ValidationErrorContext<'_>> for LeafFieldSelections {
-    fn enter_field(
-        &self,
-        _node: &crate::static_graphql::query::Field,
-        _visitor_context: &mut ValidationErrorContext<'_>,
-        _type_info: &TypeInfo,
-    ) {
-        if let Some(TypeInfoElementRef::Ref(field_type)) = _type_info.get_type() {
-            let named_type = get_named_type(&field_type);
-            let schema_type = _visitor_context
-                .ctx
-                .type_info_registry
-                .as_ref()
-                .unwrap()
-                .type_by_name
-                .get(&named_type)
-                .unwrap();
-            let selection_set = &_node.selection_set;
+impl LeafFieldSelections {
+    pub fn new() -> Self {
+        LeafFieldSelections
+    }
+}
 
-            if schema_type.is_leaf_type() {
-                if selection_set.items.len() > 0 {
-                    _visitor_context.report_error(ValidationError {
-                        locations: vec![_node.position],
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for LeafFieldSelections {
+    fn enter_field(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
+        field: &crate::static_graphql::query::Field,
+    ) {
+        if let (Some(field_type), Some(field_type_literal)) = (
+            (visitor_context.current_type()),
+            (visitor_context.current_type_literal()),
+        ) {
+            let field_selection_count = field.selection_set.items.len();
+
+            if field_type.is_leaf_type() {
+                if field_selection_count > 0 {
+                    user_context.report_error(ValidationError {
+                        locations: vec![field.position],
                         message: format!(
-                            "Field \"{}\" must not have a selection since type \"{}\" has no subfields.",
-                            _node.name,
-                            schema_type.name()
-                        ),
+                  "Field \"{}\" must not have a selection since type \"{}\" has no subfields.",
+                  field.name,
+                  field_type_literal
+              ),
                     });
                 }
             } else {
-                if selection_set.items.len() == 0 {
-                    _visitor_context.report_error(ValidationError {
-                    locations: vec![_node.position],
-                    message: format!(
-                        "Field \"{}\" of type \"{}\" must have a selection of subfields. Did you mean \"{} {{ ... }}\"?",
-                        _node.name,
-                        field_type,
-                        _node.name
-                    ),
-                });
+                if field_selection_count == 0 {
+                    user_context.report_error(ValidationError {
+              locations: vec![field.position],
+              message: format!(
+                  "Field \"{}\" of type \"{}\" must have a selection of subfields. Did you mean \"{} {{ ... }}\"?",
+                  field.name,
+                  field_type_literal,
+                  field.name
+              ),
+          });
                 }
             }
         }
@@ -60,18 +59,17 @@ impl TypeInfoQueryVisitor<ValidationErrorContext<'_>> for LeafFieldSelections {
 }
 
 impl ValidationRule for LeafFieldSelections {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut error_context = ValidationErrorContext::new(ctx);
-
-        if let Some(type_info_registry) = &ctx.type_info_registry {
-            self.visit_document(
-                &ctx.operation.clone(),
-                &mut error_context,
-                &type_info_registry,
-            );
-        }
-
-        error_context.errors
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
+        visit_document(
+            &mut LeafFieldSelections::new(),
+            &ctx.operation,
+            ctx,
+            error_collector,
+        );
     }
 }
 

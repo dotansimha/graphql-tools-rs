@@ -1,36 +1,34 @@
 use std::collections::HashMap;
 
 use super::ValidationRule;
-use crate::ast::AstNodeWithName;
+use crate::ast::{visit_document, AstNodeWithName, OperationVisitor, OperationVisitorContext};
 use crate::static_graphql::query::*;
-use crate::validation::utils::ValidationError;
-use crate::{ast::QueryVisitor, validation::utils::ValidationContext};
+use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
 /// Unique fragment names
 ///
 /// A GraphQL document is only valid if all defined fragments have unique names.
 ///
 /// See https://spec.graphql.org/draft/#sec-Fragment-Name-Uniqueness
-pub struct UniqueFragmentNames;
+pub struct UniqueFragmentNames {
+    findings_counter: HashMap<String, i32>,
+}
 
-impl QueryVisitor<FoundFragments> for UniqueFragmentNames {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueFragmentNames {
     fn enter_fragment_definition(
-        &self,
-        node: &FragmentDefinition,
-        visitor_context: &mut FoundFragments,
+        &mut self,
+        _: &mut OperationVisitorContext,
+        _: &mut ValidationErrorContext,
+        fragment: &FragmentDefinition,
     ) {
-        if let Some(name) = node.node_name() {
-            visitor_context.store_finding(&name);
+        if let Some(name) = fragment.node_name() {
+            self.store_finding(&name);
         }
     }
 }
 
-struct FoundFragments {
-    findings_counter: HashMap<String, i32>,
-}
-
-impl FoundFragments {
-    fn new() -> Self {
+impl UniqueFragmentNames {
+  pub fn new() -> Self {
         Self {
             findings_counter: HashMap::new(),
         }
@@ -43,19 +41,24 @@ impl FoundFragments {
 }
 
 impl ValidationRule for UniqueFragmentNames {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut found_fragments = FoundFragments::new();
-        self.visit_document(&ctx.operation.clone(), &mut found_fragments);
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
+        let mut rule = UniqueFragmentNames::new();
 
-        found_fragments
-            .findings_counter
+        visit_document(&mut rule, &ctx.operation, ctx, error_collector);
+
+        rule.findings_counter
             .into_iter()
             .filter(|(_key, value)| *value > 1)
-            .map(|(key, _value)| ValidationError {
-                message: format!("There can be only one fragment named \"{}\".", key),
-                locations: vec![],
+            .for_each(|(key, _value)| {
+                error_collector.report_error(ValidationError {
+                    message: format!("There can be only one fragment named \"{}\".", key),
+                    locations: vec![],
+                })
             })
-            .collect()
     }
 }
 
@@ -63,11 +66,12 @@ impl ValidationRule for UniqueFragmentNames {
 fn no_fragments() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames {}));
-    let errors = test_operation_without_schema(
+    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames::new()));
+    let errors = test_operation_with_schema(
         "{
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -78,14 +82,15 @@ fn no_fragments() {
 fn one_fragment() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames {}));
-    let errors = test_operation_without_schema(
+    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames::new()));
+    let errors = test_operation_with_schema(
         "{
           ...fragA
         }
         fragment fragA on Type {
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -96,8 +101,8 @@ fn one_fragment() {
 fn many_fragment() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames {}));
-    let errors = test_operation_without_schema(
+    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames::new()));
+    let errors = test_operation_with_schema(
         "{
           ...fragA
           ...fragB
@@ -112,6 +117,7 @@ fn many_fragment() {
         fragment fragC on Type {
           fieldC
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -122,8 +128,8 @@ fn many_fragment() {
 fn inline_fragments_are_always_unique() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames {}));
-    let errors = test_operation_without_schema(
+    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames::new()));
+    let errors = test_operation_with_schema(
         "{
           ...on Type {
             fieldA
@@ -132,6 +138,7 @@ fn inline_fragments_are_always_unique() {
             fieldB
           }
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -142,14 +149,15 @@ fn inline_fragments_are_always_unique() {
 fn fragment_and_operation_named_the_same() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames {}));
-    let errors = test_operation_without_schema(
+    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames::new()));
+    let errors = test_operation_with_schema(
         "query Foo {
           ...Foo
         }
         fragment Foo on Type {
           field
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -160,8 +168,8 @@ fn fragment_and_operation_named_the_same() {
 fn fragments_named_the_same() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames {}));
-    let errors = test_operation_without_schema(
+    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames::new()));
+    let errors = test_operation_with_schema(
         "{
           ...fragA
         }
@@ -171,6 +179,7 @@ fn fragments_named_the_same() {
         fragment fragA on Type {
           fieldB
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -186,14 +195,15 @@ fn fragments_named_the_same() {
 fn fragments_named_the_same_without_being_referenced() {
     use crate::validation::test_utils::*;
 
-    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames {}));
-    let errors = test_operation_without_schema(
+    let mut plan = create_plan_from_rule(Box::new(UniqueFragmentNames::new()));
+    let errors = test_operation_with_schema(
         "fragment fragA on Type {
           fieldA
         }
         fragment fragA on Type {
           fieldB
         }",
+        TEST_SCHEMA,
         &mut plan,
     );
 

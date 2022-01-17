@@ -1,8 +1,9 @@
-use super::ValidationRule;
 use crate::ast::ext::TypeDefinitionExtension;
-use crate::ast::{TypeInfo, TypeInfoElementRef, TypeInfoQueryVisitor};
-use crate::validation::utils::ValidationContext;
+use crate::ast::{visit_document, FieldByNameExtension, OperationVisitor, OperationVisitorContext};
+use crate::static_graphql::query::{Field, OperationDefinition, Selection};
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
+
+use super::ValidationRule;
 
 /// Fields on correct type
 ///
@@ -12,52 +13,78 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Field-Selections
 pub struct FieldsOnCorrectType;
 
-impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for FieldsOnCorrectType {
-    fn enter_field(
-        &self,
-        _node: &crate::static_graphql::query::Field,
-        _visitor_context: &mut ValidationErrorContext<'a>,
-        _type_info: &TypeInfo,
+impl FieldsOnCorrectType {
+    pub fn new() -> Self {
+        FieldsOnCorrectType
+    }
+}
+
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
+    fn enter_operation_definition(
+        &mut self,
+        _: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
+        operation: &OperationDefinition,
     ) {
-        if let Some(TypeInfoElementRef::Ref(parent_type)) = _type_info.get_parent_type() {
-            let field_def = _type_info.get_field_def();
-            match field_def {
-                Some(TypeInfoElementRef::Empty) => {
-                    if !_node.name.starts_with("__") {
-                        _visitor_context.report_error(ValidationError {
-                            locations: vec![_node.position],
-                            message: format!(
-                                "Cannot query field \"{}\" on type \"{}\".",
-                                _node.name,
-                                parent_type.name()
-                            ),
+        // https://spec.graphql.org/October2021/#note-bc213
+        if let OperationDefinition::Subscription(subscription) = operation {
+            for selection in &subscription.selection_set.items {
+                if let Selection::Field(field) = selection {
+                    if field.name == "__typename" {
+                        user_context.report_error(ValidationError {
+                          message: "`__typename` may not be included as a root field in a subscription operation".to_string(),
+                          locations: vec![subscription.position],
                         });
                     }
                 }
-                _ => {}
+            }
+        }
+    }
+
+    fn enter_field(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
+        field: &Field,
+    ) {
+        if let Some(parent_type) = visitor_context.current_parent_type() {
+            let field_name = &field.name;
+            let type_name = parent_type.name();
+
+            if field.name.starts_with("__") {
+                return;
+            }
+
+            if let None = parent_type.field_by_name(field_name) {
+                user_context.report_error(ValidationError {
+                    locations: vec![field.position],
+                    message: format!(
+                        "Cannot query field \"{}\" on type \"{}\".",
+                        field_name, type_name
+                    ),
+                });
             }
         }
     }
 }
 
 impl ValidationRule for FieldsOnCorrectType {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut error_context = ValidationErrorContext::new(ctx);
-
-        if let Some(type_info_registry) = &ctx.type_info_registry {
-            self.visit_document(
-                &ctx.operation.clone(),
-                &mut error_context,
-                &type_info_registry,
-            );
-        }
-
-        error_context.errors
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
+        visit_document(
+            &mut FieldsOnCorrectType::new(),
+            &ctx.operation,
+            ctx,
+            error_collector,
+        );
     }
 }
 
 #[cfg(test)]
-pub static TEST_SCHEMA: &str = "
+pub static FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA: &str = "
   interface Pet {
     name: String
   }
@@ -91,7 +118,7 @@ fn object_field_selection() {
           __typename
           name
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -108,7 +135,7 @@ fn aliased_object_field_selection() {
           tn : __typename
           otherName : name
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -125,7 +152,7 @@ fn interface_field_selection() {
           __typename
           name
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -141,7 +168,7 @@ fn aliased_interface_field_selection() {
         "fragment interfaceFieldSelection on Pet {
           otherName : name
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -157,7 +184,7 @@ fn lying_alias_selection() {
         "fragment lyingAliasSelection on Dog {
           name : nickname
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -173,7 +200,7 @@ fn ignores_fields_on_unknown_type() {
         "fragment unknownSelection on UnknownType {
           unknownField
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -193,7 +220,7 @@ fn reports_errors_when_type_is_known_again() {
             }
           }
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -217,7 +244,7 @@ fn field_not_defined_on_fragment() {
         "fragment fieldNotDefined on Dog {
           meowVolume
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -240,7 +267,7 @@ fn ignores_deeply_unknown_field() {
             deeper_unknown_field
           }
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -263,7 +290,7 @@ fn sub_field_not_defined() {
             unknown_field
           }
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -286,7 +313,7 @@ fn field_not_defined_on_inline_fragment() {
             meowVolume
           }
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -307,7 +334,7 @@ fn aliased_field_target_not_defined() {
         "fragment aliasedFieldTargetNotDefined on Dog {
           volume : mooVolume
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -328,7 +355,7 @@ fn aliased_lying_field_target_not_defined() {
         "fragment aliasedLyingFieldTargetNotDefined on Dog {
           barkVolume : kawVolume
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -349,7 +376,7 @@ fn not_defined_on_interface() {
         "fragment notDefinedOnInterface on Pet {
           tailLength
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -370,7 +397,7 @@ fn defined_on_implementors_but_not_on_interface() {
         "fragment definedOnImplementorsButNotInterface on Pet {
           nickname
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -391,7 +418,7 @@ fn direct_field_selection_on_union() {
         "fragment directFieldSelectionOnUnion on CatOrDog {
           directField
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -412,7 +439,7 @@ fn defined_on_implementors_queried_on_union() {
         "fragment definedOnImplementorsQueriedOnUnion on CatOrDog {
           name
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -433,7 +460,7 @@ fn meta_field_selection_on_union() {
         "fragment directFieldSelectionOnUnion on CatOrDog {
           __typename
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -455,10 +482,31 @@ fn valid_field_in_inline_fragment() {
             name
           }
         }",
-        &TEST_SCHEMA,
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 0);
+}
+
+#[test]
+fn forbidden_typename_on_subscription_type() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(FieldsOnCorrectType {}));
+    let errors = test_operation_with_schema(
+        "subscription {
+          __typename 
+        }",
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(
+        messages,
+        vec!["`__typename` may not be included as a root field in a subscription operation"]
+    );
 }

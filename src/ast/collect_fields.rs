@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 
-use super::{AbstractTypeDefinitionExtension, TypeInfoRegistry};
+use super::{AbstractTypeDefinitionExtension, OperationVisitorContext, SchemaDocumentExtension};
 use crate::ast::ext::{SubTypeExtension, TypeDefinitionExtension};
 use crate::static_graphql::{
     query::{self, Selection, TypeCondition},
     schema::{self, TypeDefinition},
 };
-pub fn collect_fields(
+pub fn collect_fields<'a>(
     selection_set: &query::SelectionSet,
     parent_type: &schema::TypeDefinition,
     known_fragments: &HashMap<String, query::FragmentDefinition>,
-    type_info_registry: &TypeInfoRegistry,
+    context: &'a OperationVisitorContext<'a>,
 ) -> HashMap<String, Vec<query::Field>> {
     let mut map = HashMap::new();
     let mut visited_fragments_names: Vec<String> = Vec::new();
@@ -19,7 +19,7 @@ pub fn collect_fields(
         selection_set,
         parent_type,
         known_fragments,
-        type_info_registry,
+        context,
         &mut map,
         &mut visited_fragments_names,
     );
@@ -30,10 +30,10 @@ pub fn collect_fields(
 fn does_fragment_condition_match<'a>(
     fragment_condition: &'a Option<TypeCondition>,
     current_selection_set_type: &'a TypeDefinition,
-    type_info_registry: &'a TypeInfoRegistry<'a>,
+    context: &'a OperationVisitorContext<'a>,
 ) -> bool {
     if let Some(TypeCondition::On(type_name)) = fragment_condition {
-        if let Some(conditional_type) = type_info_registry.type_by_name.get(type_name) {
+        if let Some(conditional_type) = context.schema.type_by_name(type_name) {
             if conditional_type
                 .name()
                 .eq(&current_selection_set_type.name())
@@ -60,11 +60,11 @@ fn does_fragment_condition_match<'a>(
     }
 }
 
-fn collect_fields_inner(
+fn collect_fields_inner<'a>(
     selection_set: &query::SelectionSet,
     parent_type: &schema::TypeDefinition,
     known_fragments: &HashMap<String, query::FragmentDefinition>,
-    type_info_registry: &TypeInfoRegistry,
+    context: &'a OperationVisitorContext<'a>,
     result_arr: &mut HashMap<String, Vec<query::Field>>,
     visited_fragments_names: &mut Vec<String>,
 ) {
@@ -74,12 +74,12 @@ fn collect_fields_inner(
             existing.push(f.clone());
         }
         Selection::InlineFragment(f) => {
-            if does_fragment_condition_match(&f.type_condition, parent_type, type_info_registry) {
+            if does_fragment_condition_match(&f.type_condition, parent_type, context) {
                 collect_fields_inner(
                     &f.selection_set,
                     &parent_type,
                     known_fragments,
-                    type_info_registry,
+                    context,
                     result_arr,
                     visited_fragments_names,
                 );
@@ -97,13 +97,13 @@ fn collect_fields_inner(
                     if does_fragment_condition_match(
                         &Some(fragment.type_condition.clone()),
                         &parent_type,
-                        type_info_registry,
+                        context,
                     ) {
                         collect_fields_inner(
                             &fragment.selection_set,
                             &parent_type,
                             known_fragments,
-                            type_info_registry,
+                            context,
                             result_arr,
                             visited_fragments_names,
                         );

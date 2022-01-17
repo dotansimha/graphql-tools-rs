@@ -3,10 +3,8 @@ use crate::static_graphql::schema::{
     InputValue, InterfaceType, ObjectType, ScalarType, SchemaDefinition, TypeDefinition, UnionType,
 };
 
-use super::DefaultVisitorContext;
-
 /// A trait for implenenting a visitor for GraphQL schema definition.
-pub trait SchemaVisitor<T = DefaultVisitorContext> {
+pub trait SchemaVisitor<T = ()> {
     fn visit_schema_document(&self, document: &Document, _visitor_context: &mut T) {
         self.enter_document(document, _visitor_context);
 

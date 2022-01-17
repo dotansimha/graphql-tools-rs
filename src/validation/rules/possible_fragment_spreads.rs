@@ -1,14 +1,12 @@
 use super::ValidationRule;
-use crate::ast::{utils::do_types_overlap, TypeInfoElementRef};
-use crate::static_graphql::query::TypeCondition;
-use crate::validation::utils::{ValidationError, ValidationErrorContext};
-use crate::{
-    ast::{
-        ext::{AstTypeRef, TypeDefinitionExtension},
-        TypeInfoQueryVisitor,
-    },
-    validation::utils::ValidationContext,
+use crate::ast::ext::TypeDefinitionExtension;
+use crate::ast::{
+    visit_document, ImplementingInterfaceExtension, OperationVisitor, OperationVisitorContext,
+    PossibleTypesExtension, SchemaDocumentExtension,
 };
+use crate::static_graphql::query::TypeCondition;
+use crate::static_graphql::schema::{self, TypeDefinition};
+use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
 /// Possible fragment spread
 ///
@@ -19,66 +17,94 @@ use crate::{
 /// https://spec.graphql.org/draft/#sec-Fragment-spread-is-possible
 pub struct PossibleFragmentSpreads;
 
-impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for PossibleFragmentSpreads {
-    fn enter_inline_fragment(
-        &self,
-        _node: &crate::static_graphql::query::InlineFragment,
-        visitor_context: &mut ValidationErrorContext<'a>,
-        type_info: &crate::ast::TypeInfo,
-    ) {
-        if let Some(TypeInfoElementRef::Ref(frag_type)) = type_info.get_type() {
-            let base_type = frag_type.named_type();
+impl PossibleFragmentSpreads {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
 
-            if let Some(frag_schema_type) = visitor_context
-                .ctx
-                .find_schema_definition_by_name(base_type)
-            {
-                if let Some(TypeInfoElementRef::Ref(parent_type)) = type_info.get_parent_type() {
-                    if frag_schema_type.is_composite_type()
-                        && parent_type.is_composite_type()
-                        && !do_types_overlap(
-                            visitor_context.ctx.type_info_registry.as_ref().unwrap(),
-                            frag_schema_type,
-                            &parent_type.as_type_definition(),
-                        )
-                    {
-                        visitor_context.report_error(ValidationError {
-                          locations: vec![],
-                          message: format!("Fragment cannot be spread here as objects of type \"{}\" can never be of type \"{}\".", parent_type.name(), frag_schema_type.name()),
-                        })
-                    }
+/**
+ * Provided two composite types, determine if they "overlap". Two composite
+ * types overlap when the Sets of possible concrete types for each intersect.
+ *
+ * This is often used to determine if a fragment of a given type could possibly
+ * be visited in a context of another type.
+ *
+ * This function is commutative.
+ */
+pub fn do_types_overlap(
+    schema: &schema::Document,
+    t1: &schema::TypeDefinition,
+    t2: &schema::TypeDefinition,
+) -> bool {
+    if t1.name().eq(&t2.name()) {
+        return true;
+    }
+
+    if t1.is_abstract_type() {
+        if t2.is_abstract_type() {
+            let possible_types = t1.possible_types(schema);
+
+            return possible_types
+                .into_iter()
+                .filter(|possible_type| {
+                    t2.has_sub_type(&TypeDefinition::Object(possible_type.clone()))
+                })
+                .count()
+                > 0;
+        }
+
+        return t1.has_sub_type(t2);
+    }
+
+    if t2.is_abstract_type() {
+        return t2.has_sub_type(t1);
+    }
+
+    false
+}
+
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpreads {
+    fn enter_inline_fragment(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
+        _inline_fragment: &crate::static_graphql::query::InlineFragment,
+    ) {
+        if let Some(frag_schema_type) = visitor_context.current_type() {
+            if let Some(parent_type) = visitor_context.current_parent_type() {
+                if frag_schema_type.is_composite_type()
+                    && parent_type.is_composite_type()
+                    && !do_types_overlap(&visitor_context.schema, frag_schema_type, &parent_type)
+                {
+                    user_context.report_error(ValidationError {
+                      locations: vec![],
+                      message: format!("Fragment cannot be spread here as objects of type \"{}\" can never be of type \"{}\".", parent_type.name(), frag_schema_type.name()),
+                    })
                 }
             }
         }
     }
 
     fn enter_fragment_spread(
-        &self,
-        node: &crate::static_graphql::query::FragmentSpread,
-        visitor_context: &mut ValidationErrorContext<'a>,
-        type_info: &crate::ast::TypeInfo,
+        &mut self,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
+        fragment_spread: &crate::static_graphql::query::FragmentSpread,
     ) {
-        if let Some(actual_fragment) = visitor_context.ctx.fragments.get(&node.fragment_name) {
+        if let Some(actual_fragment) = visitor_context
+            .known_fragments
+            .get(&fragment_spread.fragment_name)
+        {
             let TypeCondition::On(fragment_type_name) = &actual_fragment.type_condition;
 
-            if let Some(fragment_type) = visitor_context
-                .ctx
-                .type_info_registry
-                .as_ref()
-                .unwrap()
-                .type_by_name
-                .get(fragment_type_name)
-            {
-                if let Some(TypeInfoElementRef::Ref(parent_type)) = type_info.get_parent_type() {
+            if let Some(fragment_type) = visitor_context.schema.type_by_name(fragment_type_name) {
+                if let Some(parent_type) = visitor_context.current_parent_type() {
                     if fragment_type.is_composite_type()
                         && parent_type.is_composite_type()
-                        && !do_types_overlap(
-                            visitor_context.ctx.type_info_registry.as_ref().unwrap(),
-                            fragment_type,
-                            &parent_type.as_type_definition(),
-                        )
+                        && !do_types_overlap(&visitor_context.schema, &fragment_type, &parent_type)
                     {
-                        visitor_context.report_error(ValidationError {
+                        user_context.report_error(ValidationError {
                         locations: vec![],
                         message: format!("Fragment \"{}\" cannot be spread here as objects of type \"{}\" can never be of type \"{}\".", actual_fragment.name, parent_type.name(), fragment_type_name),
                       })
@@ -90,18 +116,17 @@ impl<'a> TypeInfoQueryVisitor<ValidationErrorContext<'a>> for PossibleFragmentSp
 }
 
 impl ValidationRule for PossibleFragmentSpreads {
-    fn validate<'a>(&self, ctx: &ValidationContext) -> Vec<ValidationError> {
-        let mut error_context = ValidationErrorContext::new(ctx);
-
-        if let Some(type_info_registry) = &ctx.type_info_registry {
-            self.visit_document(
-                &ctx.operation.clone(),
-                &mut error_context,
-                &type_info_registry,
-            );
-        }
-
-        error_context.errors
+    fn validate<'a>(
+        &self,
+        ctx: &'a mut OperationVisitorContext,
+        error_collector: &mut ValidationErrorContext,
+    ) {
+        visit_document(
+            &mut PossibleFragmentSpreads::new(),
+            &ctx.operation,
+            ctx,
+            error_collector,
+        );
     }
 }
 

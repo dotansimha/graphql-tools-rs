@@ -1,4 +1,6 @@
 pub mod defaults;
+pub mod rule;
+
 pub mod fields_on_correct_type;
 pub mod fragments_on_composite_types;
 pub mod known_argument_names;
@@ -13,8 +15,6 @@ pub mod no_unused_variables;
 pub mod overlapping_fields_can_be_merged;
 pub mod possible_fragment_spreads;
 pub mod provided_required_arguments;
-/// Utilities validating GraphQL documents/operations
-pub mod rule;
 pub mod single_field_subscriptions;
 pub mod unique_argument_names;
 pub mod unique_fragment_names;
@@ -23,6 +23,8 @@ pub mod unique_variable_names;
 pub mod variables_are_input_types;
 
 pub use self::defaults::*;
+pub use self::rule::*;
+
 pub use self::fields_on_correct_type::*;
 pub use self::fragments_on_composite_types::*;
 pub use self::known_argument_names::*;
@@ -37,7 +39,6 @@ pub use self::no_unused_variables::*;
 pub use self::overlapping_fields_can_be_merged::*;
 pub use self::possible_fragment_spreads::*;
 pub use self::provided_required_arguments::*;
-pub use self::rule::*;
 pub use self::single_field_subscriptions::*;
 pub use self::unique_argument_names::*;
 pub use self::unique_fragment_names::*;

@@ -1,11 +1,10 @@
 use super::{
-    locate_fragments::LocateFragments,
     rules::ValidationRule,
-    utils::{ValidationContext, ValidationError},
+    utils::{ValidationError, ValidationErrorContext},
 };
 
 use crate::{
-    ast::TypeInfoRegistry,
+    ast::OperationVisitorContext,
     static_graphql::{query, schema},
 };
 
@@ -32,30 +31,21 @@ pub fn validate<'a>(
     operation: &'a query::Document,
     validation_plan: &'a ValidationPlan,
 ) -> Vec<ValidationError> {
-    let mut fragments_locator = LocateFragments::new();
-    let fragments = fragments_locator.locate_fragments(&operation);
+    let mut error_collector = ValidationErrorContext::new();
+    let mut validation_context = OperationVisitorContext::new(operation, schema);
 
-    let type_info_registry = TypeInfoRegistry::new(schema);
-    let validation_context = ValidationContext {
-        operation: operation.clone(),
-        schema: schema.clone(),
-        fragments,
-        type_info_registry: Some(type_info_registry),
-    };
-
-    let validation_errors = validation_plan
+    validation_plan
         .rules
         .iter()
-        .flat_map(|rule| rule.validate(&validation_context))
-        .collect::<Vec<_>>();
+        .for_each(|rule| rule.validate(&mut validation_context, &mut error_collector));
 
-    validation_errors
+    error_collector.errors
 }
 
 #[test]
 fn cyclic_fragment_should_never_loop() {
-    use crate::validation::test_utils::*;
     use crate::validation::rules::default_rules_validation_plan;
+    use crate::validation::test_utils::*;
 
     let mut default_plan = default_rules_validation_plan();
     let errors = test_operation_with_schema(
@@ -80,21 +70,22 @@ fn cyclic_fragment_should_never_loop() {
         }
         
     ",
-    TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut default_plan,
     );
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 1);
-    assert_eq!(messages, vec![
-      "Cannot spread fragment \"bark\" within itself via \"parents\"."
-    ])
+    assert_eq!(
+        messages,
+        vec!["Cannot spread fragment \"bark\" within itself via \"parents\"."]
+    )
 }
 
 #[test]
 fn simple_self_reference_fragment_should_not_loop() {
-    use crate::validation::test_utils::*;
     use crate::validation::rules::default_rules_validation_plan;
+    use crate::validation::test_utils::*;
 
     let mut default_plan = default_rules_validation_plan();
     let errors = test_operation_with_schema(
@@ -114,22 +105,25 @@ fn simple_self_reference_fragment_should_not_loop() {
           }
         }
     ",
-    TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut default_plan,
     );
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 2);
-    assert_eq!(messages, vec![
-      "Cannot spread fragment \"DogFields\" within itself.",
-      "Cannot spread fragment \"DogFields\" within itself."
-    ])
+    assert_eq!(
+        messages,
+        vec![
+            "Cannot spread fragment \"DogFields\" within itself.",
+            "Cannot spread fragment \"DogFields\" within itself."
+        ]
+    )
 }
 
 #[test]
 fn fragment_loop_through_multiple_frags() {
-    use crate::validation::test_utils::*;
     use crate::validation::rules::default_rules_validation_plan;
+    use crate::validation::test_utils::*;
 
     let mut default_plan = default_rules_validation_plan();
     let errors = test_operation_with_schema(
@@ -155,13 +149,16 @@ fn fragment_loop_through_multiple_frags() {
           ...DogFields1
         }
     ",
-    TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut default_plan,
     );
 
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 1);
-    assert_eq!(messages, vec![
+    assert_eq!(
+        messages,
+        vec![
       "Cannot spread fragment \"DogFields1\" within itself via \"DogFields2\", \"DogFields3\"."
-    ])
+    ]
+    )
 }
