@@ -86,6 +86,13 @@ pub trait SchemaDocumentExtension {
     fn query_type(&self) -> ObjectType;
     fn mutation_type(&self) -> Option<ObjectType>;
     fn subscription_type(&self) -> Option<ObjectType>;
+    fn is_subtype(&self, sub_type: &Type, super_type: &Type) -> bool;
+    fn is_named_subtype(&self, sub_type_name: &String, super_type_name: &String) -> bool;
+    fn is_possible_type(
+        &self,
+        abstract_type: &TypeDefinition,
+        possible_type: &TypeDefinition,
+    ) -> bool;
 }
 
 impl SchemaDocumentExtension for schema::Document {
@@ -170,10 +177,92 @@ impl SchemaDocumentExtension for schema::Document {
 
         type_map
     }
+
+    fn is_named_subtype(&self, sub_type_name: &String, super_type_name: &String) -> bool {
+        if sub_type_name == super_type_name {
+            true
+        } else if let (Some(sub_type), Some(super_type)) = (
+            self.type_by_name(sub_type_name),
+            self.type_by_name(super_type_name),
+        ) {
+            super_type.is_abstract_type() && self.is_possible_type(&super_type, &sub_type)
+        } else {
+            false
+        }
+    }
+
+    fn is_possible_type(
+        &self,
+        abstract_type: &TypeDefinition,
+        possible_type: &TypeDefinition,
+    ) -> bool {
+        match abstract_type {
+            TypeDefinition::Union(union_typedef) => {
+                return union_typedef.types.contains(&possible_type.name());
+            }
+            TypeDefinition::Interface(interface_typedef) => {
+                let implementes_interfaces = possible_type.interfaces();
+
+                return implementes_interfaces.contains(&interface_typedef.name);
+            }
+            _ => false,
+        }
+    }
+
+    fn is_subtype(&self, sub_type: &Type, super_type: &Type) -> bool {
+        // Equivalent type is a valid subtype
+        if sub_type == super_type {
+            return true;
+        }
+
+        // If superType is non-null, maybeSubType must also be non-null.
+        if super_type.is_non_null() {
+            if sub_type.is_non_null() {
+                return self.is_subtype(sub_type.of_type(), super_type.of_type());
+            }
+            return false;
+        }
+
+        if sub_type.is_non_null() {
+            // If superType is nullable, maybeSubType may be non-null or nullable.
+            return self.is_subtype(sub_type.of_type(), super_type);
+        }
+
+        // If superType type is a list, maybeSubType type must also be a list.
+        if super_type.is_list_type() {
+            if sub_type.is_list_type() {
+                return self.is_subtype(sub_type.of_type(), super_type.of_type());
+            }
+
+            return false;
+        }
+
+        if sub_type.is_list_type() {
+            // If superType is nullable, maybeSubType may be non-null or nullable.
+            return false;
+        }
+
+        // If superType type is an abstract type, check if it is super type of maybeSubType.
+        // Otherwise, the child type is not a valid subtype of the parent type.
+        if let (Some(sub_type), Some(super_type)) = (
+            self.type_by_name(&sub_type.inner_type()),
+            self.type_by_name(&super_type.inner_type()),
+        ) {
+            return super_type.is_abstract_type()
+                && (sub_type.is_interface_type() || sub_type.is_object_type())
+                && self.is_possible_type(&super_type, &sub_type);
+        }
+
+        false
+    }
 }
 
 pub trait TypeExtension {
     fn inner_type(&self) -> String;
+    fn is_non_null(&self) -> bool;
+    fn is_list_type(&self) -> bool;
+    fn is_named_type(&self) -> bool;
+    fn of_type(&self) -> &Type;
 }
 
 impl TypeExtension for Type {
@@ -182,6 +271,35 @@ impl TypeExtension for Type {
             Type::NamedType(name) => name.clone(),
             Type::ListType(child) => child.inner_type(),
             Type::NonNullType(child) => child.inner_type(),
+        }
+    }
+
+    fn of_type(&self) -> &Type {
+        match self {
+            Type::ListType(child) => child,
+            Type::NonNullType(child) => child,
+            Type::NamedType(_) => self,
+        }
+    }
+
+    fn is_non_null(&self) -> bool {
+        match self {
+            Type::NonNullType(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_list_type(&self) -> bool {
+        match self {
+            Type::ListType(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_named_type(&self) -> bool {
+        match self {
+            Type::NamedType(_) => true,
+            _ => false,
         }
     }
 }
@@ -247,6 +365,7 @@ pub trait TypeDefinitionExtension {
     fn is_input_type(&self) -> bool;
     fn is_object_type(&self) -> bool;
     fn is_union_type(&self) -> bool;
+    fn is_interface_type(&self) -> bool;
     fn is_enum_type(&self) -> bool;
     fn is_scalar_type(&self) -> bool;
     fn is_abstract_type(&self) -> bool;
@@ -381,6 +500,13 @@ impl TypeDefinitionExtension for Option<schema::TypeDefinition> {
         }
     }
 
+    fn is_interface_type(&self) -> bool {
+        match self {
+            Some(t) => t.is_interface_type(),
+            _ => false,
+        }
+    }
+
     fn is_object_type(&self) -> bool {
         match self {
             Some(t) => t.is_object_type(),
@@ -440,6 +566,13 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
         match self {
             schema::TypeDefinition::Interface(_i) => true,
             schema::TypeDefinition::Union(_u) => true,
+            _ => false,
+        }
+    }
+
+    fn is_interface_type(&self) -> bool {
+        match self {
+            schema::TypeDefinition::Interface(_i) => true,
             _ => false,
         }
     }

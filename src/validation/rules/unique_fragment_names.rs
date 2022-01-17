@@ -28,7 +28,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueFragmentNames {
 }
 
 impl UniqueFragmentNames {
-  pub fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             findings_counter: HashMap::new(),
         }

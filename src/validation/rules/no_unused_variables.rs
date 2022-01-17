@@ -357,7 +357,6 @@ fn multiple_variables_not_used() {
     let messages = get_messages(&errors);
 
     assert_eq!(messages.len(), 2);
-    println!("messages: {:?}", messages);
     assert!(messages.contains(&&"Variable \"$a\" is never used in operation \"Foo\".".to_owned()));
     assert!(messages.contains(&&"Variable \"$c\" is never used in operation \"Foo\".".to_owned()));
 }
