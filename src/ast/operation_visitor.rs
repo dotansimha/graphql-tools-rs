@@ -172,7 +172,7 @@ fn visit_definitions<'a, Visitor, UserContext>(
 
 fn visit_directives<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    directives: &Vec<Directive>,
+    directives: &[Directive],
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -431,7 +431,7 @@ fn visit_operation_definition<'a, Visitor, UserContext>(
     Visitor: OperationVisitor<'a, UserContext>,
 {
     visitor.enter_operation_definition(context, user_context, operation);
-    // DOTAN: Maybe we need to iterate directives as well? but i think graphql_parser does not have it at the moment?
+    visit_directives(visitor, operation.directives(), context, user_context);
     visit_variable_definitions(
         visitor,
         operation.variable_definitions(),

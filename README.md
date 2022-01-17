@@ -59,7 +59,7 @@ cargo add graphql-tools
 - [x] UniqueVariableNames
 - [x] NoUndefinedVariables
 - [x] NoUnusedVariables
-- [ ] KnownDirectives
+- [x] KnownDirectives
 - [ ] UniqueDirectivesPerLocation
 - [x] KnownArgumentNames
 - [x] UniqueArgumentNames

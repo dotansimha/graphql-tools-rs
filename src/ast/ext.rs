@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::static_graphql::query::{
-    self, FragmentSpread, OperationDefinition, SelectionSet, Type, Value, VariableDefinition,
+    self, Directive, FragmentSpread, OperationDefinition, SelectionSet, Type, Value,
+    VariableDefinition,
 };
 use crate::static_graphql::schema::{
     self, DirectiveDefinition, InputValue, InterfaceType, ObjectType, TypeDefinition, UnionType,
@@ -43,6 +44,7 @@ impl FieldByNameExtension for TypeDefinition {
 
 pub trait OperationDefinitionExtension {
     fn variable_definitions(&self) -> &[VariableDefinition];
+    fn directives(&self) -> &[Directive];
     fn selection_set(&self) -> &SelectionSet;
 }
 
@@ -62,6 +64,15 @@ impl OperationDefinitionExtension for OperationDefinition {
             OperationDefinition::SelectionSet(selection_set) => &selection_set,
             OperationDefinition::Mutation(mutation) => &mutation.selection_set,
             OperationDefinition::Subscription(subscription) => &subscription.selection_set,
+        }
+    }
+
+    fn directives(&self) -> &[Directive] {
+        match self {
+            OperationDefinition::Query(query) => &query.directives,
+            OperationDefinition::SelectionSet(_) => &[],
+            OperationDefinition::Mutation(mutation) => &mutation.directives,
+            OperationDefinition::Subscription(subscription) => &subscription.directives,
         }
     }
 }
