@@ -101,6 +101,10 @@ impl<'a> OperationVisitorContext<'a> {
         self.type_stack.last().unwrap_or(&None).as_ref()
     }
 
+    pub fn current_input_type(&self) -> Option<&schema::TypeDefinition> {
+        self.input_type_stack.last().unwrap_or(&None).as_ref()
+    }
+
     pub fn current_parent_type(&self) -> Option<&schema::TypeDefinition> {
         self.parent_type_stack.last().unwrap_or(&None).as_ref()
     }
@@ -227,32 +231,20 @@ fn visit_input_value<'a, Visitor, UserContext>(
     Visitor: OperationVisitor<'a, UserContext>,
 {
     match input_value {
-        Value::Boolean(v) => {
-            visitor.enter_scalar_value(context, user_context, v);
-            visitor.leave_scalar_value(context, user_context, v);
-        }
-        Value::Float(v) => {
-            visitor.enter_scalar_value(context, user_context, v);
-            visitor.leave_scalar_value(context, user_context, v);
-        }
-        Value::Int(v) => {
-            visitor.enter_scalar_value(context, user_context, v);
-            visitor.leave_scalar_value(context, user_context, v);
+        Value::Boolean(_) | Value::Float(_) | Value::Int(_) | Value::String(_) => {
+            visitor.enter_scalar_value(context, user_context, input_value);
+            visitor.leave_scalar_value(context, user_context, input_value);
         }
         Value::Null => {
             visitor.enter_null_value(context, user_context, ());
             visitor.leave_null_value(context, user_context, ());
         }
-        Value::String(v) => {
-            visitor.enter_scalar_value(context, user_context, v);
-            visitor.leave_scalar_value(context, user_context, v);
-        }
         Value::Enum(v) => {
-            visitor.enter_enum_value(context, user_context, v.clone());
-            visitor.leave_enum_value(context, user_context, v.clone());
+            visitor.enter_enum_value(context, user_context, v);
+            visitor.leave_enum_value(context, user_context, v);
         }
         Value::List(v) => {
-            visitor.enter_list_value(context, user_context, v.clone());
+            visitor.enter_list_value(context, user_context, v);
 
             let input_type = context.current_input_type_literal().and_then(|t| match t {
                 Type::ListType(inner_type) => Some(inner_type.as_ref().clone()),
@@ -265,10 +257,10 @@ fn visit_input_value<'a, Visitor, UserContext>(
                 }
             });
 
-            visitor.leave_list_value(context, user_context, v.clone());
+            visitor.leave_list_value(context, user_context, v);
         }
         Value::Object(v) => {
-            visitor.enter_object_value(context, user_context, v.clone());
+            visitor.enter_object_value(context, user_context, v);
 
             for (sub_key, sub_value) in v.iter() {
                 let input_type = context
@@ -285,11 +277,11 @@ fn visit_input_value<'a, Visitor, UserContext>(
                 });
             }
 
-            visitor.leave_object_value(context, user_context, v.clone());
+            visitor.leave_object_value(context, user_context, v);
         }
         Value::Variable(v) => {
-            visitor.enter_variable_value(context, user_context, v.clone());
-            visitor.leave_variable_value(context, user_context, v.clone());
+            visitor.enter_variable_value(context, user_context, v);
+            visitor.leave_variable_value(context, user_context, v);
         }
     }
 }
@@ -599,18 +591,18 @@ pub trait OperationVisitor<'a, UserContext = ()> {
     ) {
     }
 
-    fn enter_scalar_value<T>(
+    fn enter_scalar_value(
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: T,
+        _: &Value,
     ) {
     }
-    fn leave_scalar_value<T>(
+    fn leave_scalar_value(
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: T,
+        _: &Value,
     ) {
     }
 
@@ -618,14 +610,14 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: String,
+        _: &String,
     ) {
     }
     fn leave_enum_value(
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: String,
+        _: &String,
     ) {
     }
 
@@ -633,14 +625,14 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: String,
+        _: &String,
     ) {
     }
     fn leave_variable_value(
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: String,
+        _: &String,
     ) {
     }
 
@@ -648,14 +640,14 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: Vec<Value>,
+        _: &Vec<Value>,
     ) {
     }
     fn leave_list_value(
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: Vec<Value>,
+        _: &Vec<Value>,
     ) {
     }
 
@@ -663,14 +655,14 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: BTreeMap<String, Value>,
+        _: &BTreeMap<String, Value>,
     ) {
     }
     fn leave_object_value(
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: BTreeMap<String, Value>,
+        _: &BTreeMap<String, Value>,
     ) {
     }
 
