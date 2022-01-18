@@ -165,7 +165,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         &mut self,
         visitor_context: &mut OperationVisitorContext<'a>,
         _: &mut ValidationErrorContext,
-        variable_name: String,
+        variable_name: &String,
     ) {
         if let (&Some(ref scope), Some(input_type)) = (
             &self.current_scope,
@@ -174,7 +174,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
             self.variable_usages
                 .entry(scope.clone())
                 .or_insert_with(Vec::new)
-                .push((variable_name, input_type.clone()));
+                .push((variable_name.clone(), input_type.clone()));
         }
     }
 }

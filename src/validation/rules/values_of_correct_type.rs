@@ -126,7 +126,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
         &mut self,
         visitor_context: &mut OperationVisitorContext<'a>,
         user_context: &mut ValidationErrorContext,
-        object_value: BTreeMap<String, Value>,
+        object_value: &BTreeMap<String, Value>,
     ) {
         if let Some(TypeDefinition::InputObject(input_object_def)) =
             visitor_context.current_input_type()
@@ -166,9 +166,9 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
         &mut self,
         visitor_context: &mut OperationVisitorContext<'a>,
         user_context: &mut ValidationErrorContext,
-        value: String,
+        value: &String,
     ) {
-        self.validate_value(visitor_context, user_context, &Value::Enum(value));
+        self.validate_value(visitor_context, user_context, &Value::Enum(value.clone()));
     }
 
     fn enter_scalar_value(
