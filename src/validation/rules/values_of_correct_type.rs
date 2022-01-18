@@ -1,112 +1,103 @@
-use crate::ast::ext::TypeDefinitionExtension;
-use crate::ast::TypeExtension;
-use crate::static_graphql::query::{Type, Value};
-use crate::static_graphql::schema::{self, TypeDefinition};
+use std::collections::BTreeMap;
+
+use graphql_parser::schema::TypeDefinition;
+
+use crate::ast::{
+    InputValueHelpers, SchemaDocumentExtension, TypeDefinitionExtension, TypeExtension,
+};
+use crate::static_graphql::query::Value;
 use crate::validation::utils::ValidationError;
 use crate::{
-    ast::{
-        visit_document, FieldByNameExtension, OperationVisitor, OperationVisitorContext,
-        SchemaDocumentExtension,
-    },
-    static_graphql::{query, schema::InputValue},
+    ast::{visit_document, OperationVisitor, OperationVisitorContext},
     validation::utils::ValidationErrorContext,
 };
 
 use super::ValidationRule;
 
-pub struct ValuesOfCorrectType {
-    current_args: Option<Vec<InputValue>>,
-}
+pub struct ValuesOfCorrectType {}
 
 impl ValuesOfCorrectType {
     pub fn new() -> Self {
-        Self { current_args: None }
+        Self {}
     }
 
-    pub fn is_valid_literal_value(
-        &self,
-        schema: &schema::Document,
-        type_def: &Option<TypeDefinition>,
-        arg_type: &Type,
-        arg_value: &Value,
-    ) -> bool {
-        match arg_type {
-            Type::NonNullType(ref inner) => {
-                if let Value::Null = arg_value {
-                    return false;
-                } else {
-                    return self.is_valid_literal_value(schema, type_def, inner, arg_value);
+    pub fn is_custom_scalar(&self, type_name: &str) -> bool {
+        match type_name {
+            "String" | "Int" | "Float" | "Boolean" | "ID" => false,
+            _ => true,
+        }
+    }
+
+    pub fn validate_value(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext,
+        user_context: &mut ValidationErrorContext,
+        raw_value: &Value,
+    ) {
+        if let Some(input_type) = visitor_context.current_input_type_literal() {
+            let named_type = input_type.inner_type();
+
+            if let Some(type_def) = visitor_context.schema.type_by_name(&named_type) {
+                if !type_def.is_leaf_type() {
+                    user_context.report_error(ValidationError {
+                        message: format!(
+                            "Expected value of type \"{}\", found {}.",
+                            named_type, raw_value
+                        ),
+                        locations: vec![],
+                    })
                 }
-            }
-            Type::ListType(ref inner) => match *arg_value {
-                Value::List(ref items) => items
-                    .iter()
-                    .all(|i| self.is_valid_literal_value(schema, type_def, inner, &i)),
-                ref v => self.is_valid_literal_value(schema, type_def, inner, v),
-            },
-            Type::NamedType(t) => {
-                match (arg_value, type_def) {
-                    (Value::Int(_), Some(TypeDefinition::Enum(_))) => return false,
-                    (Value::Boolean(_), Some(TypeDefinition::Enum(_))) => return false,
-                    (Value::String(_), Some(TypeDefinition::Enum(_))) => return false,
-                    (Value::Float(_), Some(TypeDefinition::Enum(_))) => return false,
-                    (_, _) => {}
-                };
 
-                match *arg_value {
-                    Value::Null | Value::Variable(_) => true,
-                    Value::Boolean(_)
-                    | Value::Float(_)
-                    | Value::Int(_)
-                    | Value::String(_)
-                    | Value::Enum(_) => {
-                        return false;
-                        /*
-                        if let Some(parse_fn) = t.input_value_parse_fn() {
-                              parse_fn(v).is_ok()
-                          } else {
-                              false
-                          }
-                           */
+                if let TypeDefinition::Scalar(scalar_type_def) = &type_def {
+                    match (scalar_type_def.name.as_ref(), raw_value) {
+                        ("Int", Value::Int(_))
+                        | ("ID", Value::Int(_))
+                        | ("ID", Value::String(_))
+                        | ("Float", Value::Int(_))
+                        | ("Float", Value::Float(_))
+                        | ("Boolean", Value::Boolean(_))
+                        | ("String", Value::String(_)) => return,
+                        (expected, value) => {
+                            if self.is_custom_scalar(expected) {
+                                return;
+                            }
+
+                            user_context.report_error(ValidationError {
+                                message: format!(
+                                    "Expected value of type \"{}\", found {}.",
+                                    expected, value
+                                ),
+                                locations: vec![],
+                            })
+                        }
                     }
-                    Value::List(_) => false,
-                    Value::Object(ref obj) => {
-                        false
-                        /*
-                         if let MetaType::InputObject(InputObjectMeta {
-                               ref input_fields, ..
-                           }) = *t
-                           {
-                               let mut remaining_required_fields = input_fields
-                                   .iter()
-                                   .filter_map(|f| {
-                                       if f.arg_type.is_non_null() {
-                                           Some(&f.name)
-                                       } else {
-                                           None
-                                       }
-                                   })
-                                   .collect::<HashSet<_>>();
+                }
 
-                               let all_types_ok = obj.iter().all(|&(ref key, ref value)| {
-                                   remaining_required_fields.remove(&key.item);
-                                   if let Some(ref arg_type) = input_fields
-                                       .iter()
-                                       .filter(|f| f.name == key.item)
-                                       .map(|f| schema.make_type(&f.arg_type))
-                                       .next()
-                                   {
-                                       is_valid_literal_value(schema, arg_type, &value.item)
-                                   } else {
-                                       false
-                                   }
-                               });
-
-                               all_types_ok && remaining_required_fields.is_empty()
-                           } else {
-                               false
-                           }
-                        */
+                if let TypeDefinition::Enum(enum_type_def) = &type_def {
+                    match raw_value {
+                        Value::Enum(enum_value) => {
+                            if enum_type_def
+                                .values
+                                .iter()
+                                .find(|v| v.name.eq(enum_value))
+                                .is_none()
+                            {
+                                user_context.report_error(ValidationError {
+                                    message: format!(
+                                        "Value \"{}\" does not exist in \"{}\" enum.",
+                                        enum_value, enum_type_def.name
+                                    ),
+                                    locations: vec![],
+                                })
+                            }
+                        }
+                        value => user_context.report_error(ValidationError {
+                            message: format!(
+                                "Enum \"{}\" cannot represent non-enum value: {}",
+                                enum_type_def.name, value
+                            ),
+                            locations: vec![],
+                        }),
                     }
                 }
             }
@@ -115,79 +106,78 @@ impl ValuesOfCorrectType {
 }
 
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
-    fn enter_directive(
-        &mut self,
-        visitor_context: &mut OperationVisitorContext<'a>,
-        _: &mut ValidationErrorContext,
-        directive: &query::Directive,
-    ) {
-        self.current_args = visitor_context
-            .directives
-            .get(&directive.name)
-            .map(|directive_definition| directive_definition.arguments.clone());
-    }
-
-    fn leave_directive(
-        &mut self,
-        _: &mut OperationVisitorContext<'a>,
-        _: &mut ValidationErrorContext,
-        _: &query::Directive,
-    ) {
-        self.current_args = None;
-    }
-
-    fn enter_field(
-        &mut self,
-        visitor_context: &mut OperationVisitorContext<'a>,
-        _: &mut ValidationErrorContext,
-        field: &query::Field,
-    ) {
-        self.current_args = visitor_context
-            .current_parent_type()
-            .and_then(|parent_type| visitor_context.schema.type_by_name(&parent_type.name()))
-            .and_then(|t| t.field_by_name(&field.name))
-            .map(|field_def| field_def.arguments.clone());
-    }
-
-    fn leave_field(
-        &mut self,
-        _: &mut OperationVisitorContext<'a>,
-        _: &mut ValidationErrorContext,
-        _: &query::Field,
-    ) {
-        self.current_args = None;
-    }
-
-    fn enter_argument(
+    fn enter_null_value(
         &mut self,
         visitor_context: &mut OperationVisitorContext<'a>,
         user_context: &mut ValidationErrorContext,
-        (arg_name, arg_value): &(String, query::Value),
+        _: (),
     ) {
-        if let Some(argument) = self
-            .current_args
-            .as_ref()
-            .and_then(|args| args.iter().find(|a| a.name.eq(arg_name)))
-        {
-            let schema_type = visitor_context
-                .schema
-                .type_by_name(&argument.value_type.inner_type());
-
-            if !self.is_valid_literal_value(
-                visitor_context.schema,
-                &schema_type,
-                &argument.value_type,
-                &arg_value,
-            ) {
+        if let Some(input_type) = visitor_context.current_input_type_literal() {
+            if input_type.is_non_null() {
                 user_context.report_error(ValidationError {
-                    message: format!(
-                        "Invalid value for argument \"{}\", expected type \"{}\"",
-                        arg_name, argument.value_type
-                    ),
+                    message: format!("Expected value of type \"{}\", found null", input_type),
                     locations: vec![],
-                });
+                })
             }
         }
+    }
+
+    fn enter_object_value(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext<'a>,
+        user_context: &mut ValidationErrorContext,
+        object_value: BTreeMap<String, Value>,
+    ) {
+        if let Some(TypeDefinition::InputObject(input_object_def)) =
+            visitor_context.current_input_type()
+        {
+            input_object_def.fields.iter().for_each(|field| {
+                if field.is_required() && !object_value.contains_key(&field.name) {
+                    user_context.report_error(ValidationError {
+                        message: format!(
+                            "Field \"{}.{}\" of required type \"{}\" was not provided.",
+                            input_object_def.name, field.name, field.value_type
+                        ),
+                        locations: vec![],
+                    })
+                }
+            });
+
+            object_value.keys().for_each(|field_name| {
+                if (input_object_def
+                    .fields
+                    .iter()
+                    .find(|f| f.name.eq(field_name)))
+                .is_none()
+                {
+                    user_context.report_error(ValidationError {
+                        message: format!(
+                            "Field \"{}\" is not defined by type \"{}\".",
+                            field_name, input_object_def.name
+                        ),
+                        locations: vec![],
+                    })
+                }
+            });
+        }
+    }
+
+    fn enter_enum_value(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext<'a>,
+        user_context: &mut ValidationErrorContext,
+        value: String,
+    ) {
+        self.validate_value(visitor_context, user_context, &Value::Enum(value));
+    }
+
+    fn enter_scalar_value(
+        &mut self,
+        visitor_context: &mut OperationVisitorContext<'a>,
+        user_context: &mut ValidationErrorContext,
+        value: &Value,
+    ) {
+        self.validate_value(visitor_context, user_context, value);
     }
 }
 
@@ -497,10 +487,10 @@ fn invalid_int_into_string() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["String cannot represent a non string value: 1"]
+        vec!["Expected value of type \"String\", found 1."]
     );
 }
 
@@ -521,10 +511,10 @@ fn invalid_float_into_string() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["String cannot represent a non string value: 1.0"]
+        vec!["Expected value of type \"String\", found 1."]
     );
 }
 
@@ -545,10 +535,10 @@ fn invalid_bool_into_string() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["String cannot represent a non string value: true"]
+        vec!["Expected value of type \"String\", found true."]
     );
 }
 
@@ -569,10 +559,10 @@ fn unquoted_string_to_string() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["String cannot represent a non string value: BAR"]
+        vec!["Expected value of type \"String\", found BAR."]
     );
 }
 
@@ -593,14 +583,15 @@ fn invalid_string_into_int() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Int cannot represent non-integer value: \"3\""]
+        vec!["Expected value of type \"Int\", found \"3\"."]
     );
 }
 
 #[test]
+#[ignore = "today this one is handled in graphql_parser so we cant validate it here, but it will panic for sure"]
 fn bigint_into_int() {
     use crate::validation::test_utils::*;
 
@@ -617,7 +608,7 @@ fn bigint_into_int() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
         vec!["Int cannot represent non 32-bit signed integer value: 829384293849283498239482938"]
@@ -641,11 +632,8 @@ fn unquoted_string_into_int() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
-    assert_eq!(
-        messages,
-        vec!["Int cannot represent non-integer value: FOO"]
-    );
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec!["Expected value of type \"Int\", found FOO."]);
 }
 
 #[test]
@@ -665,11 +653,8 @@ fn simple_float_into_int() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
-    assert_eq!(
-        messages,
-        vec!["Int cannot represent non-integer value: FOO"]
-    );
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec!["Expected value of type \"Int\", found 3."]);
 }
 
 #[test]
@@ -689,10 +674,10 @@ fn float_into_int() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Int cannot represent non-integer value: 3.333"]
+        vec!["Expected value of type \"Int\", found 3.333."]
     );
 }
 
@@ -713,10 +698,10 @@ fn string_into_float() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Float cannot represent non numeric value: \"3.333\""]
+        vec!["Expected value of type \"Float\", found \"3.333\"."]
     );
 }
 
@@ -737,10 +722,10 @@ fn boolean_into_float() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Float cannot represent non numeric value: true"]
+        vec!["Expected value of type \"Float\", found true."]
     );
 }
 
@@ -761,10 +746,10 @@ fn unquoted_into_float() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Float cannot represent non numeric value: FOO"]
+        vec!["Expected value of type \"Float\", found FOO."]
     );
 }
 
@@ -785,10 +770,10 @@ fn int_into_boolean() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Boolean cannot represent non numeric value: 2"]
+        vec!["Expected value of type \"Boolean\", found 2."]
     );
 }
 
@@ -809,10 +794,10 @@ fn float_into_boolean() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Boolean cannot represent non numeric value: 2.0"]
+        vec!["Expected value of type \"Boolean\", found 2."]
     );
 }
 
@@ -833,10 +818,10 @@ fn string_into_boolean() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Boolean cannot represent non numeric value: true"]
+        vec!["Expected value of type \"Boolean\", found \"true\"."]
     );
 }
 
@@ -857,10 +842,10 @@ fn unquoted_into_boolean() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Boolean cannot represent non numeric value: TRUE"]
+        vec!["Expected value of type \"Boolean\", found TRUE."]
     );
 }
 
@@ -881,11 +866,8 @@ fn float_into_id() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
-    assert_eq!(
-        messages,
-        vec!["ID cannot represent a non-string and non-integer value: 1.0"]
-    );
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec!["Expected value of type \"ID\", found 1."]);
 }
 
 #[test]
@@ -905,11 +887,8 @@ fn bool_into_id() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
-    assert_eq!(
-        messages,
-        vec!["ID cannot represent a non-string and non-integer value: true"]
-    );
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec!["Expected value of type \"ID\", found true."]);
 }
 
 #[test]
@@ -929,10 +908,10 @@ fn unquoted_into_id() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["ID cannot represent a non-string and non-integer value: SOMETHING"]
+        vec!["Expected value of type \"ID\", found SOMETHING."]
     );
 }
 
@@ -953,7 +932,7 @@ fn int_into_enum() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
         vec!["Enum \"DogCommand\" cannot represent non-enum value: 2"]
@@ -977,10 +956,10 @@ fn float_into_enum() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Enum \"DogCommand\" cannot represent non-enum value: 1.0"]
+        vec!["Enum \"DogCommand\" cannot represent non-enum value: 1"]
     );
 }
 
@@ -1001,10 +980,10 @@ fn string_into_enum() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Enum \"DogCommand\" cannot represent non-enum value: SIT"]
+        vec!["Enum \"DogCommand\" cannot represent non-enum value: \"SIT\""]
     );
 }
 
@@ -1025,7 +1004,7 @@ fn boolean_into_enum() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
         vec!["Enum \"DogCommand\" cannot represent non-enum value: true"]
@@ -1049,7 +1028,7 @@ fn unknown_enum_value_into_enum() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
         vec!["Value \"JUGGLE\" does not exist in \"DogCommand\" enum."]
@@ -1073,7 +1052,7 @@ fn different_case_enum_value_into_enum() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 0);
+    assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
         vec!["Value \"sit\" does not exist in \"DogCommand\" enum."]
@@ -1180,7 +1159,7 @@ fn incorrect_item_type() {
     assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["String cannot represent a non string value: 2"]
+        vec!["Expected value of type \"String\", found 2."]
     );
 }
 
@@ -1204,7 +1183,7 @@ fn single_value_of_incorrect_type() {
     assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["String cannot represent a non string value: 1"]
+        vec!["Expected value of type \"String\", found 1."]
     );
 }
 
@@ -1429,8 +1408,8 @@ fn incorrect_value_type() {
     assert_eq!(
         messages,
         vec![
-            "Int cannot represent non-integer value: \"two\"",
-            "Int cannot represent non-integer value: \"one\""
+            "Expected value of type \"Int\", found \"two\".",
+            "Expected value of type \"Int\", found \"one\"."
         ]
     )
 }
@@ -1455,7 +1434,7 @@ fn incorrect_value_and_missing_argument() {
     assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Int cannot represent non-integer value: \"one\""]
+        vec!["Expected value of type \"Int\", found \"one\"."]
     );
 }
 
@@ -1479,7 +1458,7 @@ fn null_value() {
     assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Expected value of type \"Int!\", found null."]
+        vec!["Expected value of type \"Int!\", found null"]
     );
 }
 
@@ -1664,7 +1643,7 @@ fn partial_object_invalid_field_type() {
     assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["String cannot represent a non string value: 2"]
+        vec!["Expected value of type \"String\", found 2."]
     )
 }
 
@@ -1691,7 +1670,7 @@ fn partial_object_null_to_non_null_field() {
     assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["Expected value of type \"Boolean!\", found null."]
+        vec!["Expected value of type \"Boolean!\", found null"]
     )
 }
 
@@ -1789,12 +1768,12 @@ fn with_directives_of_invalid_types() {
     );
 
     let messages = get_messages(&errors);
-    assert_eq!(messages.len(), 1);
+    assert_eq!(messages.len(), 2);
     assert_eq!(
         messages,
         vec![
-            "Boolean cannot represent a non boolean value: \"yes\"",
-            "Boolean cannot represent a non boolean value: ENUM"
+            "Expected value of type \"Boolean\", found \"yes\".",
+            "Expected value of type \"Boolean\", found ENUM."
         ]
     )
 }
@@ -1867,9 +1846,9 @@ fn variables_with_invalid_default_null_values() {
     assert_eq!(
         messages,
         vec![
-            "Expected value of type \"Int!\", found null.",
-            "Expected value of type \"String!\", found null.",
-            "Expected value of type \"Boolean!\", found null."
+            "Expected value of type \"Int!\", found null",
+            "Expected value of type \"String!\", found null",
+            "Expected value of type \"Boolean!\", found null"
         ]
     );
 }
@@ -1897,8 +1876,8 @@ fn variables_with_invalid_default_values() {
     assert_eq!(
         messages,
         vec![
-            "Int cannot represent non-integer value: \"one\"",
-            "String cannot represent a non string value: 4",
+            "Expected value of type \"Int\", found \"one\".",
+            "Expected value of type \"String\", found 4.",
             "Expected value of type \"ComplexInput\", found \"NotVeryComplex\"."
         ]
     );
@@ -1925,8 +1904,8 @@ fn variables_with_complex_invalid_default_values() {
     assert_eq!(
         messages,
         vec![
-            "Boolean cannot represent a non boolean value: 123",
-            "Int cannot represent non-integer value: \"abc\"",
+            "Expected value of type \"Int\", found \"abc\".",
+            "Expected value of type \"Boolean\", found 123.",
         ]
     );
 }
@@ -1973,6 +1952,6 @@ fn list_variables_with_invalid_item() {
     assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,
-        vec!["String cannot represent a non string value: 2",]
+        vec!["Expected value of type \"String\", found 2."]
     );
 }

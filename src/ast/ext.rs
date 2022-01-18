@@ -581,7 +581,6 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
         match self {
             schema::TypeDefinition::Scalar(_u) => true,
             schema::TypeDefinition::Enum(_u) => true,
-            schema::TypeDefinition::InputObject(_u) => false,
             _ => false,
         }
     }

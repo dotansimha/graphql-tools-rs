@@ -101,6 +101,10 @@ impl<'a> OperationVisitorContext<'a> {
         self.type_stack.last().unwrap_or(&None).as_ref()
     }
 
+    pub fn current_input_type(&self) -> Option<&schema::TypeDefinition> {
+        self.input_type_stack.last().unwrap_or(&None).as_ref()
+    }
+
     pub fn current_parent_type(&self) -> Option<&schema::TypeDefinition> {
         self.parent_type_stack.last().unwrap_or(&None).as_ref()
     }
@@ -227,25 +231,13 @@ fn visit_input_value<'a, Visitor, UserContext>(
     Visitor: OperationVisitor<'a, UserContext>,
 {
     match input_value {
-        Value::Boolean(v) => {
-            visitor.enter_scalar_value(context, user_context, v);
-            visitor.leave_scalar_value(context, user_context, v);
-        }
-        Value::Float(v) => {
-            visitor.enter_scalar_value(context, user_context, v);
-            visitor.leave_scalar_value(context, user_context, v);
-        }
-        Value::Int(v) => {
-            visitor.enter_scalar_value(context, user_context, v);
-            visitor.leave_scalar_value(context, user_context, v);
+        Value::Boolean(_) | Value::Float(_) | Value::Int(_) | Value::String(_) => {
+            visitor.enter_scalar_value(context, user_context, input_value);
+            visitor.leave_scalar_value(context, user_context, input_value);
         }
         Value::Null => {
             visitor.enter_null_value(context, user_context, ());
             visitor.leave_null_value(context, user_context, ());
-        }
-        Value::String(v) => {
-            visitor.enter_scalar_value(context, user_context, v);
-            visitor.leave_scalar_value(context, user_context, v);
         }
         Value::Enum(v) => {
             visitor.enter_enum_value(context, user_context, v.clone());
@@ -599,18 +591,18 @@ pub trait OperationVisitor<'a, UserContext = ()> {
     ) {
     }
 
-    fn enter_scalar_value<T>(
+    fn enter_scalar_value(
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: T,
+        _: &Value,
     ) {
     }
-    fn leave_scalar_value<T>(
+    fn leave_scalar_value(
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: T,
+        _: &Value,
     ) {
     }
 
