@@ -63,7 +63,7 @@ cargo add graphql-tools
 - [ ] UniqueDirectivesPerLocation
 - [x] KnownArgumentNames
 - [x] UniqueArgumentNames
-- [ ] ValuesOfCorrectType
+- [x] ValuesOfCorrectType
 - [x] ProvidedRequiredArguments
 - [x] VariablesInAllowedPosition
 - [x] OverlappingFieldsCanBeMerged
