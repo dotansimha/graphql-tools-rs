@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use super::ValidationRule;
+use crate::ast::OperationDefinitionExtension;
 use crate::static_graphql::query::{
     Directive, Field, FragmentDefinition, FragmentSpread, InlineFragment, OperationDefinition,
 };
@@ -21,6 +22,32 @@ impl UniqueDirectivesPerLocation {
     pub fn new() -> Self {
         UniqueDirectivesPerLocation {}
     }
+
+    pub fn check_duplicate_directive(
+        &self,
+        ctx: &mut OperationVisitorContext,
+        err_context: &mut ValidationErrorContext,
+        directives: &[Directive],
+    ) {
+        let mut exists = HashSet::new();
+
+        for directive in directives {
+            if let Some(meta_directive) = ctx.directives.get(&directive.name) {
+                if !meta_directive.repeatable {
+                    if exists.contains(&directive.name) {
+                        err_context.report_error(ValidationError {
+                            locations: vec![directive.position],
+                            message: format!("Duplicate directive \"{}\"", &directive.name),
+                        });
+
+                        continue;
+                    }
+
+                    exists.insert(directive.name.clone());
+                }
+            }
+        }
+    }
 }
 
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueDirectivesPerLocation {
@@ -30,18 +57,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueDirectivesPerLoc
         err_ctx: &mut ValidationErrorContext,
         operation: &OperationDefinition,
     ) {
-        match operation {
-            OperationDefinition::Mutation(mutation) => {
-                check_duplicate_directive(ctx, err_ctx, &mutation.directives)
-            }
-            OperationDefinition::Query(query) => {
-                check_duplicate_directive(ctx, err_ctx, &query.directives)
-            }
-            OperationDefinition::Subscription(subscription) => {
-                check_duplicate_directive(ctx, err_ctx, &subscription.directives)
-            }
-            OperationDefinition::SelectionSet(_) => {}
-        };
+        self.check_duplicate_directive(ctx, err_ctx, operation.directives());
     }
 
     fn enter_field(
@@ -50,7 +66,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueDirectivesPerLoc
         err_ctx: &mut ValidationErrorContext,
         field: &Field,
     ) {
-        check_duplicate_directive(ctx, err_ctx, &field.directives);
+        self.check_duplicate_directive(ctx, err_ctx, &field.directives);
     }
 
     fn enter_fragment_definition(
@@ -59,7 +75,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueDirectivesPerLoc
         err_ctx: &mut ValidationErrorContext,
         fragment: &FragmentDefinition,
     ) {
-        check_duplicate_directive(ctx, err_ctx, &fragment.directives);
+        self.check_duplicate_directive(ctx, err_ctx, &fragment.directives);
     }
 
     fn enter_fragment_spread(
@@ -68,7 +84,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueDirectivesPerLoc
         err_ctx: &mut ValidationErrorContext,
         fragment_spread: &FragmentSpread,
     ) {
-        check_duplicate_directive(ctx, err_ctx, &fragment_spread.directives)
+        self.check_duplicate_directive(ctx, err_ctx, &fragment_spread.directives)
     }
 
     fn enter_inline_fragment(
@@ -77,30 +93,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueDirectivesPerLoc
         err_ctx: &mut ValidationErrorContext,
         inline_fragment: &InlineFragment,
     ) {
-        check_duplicate_directive(ctx, err_ctx, &inline_fragment.directives)
-    }
-}
-
-fn check_duplicate_directive<'a>(
-    ctx: &mut OperationVisitorContext<'a>,
-    err_context: &mut ValidationErrorContext,
-    directives: &Vec<Directive>,
-) {
-    let mut exists = HashSet::new();
-
-    for directive in directives {
-        if let Some(meta_directive) = ctx.directives.get(&directive.name) {
-            if !meta_directive.repeatable {
-                if exists.contains(&directive.name) {
-                    err_context.report_error(ValidationError {
-                        locations: vec![directive.position],
-                        message: format!("Duplicate directive \"{}\"", &directive.name),
-                    });
-                    continue;
-                }
-                exists.insert(directive.name.clone());
-            }
-        }
+        self.check_duplicate_directive(ctx, err_ctx, &inline_fragment.directives)
     }
 }
 
@@ -125,7 +118,7 @@ fn no_directives() {
 
     let mut plan = create_plan_from_rule(Box::new(UniqueDirectivesPerLocation::new()));
     let errors = test_operation_with_schema(
-        " fragment Test on Type {
+        "fragment Test on Type {
             field
           }",
         &TEST_SCHEMA,
@@ -246,6 +239,7 @@ fn duplicate_directives_in_one_location() {
     );
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec!["Duplicate directive \"onField\""])
 }
 
 #[test]
@@ -262,6 +256,13 @@ fn many_duplicate_directives_in_one_location() {
     );
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 2);
+    assert_eq!(
+        messages,
+        vec![
+            "Duplicate directive \"onField\"",
+            "Duplicate directive \"onField\""
+        ]
+    )
 }
 
 #[test]
@@ -278,6 +279,13 @@ fn different_duplicate_directives_in_one_location() {
     );
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 2);
+    assert_eq!(
+        messages,
+        vec![
+            "Duplicate directive \"onField\"",
+            "Duplicate directive \"testDirective\""
+        ]
+    )
 }
 
 #[test]
@@ -294,4 +302,11 @@ fn duplicate_directives_in_many_location() {
     );
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 2);
+    assert_eq!(
+        messages,
+        vec![
+            "Duplicate directive \"onFragmentDefinition\"",
+            "Duplicate directive \"onField\""
+        ]
+    )
 }
