@@ -220,6 +220,7 @@ directive @onSubscription on SUBSCRIPTION
 directive @onFragmentDefinition on FRAGMENT_DEFINITION
 directive @onFragmentSpread on FRAGMENT_SPREAD
 directive @onInlineFragment on INLINE_FRAGMENT
+directive @testDirective on FIELD | FRAGMENT_DEFINITION 
 
 # doesn't work see https://github.com/graphql-rust/graphql-parser/issues/60
 # directive @onVariableDefinition on VARIABLE_DEFINITION
@@ -229,60 +230,60 @@ directive @repeatable repeatable on FIELD | FRAGMENT_DEFINITION
 
 #[cfg(test)]
 pub fn create_plan_from_rule(rule: Box<dyn ValidationRule>) -> ValidationPlan {
-    let mut rules = Vec::new();
-    rules.push(rule);
+  let mut rules = Vec::new();
+  rules.push(rule);
 
-    let plan = ValidationPlan { rules };
+  let plan = ValidationPlan { rules };
 
-    plan
+  plan
 }
 
 #[cfg(test)]
 pub fn get_messages(validation_errors: &Vec<ValidationError>) -> Vec<&String> {
-    validation_errors
-        .iter()
-        .map(|m| &m.message)
-        .collect::<Vec<&String>>()
+  validation_errors
+    .iter()
+    .map(|m| &m.message)
+    .collect::<Vec<&String>>()
 }
 
 #[cfg(test)]
 pub fn test_operation_without_schema<'a>(
-    operation: &'a str,
-    plan: &'a mut ValidationPlan,
+  operation: &'a str,
+  plan: &'a mut ValidationPlan,
 ) -> Vec<ValidationError> {
-    let schema_ast = graphql_parser::parse_schema(
-        "
+  let schema_ast = graphql_parser::parse_schema(
+    "
 type Query {
   dummy: String
 }
 ",
-    )
-    .expect("Failed to parse schema");
+  )
+  .expect("Failed to parse schema");
 
-    let operation_ast = graphql_parser::parse_query(operation)
-        .unwrap()
-        .into_static();
+  let operation_ast = graphql_parser::parse_query(operation)
+    .unwrap()
+    .into_static();
 
-    validate(&schema_ast, &operation_ast, &plan)
+  validate(&schema_ast, &operation_ast, &plan)
 }
 
 #[cfg(test)]
 fn string_to_static_str(s: String) -> &'static str {
-    Box::leak(s.into_boxed_str())
+  Box::leak(s.into_boxed_str())
 }
 
 #[cfg(test)]
 pub fn test_operation_with_schema<'a>(
-    operation: &'a str,
-    schema: &'a str,
-    plan: &'a ValidationPlan,
+  operation: &'a str,
+  schema: &'a str,
+  plan: &'a ValidationPlan,
 ) -> Vec<ValidationError> {
-    let schema_clone = string_to_static_str(schema.to_string() + INTROSPECTION_SCHEMA);
-    let schema_ast = graphql_parser::parse_schema(&schema_clone).expect("Failed to parse schema");
+  let schema_clone = string_to_static_str(schema.to_string() + INTROSPECTION_SCHEMA);
+  let schema_ast = graphql_parser::parse_schema(&schema_clone).expect("Failed to parse schema");
 
-    let operation_ast = graphql_parser::parse_query(operation)
-        .unwrap()
-        .into_static();
+  let operation_ast = graphql_parser::parse_query(operation)
+    .unwrap()
+    .into_static();
 
-    validate(&schema_ast, &operation_ast, &plan)
+  validate(&schema_ast, &operation_ast, &plan)
 }

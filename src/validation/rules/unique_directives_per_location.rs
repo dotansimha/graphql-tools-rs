@@ -247,3 +247,51 @@ fn duplicate_directives_in_one_location() {
     let messages = get_messages(&errors);
     assert_eq!(messages.len(), 1);
 }
+
+#[test]
+fn many_duplicate_directives_in_one_location() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(UniqueDirectivesPerLocation::new()));
+    let errors = test_operation_with_schema(
+        "fragment Test on Type {
+            field @onField @onField @onField
+          }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 2);
+}
+
+#[test]
+fn different_duplicate_directives_in_one_location() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(UniqueDirectivesPerLocation::new()));
+    let errors = test_operation_with_schema(
+        "fragment Test on Type {
+            field @onField @testDirective @onField @testDirective
+          }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 2);
+}
+
+#[test]
+fn duplicate_directives_in_many_location() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(UniqueDirectivesPerLocation::new()));
+    let errors = test_operation_with_schema(
+        "fragment Test on Type @onFragmentDefinition @onFragmentDefinition {
+            field @onField @onField
+          }",
+        &TEST_SCHEMA,
+        &mut plan,
+    );
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 2);
+}
