@@ -5,8 +5,9 @@ use super::{
     KnownFragmentNames, KnownTypeNames, LeafFieldSelections, LoneAnonymousOperation,
     NoFragmentsCycle, NoUndefinedVariables, NoUnusedFragments, NoUnusedVariables,
     OverlappingFieldsCanBeMerged, PossibleFragmentSpreads, ProvidedRequiredArguments,
-    SingleFieldSubscriptions, UniqueArgumentNames, UniqueFragmentNames, UniqueOperationNames,
-    UniqueVariableNames, ValuesOfCorrectType, VariablesAreInputTypes, VariablesInAllowedPosition,
+    SingleFieldSubscriptions, UniqueArgumentNames, UniqueDirectivesPerLocation,
+    UniqueFragmentNames, UniqueOperationNames, UniqueVariableNames, ValuesOfCorrectType,
+    VariablesAreInputTypes, VariablesInAllowedPosition,
 };
 
 pub fn default_rules_validation_plan() -> ValidationPlan {
@@ -35,6 +36,7 @@ pub fn default_rules_validation_plan() -> ValidationPlan {
     plan.add_rule(Box::new(KnownDirectives::new()));
     plan.add_rule(Box::new(VariablesInAllowedPosition::new()));
     plan.add_rule(Box::new(ValuesOfCorrectType::new()));
+    plan.add_rule(Box::new(UniqueDirectivesPerLocation::new()));
 
     plan
 }
