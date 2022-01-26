@@ -32,4 +32,6 @@ pub mod static_graphql {
     });
 }
 
+pub mod introspection;
+
 pub mod validation;
