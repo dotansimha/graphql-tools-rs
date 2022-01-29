@@ -5,95 +5,95 @@ use serde_json::Result;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionQuery {
-    __schema: IntrospectionSchema,
+    pub __schema: IntrospectionSchema,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionScalarType {
-    name: String,
-    description: Option<String>,
+    pub name: String,
+    pub description: Option<String>,
     #[serde(rename = "specifiedByURL")]
-    specified_by_url: Option<String>,
+    pub specified_by_url: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionInputValue {
-    name: String,
-    description: Option<String>,
+    pub name: String,
+    pub description: Option<String>,
     #[serde(rename = "defaultValue")]
-    default_value: Option<String>,
+    pub default_value: Option<String>,
     #[serde(rename = "isDeprecated")]
-    is_deprecated: Option<bool>,
+    pub is_deprecated: Option<bool>,
     #[serde(rename = "deprecationReason")]
-    deprecation_reason: Option<String>,
+    pub deprecation_reason: Option<String>,
     #[serde(rename = "type")]
-    type_ref: Option<IntrospectionInputTypeRef>,
+    pub type_ref: Option<IntrospectionInputTypeRef>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "kind")]
 pub struct IntrospectionField {
-    name: String,
-    description: Option<String>,
-    args: Vec<IntrospectionInputValue>,
+    pub name: String,
+    pub description: Option<String>,
+    pub args: Vec<IntrospectionInputValue>,
     #[serde(rename = "isDeprecated")]
-    is_deprecated: Option<bool>,
+    pub is_deprecated: Option<bool>,
     #[serde(rename = "deprecationReason")]
-    deprecation_reason: Option<String>,
+    pub deprecation_reason: Option<String>,
     #[serde(rename = "type")]
-    type_ref: IntrospectionOutputTypeRef,
+    pub type_ref: IntrospectionOutputTypeRef,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionObjectType {
-    name: String,
-    description: Option<String>,
-    fields: Vec<IntrospectionField>,
-    interfaces: Vec<IntrospectionNamedTypeRef>,
+    pub name: String,
+    pub description: Option<String>,
+    pub fields: Vec<IntrospectionField>,
+    pub interfaces: Vec<IntrospectionNamedTypeRef>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionInterfaceType {
-    name: String,
-    description: Option<String>,
-    fields: Vec<IntrospectionField>,
-    interfaces: Option<Vec<IntrospectionNamedTypeRef>>,
+    pub name: String,
+    pub description: Option<String>,
+    pub fields: Vec<IntrospectionField>,
+    pub interfaces: Option<Vec<IntrospectionNamedTypeRef>>,
     #[serde(rename = "possibleTypes")]
-    possible_types: Vec<IntrospectionNamedTypeRef>,
+    pub possible_types: Vec<IntrospectionNamedTypeRef>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionUnionType {
-    name: String,
-    description: Option<String>,
+    pub name: String,
+    pub description: Option<String>,
     #[serde(rename = "possibleTypes")]
-    possible_types: Vec<IntrospectionNamedTypeRef>,
+    pub possible_types: Vec<IntrospectionNamedTypeRef>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionEnumValue {
-    name: String,
-    description: Option<String>,
+    pub name: String,
+    pub description: Option<String>,
     #[serde(rename = "isDeprecated")]
-    is_deprecated: Option<bool>,
+    pub is_deprecated: Option<bool>,
     #[serde(rename = "deprecationReason")]
-    deprecation_reason: Option<String>,
+    pub deprecation_reason: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionEnumType {
-    name: String,
-    description: Option<String>,
+    pub name: String,
+    pub description: Option<String>,
     #[serde(rename = "enumValues")]
-    enum_values: Vec<IntrospectionEnumValue>,
+    pub enum_values: Vec<IntrospectionEnumValue>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionInputObjectType {
-    name: String,
-    description: Option<String>,
+    pub name: String,
+    pub description: Option<String>,
     #[serde(rename = "inputFields")]
-    input_fields: Vec<IntrospectionInputValue>,
+    pub input_fields: Vec<IntrospectionInputValue>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -105,6 +105,19 @@ pub enum IntrospectionType {
     UNION(IntrospectionUnionType),
     ENUM(IntrospectionEnumType),
     INPUT_OBJECT(IntrospectionInputObjectType),
+}
+
+impl IntrospectionType {
+    pub fn name(&self) -> &String {
+        match &self {
+            IntrospectionType::ENUM(e) => &e.name,
+            IntrospectionType::OBJECT(o) => &o.name,
+            IntrospectionType::INPUT_OBJECT(io) => &io.name,
+            IntrospectionType::INTERFACE(i) => &i.name,
+            IntrospectionType::SCALAR(s) => &s.name,
+            IntrospectionType::UNION(u) => &u.name,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -127,7 +140,7 @@ pub enum IntrospectionOutputType {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionNamedTypeRef {
-    name: String,
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -167,15 +180,15 @@ pub enum IntrospectionInputTypeRef {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionSchema {
-    description: Option<String>,
+    pub description: Option<String>,
     #[serde(rename = "queryType")]
-    query_type: IntrospectionNamedTypeRef,
+    pub query_type: IntrospectionNamedTypeRef,
     #[serde(rename = "mutationType")]
-    mutation_type: Option<IntrospectionNamedTypeRef>,
+    pub mutation_type: Option<IntrospectionNamedTypeRef>,
     #[serde(rename = "subscriptionType")]
-    subscription_type: Option<IntrospectionNamedTypeRef>,
-    types: Vec<IntrospectionType>,
-    directives: Vec<IntrospectionDirective>,
+    pub subscription_type: Option<IntrospectionNamedTypeRef>,
+    pub types: Vec<IntrospectionType>,
+    pub directives: Vec<IntrospectionDirective>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -204,12 +217,12 @@ pub enum DirectiveLocation {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionDirective {
-    name: String,
-    description: Option<String>,
+    pub name: String,
+    pub description: Option<String>,
     #[serde(rename = "isRepeatable")]
-    is_repeatable: Option<bool>,
-    locations: Vec<DirectiveLocation>,
-    args: Vec<IntrospectionInputValue>,
+    pub is_repeatable: Option<bool>,
+    pub locations: Vec<DirectiveLocation>,
+    pub args: Vec<IntrospectionInputValue>,
 }
 
 pub fn parse_introspection<R>(input: R) -> Result<IntrospectionQuery>
