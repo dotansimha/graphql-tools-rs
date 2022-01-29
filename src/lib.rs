@@ -34,4 +34,5 @@ pub mod static_graphql {
 
 pub mod introspection;
 
+pub mod utilities;
 pub mod validation;
