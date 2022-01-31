@@ -45,7 +45,7 @@ dependencies = [
 
 [[package]]
 name = "graphql-tools"
-version = "0.0.17"
+version = "0.0.18"
 dependencies = [
  "graphql-parser",
  "serde",
