@@ -225,6 +225,10 @@ pub struct IntrospectionDirective {
     pub args: Vec<IntrospectionInputValue>,
 }
 
+pub fn parse_introspection_from_string(input: &str) -> Result<IntrospectionQuery> {
+    serde_json::from_str(input)
+}
+
 pub fn parse_introspection<R>(input: R) -> Result<IntrospectionQuery>
 where
     R: io::Read,
