@@ -17,8 +17,8 @@ impl KnownOperationTypes {
     }
 }
 
-fn build_error_message(root_type_name: &str) -> String {
-  format!("The {} operation is not supported by the schema.", root_type_name)
+fn build_error_message(operation_type: &str) -> String {
+  format!("The {} operation is not supported by the schema.", operation_type)
 }
 
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownOperationTypes {
