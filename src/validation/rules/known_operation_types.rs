@@ -4,11 +4,11 @@ use crate::ast::{    visit_document, OperationVisitor, OperationVisitorContext, 
 use crate::static_graphql::query::*;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
-/// Unique variable names
+/// Known operation types
 ///
-/// A GraphQL operation is only valid if all its variables are uniquely named.
+/// A GraphQL operation is only valid if the operation type is within the schema.
 ///
-/// See https://spec.graphql.org/draft/#sec-Variable-Uniqueness
+/// See https://github.com/graphql/graphql-spec/pull/947
 pub struct KnownOperationTypes;
 
 impl KnownOperationTypes {
