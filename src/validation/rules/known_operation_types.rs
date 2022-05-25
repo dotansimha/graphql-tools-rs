@@ -45,8 +45,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownOperationTypes {
                     });
                 }
             },
-            OperationDefinition::SelectionSet(_) => {},
-            OperationDefinition::Query(_) => {},
+            _ => {}
         }
     }
 }
