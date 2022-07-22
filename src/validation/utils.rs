@@ -16,7 +16,7 @@ impl ValidationErrorContext {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ValidationError {
     pub locations: Vec<Pos>,
     pub message: String,
