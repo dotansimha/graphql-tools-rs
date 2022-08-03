@@ -524,69 +524,93 @@ pub trait OperationTransformer<'a, T: Text<'a> + Clone> {
     }
 }
 
-#[test]
-fn sort_fields() {
-    use super::OperationTransformer;
-    use std::cmp::Ordering;
-    let unsorted = parse_query(
-        r#"
-    query example {
-        b
-        c
-        a {
-            f
-            d
-            e
-        }
-    }
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn remove_literals() {
+        use super::{
+            parse_query, Field, Number, OperationTransformer, Selection, SelectionSet, Text,
+            Transformed, TransformedValue, Value,
+        };
+        use graphql_parser::minify_query;
 
-    "#,
-    )
-    .expect("Failed to parse query").into_static();
+        let raw = parse_query(
+            r#"
+            query example {
+                foo(bar: "baz")
+            }
+        "#,
+        )
+        .expect("Failed to parse query")
+        .into_static();
 
-    pub struct SortSelectionsTransform {}
+        struct RemoveLiteralsTransformer {}
 
-    impl<'s, T: Text<'s> + Clone> OperationTransformer<'s, T> for SortSelectionsTransform {
-        fn transform_selection_set(
-            &mut self,
-            selections: &SelectionSet<'s, T>,
-        ) -> TransformedValue<Vec<Selection<'s, T>>> {
-            let mut next_selections =
-            self.transform_list(&selections.items, Self::transform_selection_set)
-            .replace_or_else(|| selections.items);
-            next_selections.sort_unstable_by(|a, b| self.compare_selections(a, b));
-            TransformedValue::Replace(next_selections)
-        }
-    }    
-    
-    impl SortSelectionsTransform {
-        pub fn new() -> Self {
-            SortSelectionsTransform {}
-        }
+        impl<'a, T: Text<'a> + Clone> OperationTransformer<'a, T> for RemoveLiteralsTransformer {
+            fn transform_value(&mut self, node: &Value<'a, T>) -> TransformedValue<Value<'a, T>> {
+                match node {
+                    Value::Float(_) => TransformedValue::Replace(Value::Float(0.0)),
+                    Value::Int(_) => TransformedValue::Replace(Value::Int(Number::from(0))),
+                    Value::String(_) => TransformedValue::Replace(Value::String(String::from(""))),
+                    Value::Variable(_) => TransformedValue::Keep,
+                    Value::Boolean(_) => TransformedValue::Keep,
+                    Value::Null => TransformedValue::Keep,
+                    Value::Enum(_) => TransformedValue::Keep,
+                    Value::List(val) => {
+                        let items: Vec<Value<'a, T>> = val
+                            .iter()
+                            .map(|item| self.transform_value(item).replace_or_else(|| item.clone()))
+                            .collect();
 
-        fn compare_selections<'s, T: Text<'s> + Clone>(&self, a: &Selection<'s, T>, b: &Selection<'s, T>) -> Ordering {
-            match (a, b) {
-                (Selection::Field(a), Selection::Field(b)) => a.name.cmp(&b.name),
-                _ => unreachable!()
+                        TransformedValue::Replace(Value::List(items))
+                    }
+                    Value::Object(fields) => {
+                        let fields: std::collections::BTreeMap<T::Value, Value<'a, T>> = fields
+                            .iter()
+                            .map(|field| {
+                                let (name, value) = field;
+                                let new_value = self
+                                    .transform_value(value)
+                                    .replace_or_else(|| value.clone());
+                                (name.clone(), new_value)
+                            })
+                            .collect();
+
+                        TransformedValue::Replace(Value::Object(fields))
+                    }
+                }
+            }
+
+            fn transform_field(
+                &mut self,
+                field: &graphql_parser::query::Field<'a, T>,
+            ) -> Transformed<graphql_parser::query::Selection<'a, T>> {
+                let selection_set = self.transform_selection_set(&field.selection_set);
+                let arguments = self.transform_arguments(&field.arguments);
+                let directives = self.transform_directives(&field.directives);
+
+                Transformed::Replace(Selection::Field(Field {
+                    arguments: arguments.replace_or_else(|| field.arguments.clone()),
+                    directives: directives.replace_or_else(|| field.directives.clone()),
+                    selection_set: SelectionSet {
+                        items: selection_set.replace_or_else(|| field.selection_set.items.clone()),
+                        span: field.selection_set.span,
+                    },
+                    position: field.position,
+                    alias: None,
+                    name: field.name.clone(),
+                }))
             }
         }
+
+        let mut transformer = RemoveLiteralsTransformer {};
+        let transformed = transformer
+            .transform_document(&raw)
+            .replace_or_else(|| raw.clone());
+
+        assert_eq!(
+            minify_query(format!("{transformed}")).unwrap(),
+            minify_query("query example { foo(bar: \"\") }".to_string()).unwrap()
+        );
     }
-
-    fn trim_newline(s: &mut String) {
-        if s.ends_with('\n') {
-            s.pop();
-            if s.ends_with('\r') {
-                s.pop();
-            }
-        }
-    }
-
-    let sorted = SortSelectionsTransform::new()
-            .transform_document(&unsorted).
-            replace_or_else(|| unsorted.clone());
-
-    let mut printed = format!("{sorted}");
-    trim_newline(&mut printed);
-    
-    assert_eq!(printed, "query example { a { d e f } b c }");
 }
