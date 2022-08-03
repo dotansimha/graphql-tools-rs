@@ -527,7 +527,7 @@ pub trait OperationTransformer<'a, T: Text<'a> + Clone> {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn remove_literals() {
+    fn transform_fields_and_values() {
         use super::{
             parse_query, Field, Number, OperationTransformer, Selection, SelectionSet, Text,
             Transformed, TransformedValue, Value,
