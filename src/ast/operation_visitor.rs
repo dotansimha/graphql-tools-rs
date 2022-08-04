@@ -22,6 +22,7 @@ pub struct OperationVisitorContext<'a> {
     input_type_stack: Vec<Option<schema::TypeDefinition>>,
     type_literal_stack: Vec<Option<Type>>,
     input_type_literal_stack: Vec<Option<Type>>,
+    field_stack: Vec<Option<schema::Field>>,
 }
 
 impl<'a> OperationVisitorContext<'a> {
@@ -34,6 +35,7 @@ impl<'a> OperationVisitorContext<'a> {
             input_type_stack: vec![],
             type_literal_stack: vec![],
             input_type_literal_stack: vec![],
+            field_stack: vec![],
             known_fragments: HashMap::<String, FragmentDefinition>::from_iter(
                 operation.definitions.iter().filter_map(|def| match def {
                     Definition::Fragment(fragment) => {
@@ -80,6 +82,20 @@ impl<'a> OperationVisitorContext<'a> {
         self.parent_type_stack.pop();
     }
 
+    pub fn with_field<Func>(&mut self, f: Option<schema::Field>, func: Func)
+    where
+        Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
+    {
+        if let Some(ref f) = f {
+            self.field_stack.push(Some(f.clone()));
+        } else {
+            self.field_stack.push(None);
+        }
+
+        func(self);
+        self.field_stack.pop();
+    }
+
     pub fn with_input_type<Func>(&mut self, t: Option<Type>, func: Func)
     where
         Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
@@ -118,6 +134,10 @@ impl<'a> OperationVisitorContext<'a> {
             .last()
             .unwrap_or(&None)
             .as_ref()
+    }
+
+    pub fn current_field(&self) -> Option<&schema::Field> {
+        self.field_stack.last().unwrap_or(&None).as_ref()
     }
 }
 
@@ -328,15 +348,22 @@ fn visit_selection<'a, Visitor, UserContext>(
 
             context.with_type(field_type, |context| {
                 visitor.enter_field(context, user_context, field);
-                visit_arguments(
-                    visitor,
-                    field_args.as_ref(),
-                    &field.arguments,
-                    context,
-                    user_context,
+                context.with_field(
+                    context
+                        .current_parent_type()
+                        .and_then(|t| t.field_by_name(&field.name)),
+                    |context| {
+                        visit_arguments(
+                            visitor,
+                            field_args.as_ref(),
+                            &field.arguments,
+                            context,
+                            user_context,
+                        );
+                        visit_directives(visitor, &field.directives, context, user_context);
+                        visit_selection_set(visitor, &field.selection_set, context, user_context);
+                    },
                 );
-                visit_directives(visitor, &field.directives, context, user_context);
-                visit_selection_set(visitor, &field.selection_set, context, user_context);
                 visitor.leave_field(context, user_context, field);
             });
         }
