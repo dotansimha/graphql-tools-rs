@@ -52,7 +52,8 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 [[package]]
 name = "graphql-parser"
 version = "0.4.0"
-source = "git+https://github.com/kamilkisiela/graphql-parser.git?branch=kamil-minifier#98b7d89dba38850fffa0c7f652dc2f7db79e7017"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2ebc8013b4426d5b81a4364c419a95ed0b404af2b82e2457de52d9348f0e474"
 dependencies = [
  "combine 3.8.1",
  "thiserror",
