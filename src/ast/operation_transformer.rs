@@ -532,7 +532,6 @@ mod tests {
             parse_query, Field, Number, OperationTransformer, Selection, SelectionSet, Text,
             Transformed, TransformedValue, Value,
         };
-        use graphql_parser::minify_query;
 
         let raw = parse_query(
             r#"
@@ -609,8 +608,8 @@ mod tests {
             .replace_or_else(|| raw.clone());
 
         assert_eq!(
-            minify_query(format!("{transformed}")).unwrap(),
-            minify_query("query example { foo(bar: \"\") }".to_string()).unwrap()
+            format!("{transformed}"),
+            "query example {\n  foo(bar: \"\")\n}\n".to_string()
         );
     }
 }
