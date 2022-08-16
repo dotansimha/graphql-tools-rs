@@ -35,6 +35,7 @@ cargo add graphql-tools
 - [x] `struct` extensions
 - [x] GraphQL Validation engine
 - [x] Validation rules
+- [x] GraphQL operations transformer
 
 > If you have an idea / missing feature, feel free to open an issue / start a GitHub discussion!
 
