@@ -37,7 +37,7 @@ pub fn do_types_overlap(
     t1: &schema::TypeDefinition,
     t2: &schema::TypeDefinition,
 ) -> bool {
-    if t1.name().eq(&t2.name()) {
+    if t1.name().eq(t2.name()) {
         return true;
     }
 

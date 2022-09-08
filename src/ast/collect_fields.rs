@@ -36,7 +36,7 @@ fn does_fragment_condition_match<'a>(
         if let Some(conditional_type) = context.schema.type_by_name(type_name) {
             if conditional_type
                 .name()
-                .eq(&current_selection_set_type.name())
+                .eq(current_selection_set_type.name())
             {
                 return true;
             }

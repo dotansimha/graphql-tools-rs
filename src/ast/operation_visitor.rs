@@ -17,9 +17,9 @@ pub struct OperationVisitorContext<'a> {
     pub known_fragments: HashMap<String, FragmentDefinition>,
     pub directives: HashMap<String, schema::DirectiveDefinition>,
 
-    type_stack: Vec<Option<schema::TypeDefinition>>,
-    parent_type_stack: Vec<Option<schema::TypeDefinition>>,
-    input_type_stack: Vec<Option<schema::TypeDefinition>>,
+    type_stack: Vec<Option<&'a schema::TypeDefinition>>,
+    parent_type_stack: Vec<Option<&'a schema::TypeDefinition>>,
+    input_type_stack: Vec<Option<&'a schema::TypeDefinition>>,
     type_literal_stack: Vec<Option<Type>>,
     input_type_literal_stack: Vec<Option<Type>>,
     field_stack: Vec<Option<schema::Field>>,
@@ -114,15 +114,15 @@ impl<'a> OperationVisitorContext<'a> {
     }
 
     pub fn current_type(&self) -> Option<&schema::TypeDefinition> {
-        self.type_stack.last().unwrap_or(&None).as_ref()
+        self.type_stack.last().unwrap_or(&None).as_deref()
     }
 
     pub fn current_input_type(&self) -> Option<&schema::TypeDefinition> {
-        self.input_type_stack.last().unwrap_or(&None).as_ref()
+        self.input_type_stack.last().unwrap_or(&None).as_deref()
     }
 
     pub fn current_parent_type(&self) -> Option<&schema::TypeDefinition> {
-        self.parent_type_stack.last().unwrap_or(&None).as_ref()
+        self.parent_type_stack.last().unwrap_or(&None).as_deref()
     }
 
     pub fn current_type_literal(&self) -> Option<&Type> {
@@ -166,22 +166,20 @@ fn visit_definitions<'a, Visitor, UserContext>(
         let schema_type_name = match definition {
             Definition::Fragment(fragment) => {
                 let TypeCondition::On(name) = &fragment.type_condition;
-                Some(name.clone())
+                Some(name)
             }
             Definition::Operation(operation) => match operation {
-                OperationDefinition::Query(_) => Some(context.schema.query_type().name.clone()),
-                OperationDefinition::SelectionSet(_) => {
-                    Some(context.schema.query_type().name.clone())
-                }
-                OperationDefinition::Mutation(_) => context.schema.mutation_type().map(|t| t.name),
+                OperationDefinition::Query(_) => Some(&context.schema.query_type().name),
+                OperationDefinition::SelectionSet(_) => Some(&context.schema.query_type().name),
+                OperationDefinition::Mutation(_) => context.schema.mutation_type().map(|t| &t.name),
                 OperationDefinition::Subscription(_) => {
-                    context.schema.subscription_type().map(|t| t.name)
+                    context.schema.subscription_type().map(|t| &t.name)
                 }
             },
         };
 
         context.with_type(
-            schema_type_name.map(|v| Type::NamedType(v)),
+            schema_type_name.map(|v| Type::NamedType(v.clone())),
             |context| match definition {
                 Definition::Fragment(fragment) => {
                     visit_fragment_definition(visitor, fragment, context, user_context)
@@ -206,12 +204,12 @@ fn visit_directives<'a, Visitor, UserContext>(
         let directive_def_args = context
             .schema
             .directive_by_name(&directive.name)
-            .map(|def| def.arguments);
+            .map(|def| &def.arguments);
 
         visitor.enter_directive(context, user_context, directive);
         visit_arguments(
             visitor,
-            directive_def_args.as_ref(),
+            directive_def_args,
             &directive.arguments,
             context,
             user_context,

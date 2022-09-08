@@ -374,7 +374,7 @@ impl OverlappingFieldsCanBeMerged {
         // in the current state of the schema, then perhaps in some future version,
         // thus may not safely diverge.
         let mutually_exclusive = parents_mutually_exclusive
-            || (parent_type1.name().ne(&parent_type2.name())
+            || (parent_type1.name().ne(parent_type2.name())
                 && parent_type1.is_object_type()
                 && parent_type2.is_object_type());
 
@@ -497,9 +497,9 @@ impl OverlappingFieldsCanBeMerged {
         let parent_type2 = parent_type_name2.and_then(|t| schema.type_by_name(&t));
 
         let (field_map1, fragment_names1) =
-            self.get_fields_and_fragment_names(schema, parent_type1.as_ref(), selection_set1);
+            self.get_fields_and_fragment_names(schema, parent_type1, selection_set1);
         let (field_map2, fragment_names2) =
-            self.get_fields_and_fragment_names(schema, parent_type2.as_ref(), selection_set2);
+            self.get_fields_and_fragment_names(schema, parent_type2, selection_set2);
 
         // (H) First, collect all conflicts between these two collections of field.
         self.collect_conflicts_between(
@@ -694,7 +694,7 @@ impl OverlappingFieldsCanBeMerged {
         let TypeCondition::On(type_condition) = &fragment.type_condition;
         let fragment_type = schema.type_by_name(type_condition);
 
-        self.get_fields_and_fragment_names(schema, fragment_type.as_ref(), &fragment.selection_set)
+        self.get_fields_and_fragment_names(schema, fragment_type, &fragment.selection_set)
     }
 
     // Collect all Conflicts between two collections of fields. This is similar to,
@@ -800,11 +800,11 @@ impl OverlappingFieldsCanBeMerged {
 
                             schema.type_by_name(type_condition)
                         })
-                        .or(parent_type.cloned());
+                        .or(parent_type);
 
                     self.collect_fields_and_fragment_names(
                         schema,
-                        fragment_type.as_ref(),
+                        fragment_type,
                         &inline_fragment.selection_set,
                         ast_and_defs,
                         fragment_names,
