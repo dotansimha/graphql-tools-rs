@@ -309,7 +309,7 @@ impl TypeExtension for Type {
 
 pub trait ValueExtension {
     fn compare(&self, other: &Self) -> bool;
-    fn variables_in_use(&self) -> Vec<String>;
+    fn variables_in_use(&self) -> Vec<&str>;
 }
 
 impl ValueExtension for Value {
@@ -329,9 +329,9 @@ impl ValueExtension for Value {
         }
     }
 
-    fn variables_in_use(&self) -> Vec<String> {
+    fn variables_in_use(&self) -> Vec<&str> {
         match self {
-            Value::Variable(v) => vec![v.clone()],
+            Value::Variable(v) => vec![v],
             Value::List(list) => list.iter().flat_map(|v| v.variables_in_use()).collect(),
             Value::Object(object) => object
                 .iter()

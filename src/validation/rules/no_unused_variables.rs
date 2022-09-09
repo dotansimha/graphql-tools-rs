@@ -16,7 +16,7 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 pub struct NoUnusedVariables<'a> {
     current_scope: Option<Scope<'a>>,
     defined_variables: HashMap<Option<&'a str>, HashSet<String>>,
-    used_variables: HashMap<Scope<'a>, Vec<String>>,
+    used_variables: HashMap<Scope<'a>, Vec<&'a str>>,
     spreads: HashMap<Scope<'a>, Vec<String>>,
 }
 
@@ -36,7 +36,7 @@ impl<'a> NoUnusedVariables<'a> {
         &self,
         from: &Scope<'a>,
         defined: &HashSet<String>,
-        used: &mut HashSet<String>,
+        used: &mut HashSet<&'a str>,
         visited: &mut HashSet<Scope<'a>>,
     ) {
         if visited.contains(from) {
@@ -47,8 +47,8 @@ impl<'a> NoUnusedVariables<'a> {
 
         if let Some(used_vars) = self.used_variables.get(from) {
             for var in used_vars {
-                if defined.contains(var) {
-                    used.insert(var.clone());
+                if defined.contains(*var) {
+                    used.insert(var);
                 }
             }
         }
@@ -119,7 +119,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> 
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        (_arg_name, arg_value): &(String, query::Value),
+        (_arg_name, arg_value): &'a (String, query::Value),
     ) {
         if let Some(ref scope) = self.current_scope {
             self.used_variables
@@ -148,7 +148,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> 
 
             def_vars
                 .iter()
-                .filter(|var| !used.contains(*var))
+                .filter(|var| !used.contains(var.as_str()))
                 .for_each(|var| {
                     user_context.report_error(ValidationError {
                         message: error_message(&var, op_name),

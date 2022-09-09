@@ -188,7 +188,7 @@ fn visit_definitions<'a, Visitor, UserContext>(
 
 fn visit_directives<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    directives: &[Directive],
+    directives: &'a [Directive],
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -215,7 +215,7 @@ fn visit_directives<'a, Visitor, UserContext>(
 fn visit_arguments<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
     arguments_definition: Option<&'a Vec<schema::InputValue>>,
-    arguments: &Vec<(String, Value)>,
+    arguments: &'a Vec<(String, Value)>,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -534,7 +534,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &(String, Value),
+        _: &'a (String, Value),
     ) {
     }
     fn leave_argument(
