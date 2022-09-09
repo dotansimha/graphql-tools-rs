@@ -378,6 +378,7 @@ pub trait TypeDefinitionExtension {
 pub trait ImplementingInterfaceExtension {
     fn interfaces(&self) -> Vec<String>;
     fn has_sub_type(&self, other_type: &TypeDefinition) -> bool;
+    fn has_concrete_sub_type(&self, concrete_type: &ObjectType) -> bool;
 }
 
 impl ImplementingInterfaceExtension for TypeDefinition {
@@ -398,14 +399,26 @@ impl ImplementingInterfaceExtension for TypeDefinition {
             _ => return false,
         }
     }
+
+    fn has_concrete_sub_type(&self, concrete_type: &ObjectType) -> bool {
+        match self {
+            TypeDefinition::Interface(interface_type) => {
+                return interface_type.is_implemented_by(concrete_type)
+            }
+            TypeDefinition::Union(union_type) => {
+                return union_type.has_sub_type(&concrete_type.name)
+            }
+            _ => return false,
+        }
+    }
 }
 
 pub trait PossibleTypesExtension {
-    fn possible_types(&self, schema: &schema::Document) -> Vec<ObjectType>;
+    fn possible_types<'a>(&self, schema: &'a schema::Document) -> Vec<&'a ObjectType>;
 }
 
 impl PossibleTypesExtension for TypeDefinition {
-    fn possible_types(&self, schema: &schema::Document) -> Vec<ObjectType> {
+    fn possible_types<'a>(&self, schema: &'a schema::Document) -> Vec<&'a ObjectType> {
         match self {
             TypeDefinition::Object(_) => vec![],
             TypeDefinition::InputObject(_) => vec![],
@@ -417,7 +430,7 @@ impl PossibleTypesExtension for TypeDefinition {
                 .filter_map(|(_type_name, type_def)| {
                     if let TypeDefinition::Object(o) = type_def {
                         if i.is_implemented_by(*type_def) {
-                            return Some(o.clone());
+                            return Some(o);
                         }
                     }
 
@@ -429,7 +442,7 @@ impl PossibleTypesExtension for TypeDefinition {
                 .iter()
                 .filter_map(|type_name| {
                     if let Some(TypeDefinition::Object(o)) = schema.type_by_name(type_name) {
-                        return Some(o.clone());
+                        return Some(o);
                     }
 
                     None
@@ -447,6 +460,10 @@ impl ImplementingInterfaceExtension for InterfaceType {
     fn has_sub_type(&self, other_type: &TypeDefinition) -> bool {
         self.is_implemented_by(other_type)
     }
+
+    fn has_concrete_sub_type(&self, concrete_type: &ObjectType) -> bool {
+        self.is_implemented_by(concrete_type)
+    }
 }
 
 impl ImplementingInterfaceExtension for ObjectType {
@@ -455,6 +472,10 @@ impl ImplementingInterfaceExtension for ObjectType {
     }
 
     fn has_sub_type(&self, _other_type: &TypeDefinition) -> bool {
+        false
+    }
+
+    fn has_concrete_sub_type(&self, _concrete_type: &ObjectType) -> bool {
         false
     }
 }

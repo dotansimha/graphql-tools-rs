@@ -5,7 +5,7 @@ use crate::ast::{
     PossibleTypesExtension, SchemaDocumentExtension,
 };
 use crate::static_graphql::query::TypeCondition;
-use crate::static_graphql::schema::{self, TypeDefinition};
+use crate::static_graphql::schema;
 use crate::validation::utils::{ValidationError, ValidationErrorContext};
 
 /// Possible fragment spread
@@ -47,9 +47,7 @@ pub fn do_types_overlap(
 
             return possible_types
                 .into_iter()
-                .filter(|possible_type| {
-                    t2.has_sub_type(&TypeDefinition::Object(possible_type.clone()))
-                })
+                .filter(|possible_type| t2.has_concrete_sub_type(possible_type))
                 .count()
                 > 0;
         }
