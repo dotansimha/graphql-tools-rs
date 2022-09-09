@@ -22,7 +22,7 @@ pub struct OperationVisitorContext<'a> {
     input_type_stack: Vec<Option<&'a schema::TypeDefinition>>,
     type_literal_stack: Vec<Option<Type>>,
     input_type_literal_stack: Vec<Option<Type>>,
-    field_stack: Vec<Option<schema::Field>>,
+    field_stack: Vec<Option<&'a schema::Field>>,
 }
 
 impl<'a> OperationVisitorContext<'a> {
@@ -55,18 +55,18 @@ impl<'a> OperationVisitorContext<'a> {
         }
     }
 
-    pub fn with_type<Func>(&mut self, t: Option<Type>, func: Func)
+    pub fn with_type<Func>(&mut self, t: Option<&Type>, func: Func)
     where
         Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
     {
-        if let Some(ref t) = t {
+        if let Some(t) = t {
             self.type_stack
                 .push(self.schema.type_by_name(&t.inner_type()));
         } else {
             self.type_stack.push(None);
         }
 
-        self.type_literal_stack.push(t);
+        self.type_literal_stack.push(t.cloned());
         func(self);
         self.type_literal_stack.pop();
         self.type_stack.pop();
@@ -82,12 +82,13 @@ impl<'a> OperationVisitorContext<'a> {
         self.parent_type_stack.pop();
     }
 
-    pub fn with_field<Func>(&mut self, f: Option<schema::Field>, func: Func)
+    pub fn with_field<'f, Func>(&mut self, f: Option<&'f schema::Field>, func: Func)
     where
         Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
+        'f: 'a,
     {
-        if let Some(ref f) = f {
-            self.field_stack.push(Some(f.clone()));
+        if let Some(f) = f {
+            self.field_stack.push(Some(f));
         } else {
             self.field_stack.push(None);
         }
@@ -121,8 +122,8 @@ impl<'a> OperationVisitorContext<'a> {
         self.input_type_stack.last().unwrap_or(&None).as_deref()
     }
 
-    pub fn current_parent_type(&self) -> Option<&schema::TypeDefinition> {
-        self.parent_type_stack.last().unwrap_or(&None).as_deref()
+    pub fn current_parent_type(&self) -> Option<&'a schema::TypeDefinition> {
+        *self.parent_type_stack.last().unwrap_or(&None)
     }
 
     pub fn current_type_literal(&self) -> Option<&Type> {
@@ -137,7 +138,7 @@ impl<'a> OperationVisitorContext<'a> {
     }
 
     pub fn current_field(&self) -> Option<&schema::Field> {
-        self.field_stack.last().unwrap_or(&None).as_ref()
+        self.field_stack.last().unwrap_or(&None).as_deref()
     }
 }
 
@@ -178,17 +179,15 @@ fn visit_definitions<'a, Visitor, UserContext>(
             },
         };
 
-        context.with_type(
-            schema_type_name.map(|v| Type::NamedType(v.clone())),
-            |context| match definition {
-                Definition::Fragment(fragment) => {
-                    visit_fragment_definition(visitor, fragment, context, user_context)
-                }
-                Definition::Operation(operation) => {
-                    visit_operation_definition(visitor, operation, context, user_context)
-                }
-            },
-        );
+        let schema_type = schema_type_name.map(|v| Type::NamedType(v.clone()));
+        context.with_type(schema_type.as_ref(), |context| match definition {
+            Definition::Fragment(fragment) => {
+                visit_fragment_definition(visitor, fragment, context, user_context)
+            }
+            Definition::Operation(operation) => {
+                visit_operation_definition(visitor, operation, context, user_context)
+            }
+        });
     }
 }
 
@@ -341,8 +340,8 @@ fn visit_selection<'a, Visitor, UserContext>(
                 .current_parent_type()
                 .and_then(|t| t.field_by_name(&field.name));
 
-            let field_type = parent_type_def.clone().map(|f| f.field_type);
-            let field_args = parent_type_def.map(|f| f.arguments);
+            let field_type = parent_type_def.clone().map(|f| &f.field_type);
+            let field_args = parent_type_def.map(|f| &f.arguments);
 
             context.with_type(field_type, |context| {
                 visitor.enter_field(context, user_context, field);
@@ -353,7 +352,7 @@ fn visit_selection<'a, Visitor, UserContext>(
                     |context| {
                         visit_arguments(
                             visitor,
-                            field_args.as_ref(),
+                            field_args,
                             &field.arguments,
                             context,
                             user_context,
@@ -373,7 +372,7 @@ fn visit_selection<'a, Visitor, UserContext>(
         Selection::InlineFragment(inline_fragment) => {
             if let Some(TypeCondition::On(fragment_condition)) = &inline_fragment.type_condition {
                 context.with_type(
-                    Some(Type::NamedType(fragment_condition.clone())),
+                    Some(&Type::NamedType(fragment_condition.clone())),
                     |context| {
                         visitor.enter_inline_fragment(context, user_context, inline_fragment);
                         visit_directives(

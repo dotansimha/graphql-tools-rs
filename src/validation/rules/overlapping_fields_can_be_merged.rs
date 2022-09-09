@@ -90,7 +90,7 @@ struct Conflict(ConflictReason, Vec<Pos>, Vec<Pos>);
 struct ConflictReason(String, ConflictReasonMessage);
 
 #[derive(Debug)]
-struct AstAndDef(Option<TypeDefinition>, Field, Option<FieldDefinition>);
+struct AstAndDef<'a>(Option<TypeDefinition>, Field, Option<&'a FieldDefinition>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum ConflictReasonMessage {
@@ -686,11 +686,11 @@ impl OverlappingFieldsCanBeMerged {
 
     // Given a reference to a fragment, return the represented collection of fields
     // as well as a list of nested fragment names referenced via fragment spreads.
-    fn get_referenced_fields_and_fragment_names(
+    fn get_referenced_fields_and_fragment_names<'a>(
         &self,
-        schema: &SchemaDocument,
+        schema: &'a SchemaDocument,
         fragment: &FragmentDefinition,
-    ) -> (OrderedMap<String, Vec<AstAndDef>>, Vec<String>) {
+    ) -> (OrderedMap<String, Vec<AstAndDef<'a>>>, Vec<String>) {
         let TypeCondition::On(type_condition) = &fragment.type_condition;
         let fragment_type = schema.type_by_name(type_condition);
 
@@ -702,14 +702,14 @@ impl OverlappingFieldsCanBeMerged {
     // assumes that `collectConflictsWithin` has already been called on each
     // provided collection of fields. This is true because this validator traverses
     // each individual selection set.
-    fn collect_conflicts_between(
+    fn collect_conflicts_between<'a>(
         &mut self,
         schema: &SchemaDocument,
         conflicts: &mut Vec<Conflict>,
         mutually_exclusive: bool,
-        field_map1: &OrderedMap<String, Vec<AstAndDef>>,
-        field_map2: &OrderedMap<String, Vec<AstAndDef>>,
-        visited_fragments: &mut Vec<String>,
+        field_map1: &OrderedMap<String, Vec<AstAndDef<'a>>>,
+        field_map2: &OrderedMap<String, Vec<AstAndDef<'a>>>,
+        visited_fragments: &'a mut Vec<String>,
     ) {
         // A field map is a keyed collection, where each key represents a response
         // name and the value at that key is a list of all fields which provide that
@@ -739,12 +739,12 @@ impl OverlappingFieldsCanBeMerged {
     // Given a selection set, return the collection of fields (a mapping of response
     // name to field nodes and definitions) as well as a list of fragment names
     // referenced via fragment spreads.
-    fn get_fields_and_fragment_names(
+    fn get_fields_and_fragment_names<'a>(
         &self,
-        schema: &SchemaDocument,
-        parent_type: Option<&TypeDefinition>,
+        schema: &'a SchemaDocument,
+        parent_type: Option<&'a TypeDefinition>,
         selection_set: &SelectionSet,
-    ) -> (OrderedMap<String, Vec<AstAndDef>>, Vec<String>) {
+    ) -> (OrderedMap<String, Vec<AstAndDef<'a>>>, Vec<String>) {
         let mut ast_and_defs = OrderedMap::<String, Vec<AstAndDef>>::new();
         let mut fragment_names = Vec::<String>::new();
 
@@ -759,12 +759,12 @@ impl OverlappingFieldsCanBeMerged {
         (ast_and_defs, fragment_names)
     }
 
-    fn collect_fields_and_fragment_names(
+    fn collect_fields_and_fragment_names<'a>(
         &self,
-        schema: &SchemaDocument,
-        parent_type: Option<&TypeDefinition>,
+        schema: &'a SchemaDocument,
+        parent_type: Option<&'a TypeDefinition>,
         selection_set: &SelectionSet,
-        ast_and_defs: &mut OrderedMap<String, Vec<AstAndDef>>,
+        ast_and_defs: &mut OrderedMap<String, Vec<AstAndDef<'a>>>,
         fragment_names: &mut Vec<String>,
     ) {
         for selection in &selection_set.items {
