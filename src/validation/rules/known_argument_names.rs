@@ -14,17 +14,17 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 ///
 /// See https://spec.graphql.org/draft/#sec-Argument-Names
 /// See https://spec.graphql.org/draft/#sec-Directives-Are-In-Valid-Locations
-pub struct KnownArgumentNames {
-    current_known_arguments: Option<(ArgumentParent, Vec<InputValue>)>,
+pub struct KnownArgumentNames<'a> {
+    current_known_arguments: Option<(ArgumentParent<'a>, &'a Vec<InputValue>)>,
 }
 
 #[derive(Debug)]
-enum ArgumentParent {
-    Field(String, TypeDefinition),
-    Directive(String),
+enum ArgumentParent<'a> {
+    Field(&'a str, &'a TypeDefinition),
+    Directive(&'a str),
 }
 
-impl KnownArgumentNames {
+impl<'a> KnownArgumentNames<'a> {
     pub fn new() -> Self {
         KnownArgumentNames {
             current_known_arguments: None,
@@ -32,17 +32,17 @@ impl KnownArgumentNames {
     }
 }
 
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownArgumentNames {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownArgumentNames<'a> {
     fn enter_directive(
         &mut self,
-        visitor_context: &mut OperationVisitorContext,
+        visitor_context: &mut OperationVisitorContext<'a>,
         _: &mut ValidationErrorContext,
         directive: &Directive,
     ) {
         if let Some(directive_def) = visitor_context.schema.directive_by_name(&directive.name) {
             self.current_known_arguments = Some((
-                ArgumentParent::Directive(directive_def.name.clone()),
-                directive_def.arguments.clone(),
+                ArgumentParent::Directive(&directive_def.name),
+                &directive_def.arguments,
             ));
         }
     }
@@ -58,7 +58,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownArgumentNames {
 
     fn enter_field(
         &mut self,
-        visitor_context: &mut OperationVisitorContext,
+        visitor_context: &mut OperationVisitorContext<'a>,
         _: &mut ValidationErrorContext,
         field: &crate::static_graphql::query::Field,
     ) {
@@ -66,13 +66,12 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownArgumentNames {
             if let Some(field_def) = parent_type.field_by_name(&field.name) {
                 self.current_known_arguments = Some((
                     ArgumentParent::Field(
-                        field_def.name.clone(),
+                        &field_def.name,
                         visitor_context
                             .current_parent_type()
-                            .expect("Missing parent type")
-                            .clone(),
+                            .expect("Missing parent type"),
                     ),
-                    field_def.arguments.clone(),
+                    &field_def.arguments,
                 ));
             }
         }
@@ -122,7 +121,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownArgumentNames {
     }
 }
 
-impl ValidationRule for KnownArgumentNames {
+impl<'k> ValidationRule for KnownArgumentNames<'k> {
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

@@ -504,7 +504,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &VariableDefinition,
+        _: &'a VariableDefinition,
     ) {
     }
     fn leave_variable_definition(

@@ -14,9 +14,9 @@ use std::collections::{HashMap, HashSet};
 /// See https://spec.graphql.org/draft/#sec-All-Variable-Uses-Defined
 pub struct NoUndefinedVariables<'a> {
     current_scope: Option<Scope<'a>>,
-    defined_variables: HashMap<Option<&'a str>, HashSet<String>>,
+    defined_variables: HashMap<Option<&'a str>, HashSet<&'a str>>,
     used_variables: HashMap<Scope<'a>, Vec<&'a str>>,
-    spreads: HashMap<Scope<'a>, Vec<String>>,
+    spreads: HashMap<Scope<'a>, Vec<&'a str>>,
 }
 
 impl<'a> NoUndefinedVariables<'a> {
@@ -34,7 +34,7 @@ impl<'a> NoUndefinedVariables<'a> {
     fn find_undefined_vars(
         &self,
         from: &Scope<'a>,
-        defined: &HashSet<String>,
+        defined: &HashSet<&str>,
         unused: &mut HashSet<&'a str>,
         visited: &mut HashSet<Scope<'a>>,
     ) {
@@ -54,12 +54,7 @@ impl<'a> NoUndefinedVariables<'a> {
 
         if let Some(spreads) = self.spreads.get(from) {
             for spread in spreads {
-                self.find_undefined_vars(
-                    &Scope::Fragment(spread.clone()),
-                    defined,
-                    unused,
-                    visited,
-                );
+                self.find_undefined_vars(&Scope::Fragment(spread), defined, unused, visited);
             }
         }
     }
@@ -68,7 +63,7 @@ impl<'a> NoUndefinedVariables<'a> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Scope<'a> {
     Operation(Option<&'a str>),
-    Fragment(String),
+    Fragment(&'a str),
 }
 
 impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables<'a> {
@@ -87,22 +82,22 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables<'
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        fragment_definition: &query::FragmentDefinition,
+        fragment_definition: &'a query::FragmentDefinition,
     ) {
-        self.current_scope = Some(Scope::Fragment(fragment_definition.name.clone()));
+        self.current_scope = Some(Scope::Fragment(&fragment_definition.name));
     }
 
     fn enter_fragment_spread(
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        fragment_spread: &query::FragmentSpread,
+        fragment_spread: &'a query::FragmentSpread,
     ) {
         if let Some(scope) = &self.current_scope {
             self.spreads
                 .entry(scope.clone())
                 .or_insert_with(Vec::new)
-                .push(fragment_spread.fragment_name.clone());
+                .push(&fragment_spread.fragment_name);
         }
     }
 
@@ -110,11 +105,11 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables<'
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        variable_definition: &query::VariableDefinition,
+        variable_definition: &'a query::VariableDefinition,
     ) {
         if let Some(Scope::Operation(ref name)) = self.current_scope {
             if let Some(vars) = self.defined_variables.get_mut(name) {
-                vars.insert(variable_definition.name.clone());
+                vars.insert(&variable_definition.name);
             }
         }
     }
@@ -145,7 +140,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables<'
 
             self.find_undefined_vars(
                 &Scope::Operation(op_name.clone()),
-                &def_vars,
+                def_vars,
                 &mut unused,
                 &mut visited,
             );
