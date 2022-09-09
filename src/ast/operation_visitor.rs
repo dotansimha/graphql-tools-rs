@@ -21,7 +21,7 @@ pub struct OperationVisitorContext<'a> {
     parent_type_stack: Vec<Option<&'a schema::TypeDefinition>>,
     input_type_stack: Vec<Option<&'a schema::TypeDefinition>>,
     type_literal_stack: Vec<Option<Type>>,
-    input_type_literal_stack: Vec<Option<Type>>,
+    input_type_literal_stack: Vec<Option<&'a Type>>,
     field_stack: Vec<Option<&'a schema::Field>>,
 }
 
@@ -97,7 +97,7 @@ impl<'a> OperationVisitorContext<'a> {
         self.field_stack.pop();
     }
 
-    pub fn with_input_type<Func>(&mut self, t: Option<Type>, func: Func)
+    pub fn with_input_type<Func>(&mut self, t: Option<&'a Type>, func: Func)
     where
         Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
     {
@@ -130,11 +130,8 @@ impl<'a> OperationVisitorContext<'a> {
         self.type_literal_stack.last().unwrap_or(&None).as_ref()
     }
 
-    pub fn current_input_type_literal(&self) -> Option<&Type> {
-        self.input_type_literal_stack
-            .last()
-            .unwrap_or(&None)
-            .as_ref()
+    pub fn current_input_type_literal(&self) -> Option<&'a Type> {
+        *self.input_type_literal_stack.last().unwrap_or(&None)
     }
 
     pub fn current_field(&self) -> Option<&schema::Field> {
@@ -144,7 +141,7 @@ impl<'a> OperationVisitorContext<'a> {
 
 pub fn visit_document<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    document: &Document,
+    document: &'a Document,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -157,7 +154,7 @@ pub fn visit_document<'a, Visitor, UserContext>(
 
 fn visit_definitions<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    definitions: &Vec<Definition>,
+    definitions: &'a Vec<Definition>,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -219,7 +216,7 @@ fn visit_directives<'a, Visitor, UserContext>(
 
 fn visit_arguments<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    arguments_definition: Option<&Vec<schema::InputValue>>,
+    arguments_definition: Option<&'a Vec<schema::InputValue>>,
     arguments: &Vec<(String, Value)>,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
@@ -229,7 +226,7 @@ fn visit_arguments<'a, Visitor, UserContext>(
     for argument in arguments {
         let arg_type = arguments_definition
             .and_then(|argument_defs| argument_defs.iter().find(|a| a.name.eq(&argument.0)))
-            .map(|a| a.value_type.clone());
+            .map(|a| &a.value_type);
 
         context.with_input_type(arg_type, |context| {
             visitor.enter_argument(context, user_context, argument);
@@ -264,7 +261,7 @@ fn visit_input_value<'a, Visitor, UserContext>(
             visitor.enter_list_value(context, user_context, v);
 
             let input_type = context.current_input_type_literal().and_then(|t| match t {
-                Type::ListType(inner_type) => Some(inner_type.as_ref().clone()),
+                Type::ListType(inner_type) => Some(inner_type.as_ref()),
                 _ => None,
             });
 
@@ -284,7 +281,7 @@ fn visit_input_value<'a, Visitor, UserContext>(
                     .current_input_type_literal()
                     .and_then(|v| context.schema.type_by_name(&v.inner_type()))
                     .and_then(|v| v.input_field_by_name(&sub_key))
-                    .and_then(|v| Some(v.value_type));
+                    .and_then(|v| Some(&v.value_type));
 
                 context.with_input_type(input_type, |context| {
                     let param = &(sub_key.clone(), sub_value.clone());
@@ -305,14 +302,14 @@ fn visit_input_value<'a, Visitor, UserContext>(
 
 fn visit_variable_definitions<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    variables: &[VariableDefinition],
+    variables: &'a [VariableDefinition],
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
     Visitor: OperationVisitor<'a, UserContext>,
 {
     for variable in variables {
-        context.with_input_type(Some(variable.var_type.clone()), |context| {
+        context.with_input_type(Some(&variable.var_type), |context| {
             visitor.enter_variable_definition(context, user_context, variable);
 
             if let Some(default_value) = &variable.default_value {
@@ -440,7 +437,7 @@ fn visit_fragment_definition<'a, Visitor, UserContext>(
 
 fn visit_operation_definition<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    operation: &OperationDefinition,
+    operation: &'a OperationDefinition,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where

@@ -12,7 +12,7 @@ use crate::static_graphql::schema::{
 
 pub trait FieldByNameExtension {
     fn field_by_name(&self, name: &String) -> Option<&schema::Field>;
-    fn input_field_by_name(&self, name: &String) -> Option<InputValue>;
+    fn input_field_by_name(&self, name: &String) -> Option<&InputValue>;
 }
 
 impl FieldByNameExtension for TypeDefinition {
@@ -28,13 +28,11 @@ impl FieldByNameExtension for TypeDefinition {
         }
     }
 
-    fn input_field_by_name(&self, name: &String) -> Option<InputValue> {
+    fn input_field_by_name(&self, name: &String) -> Option<&InputValue> {
         match self {
-            TypeDefinition::InputObject(input_object) => input_object
-                .fields
-                .iter()
-                .find(|field| field.name.eq(name))
-                .cloned(),
+            TypeDefinition::InputObject(input_object) => {
+                input_object.fields.iter().find(|field| field.name.eq(name))
+            }
             _ => None,
         }
     }
