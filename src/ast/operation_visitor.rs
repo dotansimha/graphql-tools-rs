@@ -423,7 +423,7 @@ fn visit_selection_set<'a, Visitor, UserContext>(
 
 fn visit_fragment_definition<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    fragment: &FragmentDefinition,
+    fragment: &'a FragmentDefinition,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -476,7 +476,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &OperationDefinition,
+        _: &'a OperationDefinition,
     ) {
     }
     fn leave_operation_definition(
@@ -491,7 +491,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &FragmentDefinition,
+        _: &'a FragmentDefinition,
     ) {
     }
     fn leave_fragment_definition(

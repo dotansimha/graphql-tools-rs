@@ -12,14 +12,14 @@ use std::collections::{HashMap, HashSet};
 /// and via fragment spreads, are defined by that operation.
 ///
 /// See https://spec.graphql.org/draft/#sec-All-Variable-Uses-Defined
-pub struct NoUndefinedVariables {
-    current_scope: Option<Scope>,
-    defined_variables: HashMap<Option<String>, HashSet<String>>,
-    used_variables: HashMap<Scope, Vec<String>>,
-    spreads: HashMap<Scope, Vec<String>>,
+pub struct NoUndefinedVariables<'a> {
+    current_scope: Option<Scope<'a>>,
+    defined_variables: HashMap<Option<&'a str>, HashSet<String>>,
+    used_variables: HashMap<Scope<'a>, Vec<String>>,
+    spreads: HashMap<Scope<'a>, Vec<String>>,
 }
 
-impl NoUndefinedVariables {
+impl<'a> NoUndefinedVariables<'a> {
     pub fn new() -> Self {
         Self {
             current_scope: None,
@@ -30,13 +30,13 @@ impl NoUndefinedVariables {
     }
 }
 
-impl NoUndefinedVariables {
+impl<'a> NoUndefinedVariables<'a> {
     fn find_undefined_vars(
         &self,
-        from: &Scope,
+        from: &Scope<'a>,
         defined: &HashSet<String>,
         unused: &mut HashSet<String>,
-        visited: &mut HashSet<Scope>,
+        visited: &mut HashSet<Scope<'a>>,
     ) {
         if visited.contains(from) {
             return;
@@ -66,20 +66,20 @@ impl NoUndefinedVariables {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Scope {
-    Operation(Option<String>),
+pub enum Scope<'a> {
+    Operation(Option<&'a str>),
     Fragment(String),
 }
 
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables<'a> {
     fn enter_operation_definition(
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        operation_definition: &OperationDefinition,
+        operation_definition: &'a OperationDefinition,
     ) {
         let op_name = operation_definition.node_name();
-        self.current_scope = Some(Scope::Operation(op_name.clone()));
+        self.current_scope = Some(Scope::Operation(op_name));
         self.defined_variables.insert(op_name, HashSet::new());
     }
 
@@ -160,7 +160,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
     }
 }
 
-fn error_message(var_name: &String, op_name: &Option<String>) -> String {
+fn error_message(var_name: &String, op_name: &Option<&str>) -> String {
     if let Some(op_name) = op_name {
         format!(
             r#"Variable "${}" is not defined by operation "{}"."#,
@@ -171,7 +171,7 @@ fn error_message(var_name: &String, op_name: &Option<String>) -> String {
     }
 }
 
-impl ValidationRule for NoUndefinedVariables {
+impl<'n> ValidationRule for NoUndefinedVariables<'n> {
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

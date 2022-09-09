@@ -10,16 +10,16 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// A GraphQL document is only valid if all defined fragments have unique names.
 ///
 /// See https://spec.graphql.org/draft/#sec-Fragment-Name-Uniqueness
-pub struct UniqueFragmentNames {
-    findings_counter: HashMap<String, i32>,
+pub struct UniqueFragmentNames<'a> {
+    findings_counter: HashMap<&'a str, i32>,
 }
 
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueFragmentNames {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueFragmentNames<'a> {
     fn enter_fragment_definition(
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        fragment: &FragmentDefinition,
+        fragment: &'a FragmentDefinition,
     ) {
         if let Some(name) = fragment.node_name() {
             self.store_finding(&name);
@@ -27,20 +27,20 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueFragmentNames {
     }
 }
 
-impl UniqueFragmentNames {
+impl<'a> UniqueFragmentNames<'a> {
     pub fn new() -> Self {
         Self {
             findings_counter: HashMap::new(),
         }
     }
 
-    fn store_finding(&mut self, name: &String) {
-        let value = *self.findings_counter.entry(name.clone()).or_insert(0);
+    fn store_finding(&mut self, name: &'a str) {
+        let value = *self.findings_counter.entry(name).or_insert(0);
         self.findings_counter.insert(name.clone(), value + 1);
     }
 }
 
-impl ValidationRule for UniqueFragmentNames {
+impl<'u> ValidationRule for UniqueFragmentNames<'u> {
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

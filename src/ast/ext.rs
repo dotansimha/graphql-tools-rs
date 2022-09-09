@@ -655,29 +655,29 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
 }
 
 pub trait AstNodeWithName {
-    fn node_name(&self) -> Option<String>;
+    fn node_name(&self) -> Option<&str>;
 }
 
 impl AstNodeWithName for query::OperationDefinition {
-    fn node_name(&self) -> Option<String> {
+    fn node_name(&self) -> Option<&str> {
         match self {
-            query::OperationDefinition::Query(q) => q.name.clone(),
+            query::OperationDefinition::Query(q) => q.name.as_deref(),
             query::OperationDefinition::SelectionSet(_s) => None,
-            query::OperationDefinition::Mutation(m) => m.name.clone(),
-            query::OperationDefinition::Subscription(s) => s.name.clone(),
+            query::OperationDefinition::Mutation(m) => m.name.as_deref(),
+            query::OperationDefinition::Subscription(s) => s.name.as_deref(),
         }
     }
 }
 
 impl AstNodeWithName for query::FragmentDefinition {
-    fn node_name(&self) -> Option<String> {
-        Some(self.name.clone())
+    fn node_name(&self) -> Option<&str> {
+        Some(&self.name)
     }
 }
 
 impl AstNodeWithName for query::FragmentSpread {
-    fn node_name(&self) -> Option<String> {
-        Some(self.fragment_name.clone())
+    fn node_name(&self) -> Option<&str> {
+        Some(&self.fragment_name)
     }
 }
 

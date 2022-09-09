@@ -13,14 +13,14 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// are used, either directly or within a spread fragment.
 ///
 /// See https://spec.graphql.org/draft/#sec-All-Variables-Used
-pub struct NoUnusedVariables {
-    current_scope: Option<Scope>,
-    defined_variables: HashMap<Option<String>, HashSet<String>>,
-    used_variables: HashMap<Scope, Vec<String>>,
-    spreads: HashMap<Scope, Vec<String>>,
+pub struct NoUnusedVariables<'a> {
+    current_scope: Option<Scope<'a>>,
+    defined_variables: HashMap<Option<&'a str>, HashSet<String>>,
+    used_variables: HashMap<Scope<'a>, Vec<String>>,
+    spreads: HashMap<Scope<'a>, Vec<String>>,
 }
 
-impl NoUnusedVariables {
+impl<'a> NoUnusedVariables<'a> {
     pub fn new() -> Self {
         Self {
             current_scope: None,
@@ -31,13 +31,13 @@ impl NoUnusedVariables {
     }
 }
 
-impl NoUnusedVariables {
+impl<'a> NoUnusedVariables<'a> {
     fn find_used_vars(
         &self,
-        from: &Scope,
+        from: &Scope<'a>,
         defined: &HashSet<String>,
         used: &mut HashSet<String>,
-        visited: &mut HashSet<Scope>,
+        visited: &mut HashSet<Scope<'a>>,
     ) {
         if visited.contains(from) {
             return;
@@ -62,20 +62,20 @@ impl NoUnusedVariables {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Scope {
-    Operation(Option<String>),
+pub enum Scope<'a> {
+    Operation(Option<&'a str>),
     Fragment(String),
 }
 
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> {
     fn enter_operation_definition(
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        operation_definition: &OperationDefinition,
+        operation_definition: &'a OperationDefinition,
     ) {
         let op_name = operation_definition.node_name();
-        self.current_scope = Some(Scope::Operation(op_name.clone()));
+        self.current_scope = Some(Scope::Operation(op_name));
         self.defined_variables.insert(op_name, HashSet::new());
     }
 
@@ -159,7 +159,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables {
     }
 }
 
-fn error_message(var_name: &String, op_name: &Option<String>) -> String {
+fn error_message(var_name: &String, op_name: &Option<&str>) -> String {
     if let Some(op_name) = op_name {
         format!(
             r#"Variable "${}" is never used in operation "{}"."#,
@@ -170,7 +170,7 @@ fn error_message(var_name: &String, op_name: &Option<String>) -> String {
     }
 }
 
-impl ValidationRule for NoUnusedVariables {
+impl<'n> ValidationRule for NoUnusedVariables<'n> {
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

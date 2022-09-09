@@ -16,14 +16,14 @@ use super::ValidationRule;
 /// Variable usages must be compatible with the arguments they are passed to.
 ///
 /// See https://spec.graphql.org/draft/#sec-All-Variable-Usages-are-Allowed
-pub struct VariablesInAllowedPosition {
-    spreads: HashMap<Scope, HashSet<String>>,
-    variable_usages: HashMap<Scope, Vec<(String, Type)>>,
-    variable_defs: HashMap<Scope, Vec<VariableDefinition>>,
-    current_scope: Option<Scope>,
+pub struct VariablesInAllowedPosition<'a> {
+    spreads: HashMap<Scope<'a>, HashSet<String>>,
+    variable_usages: HashMap<Scope<'a>, Vec<(String, Type)>>,
+    variable_defs: HashMap<Scope<'a>, Vec<VariableDefinition>>,
+    current_scope: Option<Scope<'a>>,
 }
 
-impl VariablesInAllowedPosition {
+impl<'a> VariablesInAllowedPosition<'a> {
     pub fn new() -> Self {
         VariablesInAllowedPosition {
             spreads: HashMap::new(),
@@ -35,11 +35,11 @@ impl VariablesInAllowedPosition {
 
     fn collect_incorrect_usages(
         &self,
-        from: &Scope,
+        from: &Scope<'a>,
         var_defs: &Vec<VariableDefinition>,
         visitor_context: &mut OperationVisitorContext,
         user_context: &mut ValidationErrorContext,
-        visited: &mut HashSet<Scope>,
+        visited: &mut HashSet<Scope<'a>>,
     ) {
         if visited.contains(from) {
             return;
@@ -65,7 +65,7 @@ impl VariablesInAllowedPosition {
 
                     if !visitor_context.schema.is_subtype(&expected_type, var_type) {
                         user_context.report_error(ValidationError {
-                            message: format!("Variable \"${}\" of type \"{}\" used in position expecting type \"{}\".", 
+                            message: format!("Variable \"${}\" of type \"{}\" used in position expecting type \"{}\".",
                                 var_name,
                                 expected_type,
                                 var_type,
@@ -92,12 +92,12 @@ impl VariablesInAllowedPosition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Scope {
-    Operation(Option<String>),
+pub enum Scope<'a> {
+    Operation(Option<&'a str>),
     Fragment(String),
 }
 
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosition {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosition<'a> {
     fn leave_document(
         &mut self,
         visitor_context: &mut OperationVisitorContext<'a>,
@@ -128,7 +128,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut ValidationErrorContext,
-        operation_definition: &crate::static_graphql::query::OperationDefinition,
+        operation_definition: &'a crate::static_graphql::query::OperationDefinition,
     ) {
         self.current_scope = Some(Scope::Operation(operation_definition.node_name()));
     }
@@ -179,7 +179,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
     }
 }
 
-impl ValidationRule for VariablesInAllowedPosition {
+impl<'v> ValidationRule for VariablesInAllowedPosition<'v> {
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,
