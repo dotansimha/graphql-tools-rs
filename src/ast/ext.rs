@@ -500,7 +500,7 @@ impl AbstractTypeDefinitionExtension for InterfaceType {
     }
 }
 
-impl TypeDefinitionExtension for Option<schema::TypeDefinition> {
+impl TypeDefinitionExtension for Option<&schema::TypeDefinition> {
     fn is_leaf_type(&self) -> bool {
         match self {
             Some(t) => t.is_leaf_type(),

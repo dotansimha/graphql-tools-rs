@@ -459,7 +459,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &Document,
+        _: &'a Document,
     ) {
     }
     fn leave_document(
@@ -549,7 +549,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &SelectionSet,
+        _: &'a SelectionSet,
     ) {
     }
     fn leave_selection_set(
