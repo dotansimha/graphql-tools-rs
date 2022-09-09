@@ -682,27 +682,27 @@ impl AstNodeWithName for query::FragmentSpread {
 }
 
 pub trait FragmentSpreadExtraction {
-    fn get_recursive_fragment_spreads(&self) -> Vec<FragmentSpread>;
-    fn get_fragment_spreads(&self) -> Vec<FragmentSpread>;
+    fn get_recursive_fragment_spreads(&self) -> Vec<&FragmentSpread>;
+    fn get_fragment_spreads(&self) -> Vec<&FragmentSpread>;
 }
 
 impl FragmentSpreadExtraction for query::SelectionSet {
-    fn get_recursive_fragment_spreads(&self) -> Vec<FragmentSpread> {
+    fn get_recursive_fragment_spreads(&self) -> Vec<&FragmentSpread> {
         self.items
             .iter()
             .flat_map(|v| match v {
-                query::Selection::FragmentSpread(f) => vec![f.clone()],
+                query::Selection::FragmentSpread(f) => vec![f],
                 query::Selection::Field(f) => f.selection_set.get_fragment_spreads(),
                 query::Selection::InlineFragment(f) => f.selection_set.get_fragment_spreads(),
             })
             .collect()
     }
 
-    fn get_fragment_spreads(&self) -> Vec<FragmentSpread> {
+    fn get_fragment_spreads(&self) -> Vec<&FragmentSpread> {
         self.items
             .iter()
             .flat_map(|v| match v {
-                query::Selection::FragmentSpread(f) => vec![f.clone()],
+                query::Selection::FragmentSpread(f) => vec![f],
                 _ => vec![],
             })
             .collect()

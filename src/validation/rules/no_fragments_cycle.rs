@@ -25,12 +25,12 @@ impl NoFragmentsCycle {
     /// This does a straight-forward DFS to find cycles.
     /// It does not terminate when a cycle was found but continues to explore
     /// the graph to find all possible cycles.
-    fn detect_cycles(
+    fn detect_cycles<'a>(
         &mut self,
-        fragment: &FragmentDefinition,
-        spread_paths: &mut Vec<FragmentSpread>,
+        fragment: &'a FragmentDefinition,
+        spread_paths: &mut Vec<&'a FragmentSpread>,
         spread_path_index_by_name: &mut HashMap<String, usize>,
-        known_fragments: &HashMap<String, FragmentDefinition>,
+        known_fragments: &'a HashMap<String, FragmentDefinition>,
         error_context: &mut ValidationErrorContext,
     ) {
         if self.visited_fragments.contains(&fragment.name) {
@@ -103,7 +103,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoFragmentsCycle {
         user_context: &mut ValidationErrorContext,
         fragment: &FragmentDefinition,
     ) {
-        let mut spread_paths: Vec<FragmentSpread> = vec![];
+        let mut spread_paths: Vec<&FragmentSpread> = vec![];
         let mut spread_path_index_by_name: HashMap<String, usize> = HashMap::new();
 
         self.detect_cycles(
@@ -190,7 +190,7 @@ fn double_spread_within_abstract_types() {
 			... on Dog { name }
 			... on Cat { name }
 		      }
-		
+
 		      fragment spreadsInAnon on Pet {
 			... on Dog { ...nameFragment }
 			... on Cat { ...nameFragment }
