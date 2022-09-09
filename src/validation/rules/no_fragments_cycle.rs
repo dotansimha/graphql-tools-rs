@@ -30,7 +30,7 @@ impl NoFragmentsCycle {
         fragment: &'a FragmentDefinition,
         spread_paths: &mut Vec<&'a FragmentSpread>,
         spread_path_index_by_name: &mut HashMap<String, usize>,
-        known_fragments: &'a HashMap<String, FragmentDefinition>,
+        known_fragments: &'a HashMap<&'a str, &'a FragmentDefinition>,
         error_context: &mut ValidationErrorContext,
     ) {
         if self.visited_fragments.contains(&fragment.name) {
@@ -53,7 +53,7 @@ impl NoFragmentsCycle {
 
             match spread_path_index_by_name.get(&spread_name) {
                 None => {
-                    if let Some(spread_def) = known_fragments.get(&spread_name) {
+                    if let Some(spread_def) = known_fragments.get(spread_name.as_str()) {
                         self.detect_cycles(
                             spread_def,
                             spread_paths,

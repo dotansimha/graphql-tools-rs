@@ -14,7 +14,7 @@ use super::{
 pub struct OperationVisitorContext<'a> {
     pub schema: &'a schema::Document,
     pub operation: &'a query::Document,
-    pub known_fragments: HashMap<String, FragmentDefinition>,
+    pub known_fragments: HashMap<&'a str, &'a FragmentDefinition>,
     pub directives: HashMap<String, schema::DirectiveDefinition>,
 
     type_stack: Vec<Option<&'a schema::TypeDefinition>>,
@@ -36,14 +36,12 @@ impl<'a> OperationVisitorContext<'a> {
             type_literal_stack: vec![],
             input_type_literal_stack: vec![],
             field_stack: vec![],
-            known_fragments: HashMap::<String, FragmentDefinition>::from_iter(
-                operation.definitions.iter().filter_map(|def| match def {
-                    Definition::Fragment(fragment) => {
-                        Some((fragment.name.clone(), fragment.clone()))
-                    }
+            known_fragments: HashMap::from_iter(operation.definitions.iter().filter_map(|def| {
+                match def {
+                    Definition::Fragment(fragment) => Some((fragment.name.as_str(), fragment)),
                     _ => None,
-                }),
-            ),
+                }
+            })),
             directives: HashMap::<String, schema::DirectiveDefinition>::from_iter(
                 schema.definitions.iter().filter_map(|def| match def {
                     schema::Definition::DirectiveDefinition(directive_def) => {
@@ -325,7 +323,7 @@ fn visit_variable_definitions<'a, Visitor, UserContext>(
 
 fn visit_selection<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    selection: &Selection,
+    selection: &'a Selection,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -404,7 +402,7 @@ fn visit_selection<'a, Visitor, UserContext>(
 
 fn visit_selection_set<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    selection_set: &SelectionSet,
+    selection_set: &'a SelectionSet,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -571,7 +569,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &FragmentSpread,
+        _: &'a FragmentSpread,
     ) {
     }
     fn leave_fragment_spread(

@@ -92,7 +92,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpread
     ) {
         if let Some(actual_fragment) = visitor_context
             .known_fragments
-            .get(&fragment_spread.fragment_name)
+            .get(fragment_spread.fragment_name.as_str())
         {
             let TypeCondition::On(fragment_type_name) = &actual_fragment.type_condition;
 

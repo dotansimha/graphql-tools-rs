@@ -26,7 +26,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownFragmentNames {
     ) {
         match visitor_context
             .known_fragments
-            .get(&fragment_spread.fragment_name)
+            .get(fragment_spread.fragment_name.as_str())
         {
             None => user_context.report_error(ValidationError {
                 locations: vec![fragment_spread.position],
