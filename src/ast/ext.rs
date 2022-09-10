@@ -261,7 +261,7 @@ impl SchemaDocumentExtension for schema::Document {
 }
 
 pub trait TypeExtension {
-    fn inner_type(&self) -> String;
+    fn inner_type(&self) -> &str;
     fn is_non_null(&self) -> bool;
     fn is_list_type(&self) -> bool;
     fn is_named_type(&self) -> bool;
@@ -269,9 +269,9 @@ pub trait TypeExtension {
 }
 
 impl TypeExtension for Type {
-    fn inner_type(&self) -> String {
+    fn inner_type(&self) -> &str {
         match self {
-            Type::NamedType(name) => name.clone(),
+            Type::NamedType(name) => name.as_str(),
             Type::ListType(child) => child.inner_type(),
             Type::NonNullType(child) => child.inner_type(),
         }

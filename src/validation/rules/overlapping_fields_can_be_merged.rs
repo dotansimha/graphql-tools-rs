@@ -486,9 +486,9 @@ impl OverlappingFieldsCanBeMerged {
         &mut self,
         schema: &SchemaDocument,
         mutually_exclusive: bool,
-        parent_type_name1: Option<String>,
+        parent_type_name1: Option<&str>,
         selection_set1: &SelectionSet,
-        parent_type_name2: Option<String>,
+        parent_type_name2: Option<&str>,
         selection_set2: &SelectionSet,
         visited_fragments: &mut Vec<String>,
     ) -> Vec<Conflict> {
