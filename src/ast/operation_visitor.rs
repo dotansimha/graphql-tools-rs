@@ -236,7 +236,7 @@ fn visit_arguments<'a, Visitor, UserContext>(
 
 fn visit_input_value<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    input_value: &Value,
+    input_value: &'a Value,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -644,7 +644,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &String,
+        _: &'a str,
     ) {
     }
     fn leave_variable_value(
