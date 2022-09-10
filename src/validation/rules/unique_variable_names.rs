@@ -13,11 +13,11 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// A GraphQL operation is only valid if all its variables are uniquely named.
 ///
 /// See https://spec.graphql.org/draft/#sec-Variable-Uniqueness
-pub struct UniqueVariableNames {
-    found_records: HashMap<String, Pos>,
+pub struct UniqueVariableNames<'a> {
+    found_records: HashMap<&'a str, Pos>,
 }
 
-impl UniqueVariableNames {
+impl<'a> UniqueVariableNames<'a> {
     pub fn new() -> Self {
         UniqueVariableNames {
             found_records: HashMap::new(),
@@ -25,7 +25,7 @@ impl UniqueVariableNames {
     }
 }
 
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueVariableNames {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueVariableNames<'a> {
     fn enter_operation_definition(
         &mut self,
         _: &mut OperationVisitorContext,
@@ -39,9 +39,9 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueVariableNames {
         &mut self,
         _: &mut OperationVisitorContext,
         user_context: &mut ValidationErrorContext,
-        variable_definition: &VariableDefinition,
+        variable_definition: &'a VariableDefinition,
     ) {
-        match self.found_records.entry(variable_definition.name.clone()) {
+        match self.found_records.entry(&variable_definition.name) {
             Entry::Occupied(entry) => user_context.report_error(ValidationError {
                 locations: vec![*entry.get(), variable_definition.position],
                 message: format!(
@@ -56,7 +56,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueVariableNames {
     }
 }
 
-impl ValidationRule for UniqueVariableNames {
+impl<'v> ValidationRule for UniqueVariableNames<'v> {
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,
