@@ -14,15 +14,15 @@ use super::{
 pub struct OperationVisitorContext<'a> {
     pub schema: &'a schema::Document,
     pub operation: &'a query::Document,
-    pub known_fragments: HashMap<String, FragmentDefinition>,
+    pub known_fragments: HashMap<&'a str, &'a FragmentDefinition>,
     pub directives: HashMap<String, schema::DirectiveDefinition>,
 
-    type_stack: Vec<Option<schema::TypeDefinition>>,
-    parent_type_stack: Vec<Option<schema::TypeDefinition>>,
-    input_type_stack: Vec<Option<schema::TypeDefinition>>,
+    type_stack: Vec<Option<&'a schema::TypeDefinition>>,
+    parent_type_stack: Vec<Option<&'a schema::TypeDefinition>>,
+    input_type_stack: Vec<Option<&'a schema::TypeDefinition>>,
     type_literal_stack: Vec<Option<Type>>,
-    input_type_literal_stack: Vec<Option<Type>>,
-    field_stack: Vec<Option<schema::Field>>,
+    input_type_literal_stack: Vec<Option<&'a Type>>,
+    field_stack: Vec<Option<&'a schema::Field>>,
 }
 
 impl<'a> OperationVisitorContext<'a> {
@@ -36,14 +36,12 @@ impl<'a> OperationVisitorContext<'a> {
             type_literal_stack: vec![],
             input_type_literal_stack: vec![],
             field_stack: vec![],
-            known_fragments: HashMap::<String, FragmentDefinition>::from_iter(
-                operation.definitions.iter().filter_map(|def| match def {
-                    Definition::Fragment(fragment) => {
-                        Some((fragment.name.clone(), fragment.clone()))
-                    }
+            known_fragments: HashMap::from_iter(operation.definitions.iter().filter_map(|def| {
+                match def {
+                    Definition::Fragment(fragment) => Some((fragment.name.as_str(), fragment)),
                     _ => None,
-                }),
-            ),
+                }
+            })),
             directives: HashMap::<String, schema::DirectiveDefinition>::from_iter(
                 schema.definitions.iter().filter_map(|def| match def {
                     schema::Definition::DirectiveDefinition(directive_def) => {
@@ -55,18 +53,18 @@ impl<'a> OperationVisitorContext<'a> {
         }
     }
 
-    pub fn with_type<Func>(&mut self, t: Option<Type>, func: Func)
+    pub fn with_type<Func>(&mut self, t: Option<&Type>, func: Func)
     where
         Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
     {
-        if let Some(ref t) = t {
+        if let Some(t) = t {
             self.type_stack
                 .push(self.schema.type_by_name(&t.inner_type()));
         } else {
             self.type_stack.push(None);
         }
 
-        self.type_literal_stack.push(t);
+        self.type_literal_stack.push(t.cloned());
         func(self);
         self.type_literal_stack.pop();
         self.type_stack.pop();
@@ -82,12 +80,13 @@ impl<'a> OperationVisitorContext<'a> {
         self.parent_type_stack.pop();
     }
 
-    pub fn with_field<Func>(&mut self, f: Option<schema::Field>, func: Func)
+    pub fn with_field<'f, Func>(&mut self, f: Option<&'f schema::Field>, func: Func)
     where
         Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
+        'f: 'a,
     {
-        if let Some(ref f) = f {
-            self.field_stack.push(Some(f.clone()));
+        if let Some(f) = f {
+            self.field_stack.push(Some(f));
         } else {
             self.field_stack.push(None);
         }
@@ -96,7 +95,7 @@ impl<'a> OperationVisitorContext<'a> {
         self.field_stack.pop();
     }
 
-    pub fn with_input_type<Func>(&mut self, t: Option<Type>, func: Func)
+    pub fn with_input_type<Func>(&mut self, t: Option<&'a Type>, func: Func)
     where
         Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
     {
@@ -114,36 +113,33 @@ impl<'a> OperationVisitorContext<'a> {
     }
 
     pub fn current_type(&self) -> Option<&schema::TypeDefinition> {
-        self.type_stack.last().unwrap_or(&None).as_ref()
+        self.type_stack.last().unwrap_or(&None).as_deref()
     }
 
     pub fn current_input_type(&self) -> Option<&schema::TypeDefinition> {
-        self.input_type_stack.last().unwrap_or(&None).as_ref()
+        self.input_type_stack.last().unwrap_or(&None).as_deref()
     }
 
-    pub fn current_parent_type(&self) -> Option<&schema::TypeDefinition> {
-        self.parent_type_stack.last().unwrap_or(&None).as_ref()
+    pub fn current_parent_type(&self) -> Option<&'a schema::TypeDefinition> {
+        *self.parent_type_stack.last().unwrap_or(&None)
     }
 
     pub fn current_type_literal(&self) -> Option<&Type> {
         self.type_literal_stack.last().unwrap_or(&None).as_ref()
     }
 
-    pub fn current_input_type_literal(&self) -> Option<&Type> {
-        self.input_type_literal_stack
-            .last()
-            .unwrap_or(&None)
-            .as_ref()
+    pub fn current_input_type_literal(&self) -> Option<&'a Type> {
+        *self.input_type_literal_stack.last().unwrap_or(&None)
     }
 
     pub fn current_field(&self) -> Option<&schema::Field> {
-        self.field_stack.last().unwrap_or(&None).as_ref()
+        self.field_stack.last().unwrap_or(&None).as_deref()
     }
 }
 
 pub fn visit_document<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    document: &Document,
+    document: &'a Document,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -156,7 +152,7 @@ pub fn visit_document<'a, Visitor, UserContext>(
 
 fn visit_definitions<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    definitions: &Vec<Definition>,
+    definitions: &'a Vec<Definition>,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -166,37 +162,33 @@ fn visit_definitions<'a, Visitor, UserContext>(
         let schema_type_name = match definition {
             Definition::Fragment(fragment) => {
                 let TypeCondition::On(name) = &fragment.type_condition;
-                Some(name.clone())
+                Some(name)
             }
             Definition::Operation(operation) => match operation {
-                OperationDefinition::Query(_) => Some(context.schema.query_type().name.clone()),
-                OperationDefinition::SelectionSet(_) => {
-                    Some(context.schema.query_type().name.clone())
-                }
-                OperationDefinition::Mutation(_) => context.schema.mutation_type().map(|t| t.name),
+                OperationDefinition::Query(_) => Some(&context.schema.query_type().name),
+                OperationDefinition::SelectionSet(_) => Some(&context.schema.query_type().name),
+                OperationDefinition::Mutation(_) => context.schema.mutation_type().map(|t| &t.name),
                 OperationDefinition::Subscription(_) => {
-                    context.schema.subscription_type().map(|t| t.name)
+                    context.schema.subscription_type().map(|t| &t.name)
                 }
             },
         };
 
-        context.with_type(
-            schema_type_name.map(|v| Type::NamedType(v)),
-            |context| match definition {
-                Definition::Fragment(fragment) => {
-                    visit_fragment_definition(visitor, fragment, context, user_context)
-                }
-                Definition::Operation(operation) => {
-                    visit_operation_definition(visitor, operation, context, user_context)
-                }
-            },
-        );
+        let schema_type = schema_type_name.map(|v| Type::NamedType(v.clone()));
+        context.with_type(schema_type.as_ref(), |context| match definition {
+            Definition::Fragment(fragment) => {
+                visit_fragment_definition(visitor, fragment, context, user_context)
+            }
+            Definition::Operation(operation) => {
+                visit_operation_definition(visitor, operation, context, user_context)
+            }
+        });
     }
 }
 
 fn visit_directives<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    directives: &[Directive],
+    directives: &'a [Directive],
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -206,12 +198,12 @@ fn visit_directives<'a, Visitor, UserContext>(
         let directive_def_args = context
             .schema
             .directive_by_name(&directive.name)
-            .map(|def| def.arguments);
+            .map(|def| &def.arguments);
 
         visitor.enter_directive(context, user_context, directive);
         visit_arguments(
             visitor,
-            directive_def_args.as_ref(),
+            directive_def_args,
             &directive.arguments,
             context,
             user_context,
@@ -222,8 +214,8 @@ fn visit_directives<'a, Visitor, UserContext>(
 
 fn visit_arguments<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    arguments_definition: Option<&Vec<schema::InputValue>>,
-    arguments: &Vec<(String, Value)>,
+    arguments_definition: Option<&'a Vec<schema::InputValue>>,
+    arguments: &'a Vec<(String, Value)>,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -232,7 +224,7 @@ fn visit_arguments<'a, Visitor, UserContext>(
     for argument in arguments {
         let arg_type = arguments_definition
             .and_then(|argument_defs| argument_defs.iter().find(|a| a.name.eq(&argument.0)))
-            .map(|a| a.value_type.clone());
+            .map(|a| &a.value_type);
 
         context.with_input_type(arg_type, |context| {
             visitor.enter_argument(context, user_context, argument);
@@ -244,7 +236,7 @@ fn visit_arguments<'a, Visitor, UserContext>(
 
 fn visit_input_value<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    input_value: &Value,
+    input_value: &'a Value,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -267,7 +259,7 @@ fn visit_input_value<'a, Visitor, UserContext>(
             visitor.enter_list_value(context, user_context, v);
 
             let input_type = context.current_input_type_literal().and_then(|t| match t {
-                Type::ListType(inner_type) => Some(inner_type.as_ref().clone()),
+                Type::ListType(inner_type) => Some(inner_type.as_ref()),
                 _ => None,
             });
 
@@ -287,7 +279,7 @@ fn visit_input_value<'a, Visitor, UserContext>(
                     .current_input_type_literal()
                     .and_then(|v| context.schema.type_by_name(&v.inner_type()))
                     .and_then(|v| v.input_field_by_name(&sub_key))
-                    .and_then(|v| Some(v.value_type));
+                    .and_then(|v| Some(&v.value_type));
 
                 context.with_input_type(input_type, |context| {
                     let param = &(sub_key.clone(), sub_value.clone());
@@ -308,14 +300,14 @@ fn visit_input_value<'a, Visitor, UserContext>(
 
 fn visit_variable_definitions<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    variables: &[VariableDefinition],
+    variables: &'a [VariableDefinition],
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
     Visitor: OperationVisitor<'a, UserContext>,
 {
     for variable in variables {
-        context.with_input_type(Some(variable.var_type.clone()), |context| {
+        context.with_input_type(Some(&variable.var_type), |context| {
             visitor.enter_variable_definition(context, user_context, variable);
 
             if let Some(default_value) = &variable.default_value {
@@ -331,7 +323,7 @@ fn visit_variable_definitions<'a, Visitor, UserContext>(
 
 fn visit_selection<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    selection: &Selection,
+    selection: &'a Selection,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -343,8 +335,8 @@ fn visit_selection<'a, Visitor, UserContext>(
                 .current_parent_type()
                 .and_then(|t| t.field_by_name(&field.name));
 
-            let field_type = parent_type_def.clone().map(|f| f.field_type);
-            let field_args = parent_type_def.map(|f| f.arguments);
+            let field_type = parent_type_def.clone().map(|f| &f.field_type);
+            let field_args = parent_type_def.map(|f| &f.arguments);
 
             context.with_type(field_type, |context| {
                 visitor.enter_field(context, user_context, field);
@@ -355,7 +347,7 @@ fn visit_selection<'a, Visitor, UserContext>(
                     |context| {
                         visit_arguments(
                             visitor,
-                            field_args.as_ref(),
+                            field_args,
                             &field.arguments,
                             context,
                             user_context,
@@ -375,7 +367,7 @@ fn visit_selection<'a, Visitor, UserContext>(
         Selection::InlineFragment(inline_fragment) => {
             if let Some(TypeCondition::On(fragment_condition)) = &inline_fragment.type_condition {
                 context.with_type(
-                    Some(Type::NamedType(fragment_condition.clone())),
+                    Some(&Type::NamedType(fragment_condition.clone())),
                     |context| {
                         visitor.enter_inline_fragment(context, user_context, inline_fragment);
                         visit_directives(
@@ -410,7 +402,7 @@ fn visit_selection<'a, Visitor, UserContext>(
 
 fn visit_selection_set<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    selection_set: &SelectionSet,
+    selection_set: &'a SelectionSet,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -429,7 +421,7 @@ fn visit_selection_set<'a, Visitor, UserContext>(
 
 fn visit_fragment_definition<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    fragment: &FragmentDefinition,
+    fragment: &'a FragmentDefinition,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -443,7 +435,7 @@ fn visit_fragment_definition<'a, Visitor, UserContext>(
 
 fn visit_operation_definition<'a, Visitor, UserContext>(
     visitor: &mut Visitor,
-    operation: &OperationDefinition,
+    operation: &'a OperationDefinition,
     context: &mut OperationVisitorContext<'a>,
     user_context: &mut UserContext,
 ) where
@@ -467,7 +459,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &Document,
+        _: &'a Document,
     ) {
     }
     fn leave_document(
@@ -482,7 +474,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &OperationDefinition,
+        _: &'a OperationDefinition,
     ) {
     }
     fn leave_operation_definition(
@@ -497,7 +489,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &FragmentDefinition,
+        _: &'a FragmentDefinition,
     ) {
     }
     fn leave_fragment_definition(
@@ -512,7 +504,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &VariableDefinition,
+        _: &'a VariableDefinition,
     ) {
     }
     fn leave_variable_definition(
@@ -542,7 +534,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &(String, Value),
+        _: &'a (String, Value),
     ) {
     }
     fn leave_argument(
@@ -557,7 +549,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &SelectionSet,
+        _: &'a SelectionSet,
     ) {
     }
     fn leave_selection_set(
@@ -577,7 +569,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &FragmentSpread,
+        _: &'a FragmentSpread,
     ) {
     }
     fn leave_fragment_spread(
@@ -652,7 +644,7 @@ pub trait OperationVisitor<'a, UserContext = ()> {
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut UserContext,
-        _: &String,
+        _: &'a str,
     ) {
     }
     fn leave_variable_value(

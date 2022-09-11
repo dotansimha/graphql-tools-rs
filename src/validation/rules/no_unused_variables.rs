@@ -13,14 +13,14 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// are used, either directly or within a spread fragment.
 ///
 /// See https://spec.graphql.org/draft/#sec-All-Variables-Used
-pub struct NoUnusedVariables {
-    current_scope: Option<Scope>,
-    defined_variables: HashMap<Option<String>, HashSet<String>>,
-    used_variables: HashMap<Scope, Vec<String>>,
-    spreads: HashMap<Scope, Vec<String>>,
+pub struct NoUnusedVariables<'a> {
+    current_scope: Option<Scope<'a>>,
+    defined_variables: HashMap<Option<&'a str>, HashSet<&'a str>>,
+    used_variables: HashMap<Scope<'a>, Vec<&'a str>>,
+    spreads: HashMap<Scope<'a>, Vec<&'a str>>,
 }
 
-impl NoUnusedVariables {
+impl<'a> NoUnusedVariables<'a> {
     pub fn new() -> Self {
         Self {
             current_scope: None,
@@ -31,13 +31,13 @@ impl NoUnusedVariables {
     }
 }
 
-impl NoUnusedVariables {
+impl<'a> NoUnusedVariables<'a> {
     fn find_used_vars(
         &self,
-        from: &Scope,
-        defined: &HashSet<String>,
-        used: &mut HashSet<String>,
-        visited: &mut HashSet<Scope>,
+        from: &Scope<'a>,
+        defined: &HashSet<&str>,
+        used: &mut HashSet<&'a str>,
+        visited: &mut HashSet<Scope<'a>>,
     ) {
         if visited.contains(from) {
             return;
@@ -48,34 +48,34 @@ impl NoUnusedVariables {
         if let Some(used_vars) = self.used_variables.get(from) {
             for var in used_vars {
                 if defined.contains(var) {
-                    used.insert(var.clone());
+                    used.insert(var);
                 }
             }
         }
 
         if let Some(spreads) = self.spreads.get(from) {
             for spread in spreads {
-                self.find_used_vars(&Scope::Fragment(spread.clone()), defined, used, visited);
+                self.find_used_vars(&Scope::Fragment(spread), defined, used, visited);
             }
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Scope {
-    Operation(Option<String>),
-    Fragment(String),
+pub enum Scope<'a> {
+    Operation(Option<&'a str>),
+    Fragment(&'a str),
 }
 
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> {
     fn enter_operation_definition(
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        operation_definition: &OperationDefinition,
+        operation_definition: &'a OperationDefinition,
     ) {
         let op_name = operation_definition.node_name();
-        self.current_scope = Some(Scope::Operation(op_name.clone()));
+        self.current_scope = Some(Scope::Operation(op_name));
         self.defined_variables.insert(op_name, HashSet::new());
     }
 
@@ -83,22 +83,22 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables {
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        fragment_definition: &query::FragmentDefinition,
+        fragment_definition: &'a query::FragmentDefinition,
     ) {
-        self.current_scope = Some(Scope::Fragment(fragment_definition.name.clone()));
+        self.current_scope = Some(Scope::Fragment(&fragment_definition.name));
     }
 
     fn enter_fragment_spread(
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        fragment_spread: &query::FragmentSpread,
+        fragment_spread: &'a query::FragmentSpread,
     ) {
         if let Some(scope) = &self.current_scope {
             self.spreads
                 .entry(scope.clone())
                 .or_insert_with(Vec::new)
-                .push(fragment_spread.fragment_name.clone());
+                .push(&fragment_spread.fragment_name);
         }
     }
 
@@ -106,11 +106,11 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables {
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        variable_definition: &query::VariableDefinition,
+        variable_definition: &'a query::VariableDefinition,
     ) {
         if let Some(Scope::Operation(ref name)) = self.current_scope {
             if let Some(vars) = self.defined_variables.get_mut(name) {
-                vars.insert(variable_definition.name.clone());
+                vars.insert(&variable_definition.name);
             }
         }
     }
@@ -119,7 +119,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables {
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        (_arg_name, arg_value): &(String, query::Value),
+        (_arg_name, arg_value): &'a (String, query::Value),
     ) {
         if let Some(ref scope) = self.current_scope {
             self.used_variables
@@ -151,7 +151,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables {
                 .filter(|var| !used.contains(*var))
                 .for_each(|var| {
                     user_context.report_error(ValidationError {
-                        message: error_message(&var, op_name),
+                        message: error_message(var, op_name),
                         locations: vec![],
                     })
                 })
@@ -159,7 +159,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables {
     }
 }
 
-fn error_message(var_name: &String, op_name: &Option<String>) -> String {
+fn error_message(var_name: &str, op_name: &Option<&str>) -> String {
     if let Some(op_name) = op_name {
         format!(
             r#"Variable "${}" is never used in operation "{}"."#,
@@ -170,7 +170,7 @@ fn error_message(var_name: &String, op_name: &Option<String>) -> String {
     }
 }
 
-impl ValidationRule for NoUnusedVariables {
+impl<'n> ValidationRule for NoUnusedVariables<'n> {
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

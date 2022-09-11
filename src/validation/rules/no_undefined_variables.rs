@@ -12,14 +12,14 @@ use std::collections::{HashMap, HashSet};
 /// and via fragment spreads, are defined by that operation.
 ///
 /// See https://spec.graphql.org/draft/#sec-All-Variable-Uses-Defined
-pub struct NoUndefinedVariables {
-    current_scope: Option<Scope>,
-    defined_variables: HashMap<Option<String>, HashSet<String>>,
-    used_variables: HashMap<Scope, Vec<String>>,
-    spreads: HashMap<Scope, Vec<String>>,
+pub struct NoUndefinedVariables<'a> {
+    current_scope: Option<Scope<'a>>,
+    defined_variables: HashMap<Option<&'a str>, HashSet<&'a str>>,
+    used_variables: HashMap<Scope<'a>, Vec<&'a str>>,
+    spreads: HashMap<Scope<'a>, Vec<&'a str>>,
 }
 
-impl NoUndefinedVariables {
+impl<'a> NoUndefinedVariables<'a> {
     pub fn new() -> Self {
         Self {
             current_scope: None,
@@ -30,13 +30,13 @@ impl NoUndefinedVariables {
     }
 }
 
-impl NoUndefinedVariables {
+impl<'a> NoUndefinedVariables<'a> {
     fn find_undefined_vars(
         &self,
-        from: &Scope,
-        defined: &HashSet<String>,
-        unused: &mut HashSet<String>,
-        visited: &mut HashSet<Scope>,
+        from: &Scope<'a>,
+        defined: &HashSet<&str>,
+        unused: &mut HashSet<&'a str>,
+        visited: &mut HashSet<Scope<'a>>,
     ) {
         if visited.contains(from) {
             return;
@@ -46,40 +46,35 @@ impl NoUndefinedVariables {
 
         if let Some(used_vars) = self.used_variables.get(from) {
             for var in used_vars {
-                if !defined.contains(var) {
-                    unused.insert(var.clone());
+                if !defined.contains(*var) {
+                    unused.insert(*var);
                 }
             }
         }
 
         if let Some(spreads) = self.spreads.get(from) {
             for spread in spreads {
-                self.find_undefined_vars(
-                    &Scope::Fragment(spread.clone()),
-                    defined,
-                    unused,
-                    visited,
-                );
+                self.find_undefined_vars(&Scope::Fragment(spread), defined, unused, visited);
             }
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Scope {
-    Operation(Option<String>),
-    Fragment(String),
+pub enum Scope<'a> {
+    Operation(Option<&'a str>),
+    Fragment(&'a str),
 }
 
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables<'a> {
     fn enter_operation_definition(
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        operation_definition: &OperationDefinition,
+        operation_definition: &'a OperationDefinition,
     ) {
         let op_name = operation_definition.node_name();
-        self.current_scope = Some(Scope::Operation(op_name.clone()));
+        self.current_scope = Some(Scope::Operation(op_name));
         self.defined_variables.insert(op_name, HashSet::new());
     }
 
@@ -87,22 +82,22 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        fragment_definition: &query::FragmentDefinition,
+        fragment_definition: &'a query::FragmentDefinition,
     ) {
-        self.current_scope = Some(Scope::Fragment(fragment_definition.name.clone()));
+        self.current_scope = Some(Scope::Fragment(&fragment_definition.name));
     }
 
     fn enter_fragment_spread(
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        fragment_spread: &query::FragmentSpread,
+        fragment_spread: &'a query::FragmentSpread,
     ) {
         if let Some(scope) = &self.current_scope {
             self.spreads
                 .entry(scope.clone())
                 .or_insert_with(Vec::new)
-                .push(fragment_spread.fragment_name.clone());
+                .push(&fragment_spread.fragment_name);
         }
     }
 
@@ -110,11 +105,11 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        variable_definition: &query::VariableDefinition,
+        variable_definition: &'a query::VariableDefinition,
     ) {
         if let Some(Scope::Operation(ref name)) = self.current_scope {
             if let Some(vars) = self.defined_variables.get_mut(name) {
-                vars.insert(variable_definition.name.clone());
+                vars.insert(&variable_definition.name);
             }
         }
     }
@@ -123,7 +118,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        (_arg_name, arg_value): &(String, query::Value),
+        (_arg_name, arg_value): &'a (String, query::Value),
     ) {
         if let Some(ref scope) = self.current_scope {
             self.used_variables
@@ -145,7 +140,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
 
             self.find_undefined_vars(
                 &Scope::Operation(op_name.clone()),
-                &def_vars,
+                def_vars,
                 &mut unused,
                 &mut visited,
             );
@@ -160,7 +155,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables {
     }
 }
 
-fn error_message(var_name: &String, op_name: &Option<String>) -> String {
+fn error_message(var_name: &str, op_name: &Option<&str>) -> String {
     if let Some(op_name) = op_name {
         format!(
             r#"Variable "${}" is not defined by operation "{}"."#,
@@ -171,7 +166,7 @@ fn error_message(var_name: &String, op_name: &Option<String>) -> String {
     }
 }
 
-impl ValidationRule for NoUndefinedVariables {
+impl<'n> ValidationRule for NoUndefinedVariables<'n> {
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

@@ -9,19 +9,19 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// within operations, or spread within other fragments spread within operations.
 ///
 /// See https://spec.graphql.org/draft/#sec-Fragments-Must-Be-Used
-pub struct NoUnusedFragments {
-    fragments_in_use: Vec<String>,
+pub struct NoUnusedFragments<'a> {
+    fragments_in_use: Vec<&'a str>,
 }
 
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedFragments {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedFragments<'a> {
     fn enter_fragment_spread(
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        fragment_spread: &FragmentSpread,
+        fragment_spread: &'a FragmentSpread,
     ) {
         self.fragments_in_use
-            .push(fragment_spread.fragment_name.clone());
+            .push(fragment_spread.fragment_name.as_str());
     }
 
     fn leave_document(
@@ -49,7 +49,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedFragments {
     }
 }
 
-impl NoUnusedFragments {
+impl<'a> NoUnusedFragments<'a> {
     pub fn new() -> Self {
         NoUnusedFragments {
             fragments_in_use: Vec::new(),
@@ -57,7 +57,7 @@ impl NoUnusedFragments {
     }
 }
 
-impl ValidationRule for NoUnusedFragments {
+impl<'n> ValidationRule for NoUnusedFragments<'n> {
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

@@ -9,7 +9,7 @@ use crate::static_graphql::{
 pub fn collect_fields<'a>(
     selection_set: &query::SelectionSet,
     parent_type: &schema::TypeDefinition,
-    known_fragments: &HashMap<String, query::FragmentDefinition>,
+    known_fragments: &HashMap<&str, &query::FragmentDefinition>,
     context: &'a OperationVisitorContext<'a>,
 ) -> HashMap<String, Vec<query::Field>> {
     let mut map = HashMap::new();
@@ -36,7 +36,7 @@ fn does_fragment_condition_match<'a>(
         if let Some(conditional_type) = context.schema.type_by_name(type_name) {
             if conditional_type
                 .name()
-                .eq(&current_selection_set_type.name())
+                .eq(current_selection_set_type.name())
             {
                 return true;
             }
@@ -63,7 +63,7 @@ fn does_fragment_condition_match<'a>(
 fn collect_fields_inner<'a>(
     selection_set: &query::SelectionSet,
     parent_type: &schema::TypeDefinition,
-    known_fragments: &HashMap<String, query::FragmentDefinition>,
+    known_fragments: &HashMap<&str, &query::FragmentDefinition>,
     context: &'a OperationVisitorContext<'a>,
     result_arr: &mut HashMap<String, Vec<query::Field>>,
     visited_fragments_names: &mut Vec<String>,
@@ -93,7 +93,7 @@ fn collect_fields_inner<'a>(
             {
                 visited_fragments_names.push(f.fragment_name.clone());
 
-                if let Some(fragment) = known_fragments.get(&f.fragment_name) {
+                if let Some(fragment) = known_fragments.get(f.fragment_name.as_str()) {
                     if does_fragment_condition_match(
                         &Some(fragment.type_condition.clone()),
                         &parent_type,

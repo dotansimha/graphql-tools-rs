@@ -10,37 +10,37 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// A GraphQL document is only valid if all defined operations have unique names.
 ///
 /// See https://spec.graphql.org/draft/#sec-Operation-Name-Uniqueness
-pub struct UniqueOperationNames {
-    findings_counter: HashMap<String, i32>,
+pub struct UniqueOperationNames<'a> {
+    findings_counter: HashMap<&'a str, i32>,
 }
 
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueOperationNames {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueOperationNames<'a> {
     fn enter_operation_definition(
         &mut self,
         _: &mut OperationVisitorContext,
         _: &mut ValidationErrorContext,
-        operation_definition: &OperationDefinition,
+        operation_definition: &'a OperationDefinition,
     ) {
         if let Some(name) = operation_definition.node_name() {
-            self.store_finding(&name);
+            self.store_finding(name);
         }
     }
 }
 
-impl UniqueOperationNames {
+impl<'a> UniqueOperationNames<'a> {
     pub fn new() -> Self {
         Self {
             findings_counter: HashMap::new(),
         }
     }
 
-    fn store_finding(&mut self, name: &String) {
+    fn store_finding(&mut self, name: &'a str) {
         let value = *self.findings_counter.entry(name.clone()).or_insert(0);
         self.findings_counter.insert(name.clone(), value + 1);
     }
 }
 
-impl ValidationRule for UniqueOperationNames {
+impl<'u> ValidationRule for UniqueOperationNames<'u> {
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,
@@ -69,7 +69,7 @@ fn no_operations() {
     let mut plan = create_plan_from_rule(Box::new(UniqueOperationNames::new()));
     let errors = test_operation_with_schema(
         "fragment fragA on Type {
-          field 
+          field
         }",
         TEST_SCHEMA,
         &mut plan,

@@ -16,14 +16,14 @@ use super::ValidationRule;
 /// Variable usages must be compatible with the arguments they are passed to.
 ///
 /// See https://spec.graphql.org/draft/#sec-All-Variable-Usages-are-Allowed
-pub struct VariablesInAllowedPosition {
-    spreads: HashMap<Scope, HashSet<String>>,
-    variable_usages: HashMap<Scope, Vec<(String, Type)>>,
-    variable_defs: HashMap<Scope, Vec<VariableDefinition>>,
-    current_scope: Option<Scope>,
+pub struct VariablesInAllowedPosition<'a> {
+    spreads: HashMap<Scope<'a>, HashSet<&'a str>>,
+    variable_usages: HashMap<Scope<'a>, Vec<(&'a str, &'a Type)>>,
+    variable_defs: HashMap<Scope<'a>, Vec<&'a VariableDefinition>>,
+    current_scope: Option<Scope<'a>>,
 }
 
-impl VariablesInAllowedPosition {
+impl<'a> VariablesInAllowedPosition<'a> {
     pub fn new() -> Self {
         VariablesInAllowedPosition {
             spreads: HashMap::new(),
@@ -35,11 +35,11 @@ impl VariablesInAllowedPosition {
 
     fn collect_incorrect_usages(
         &self,
-        from: &Scope,
-        var_defs: &Vec<VariableDefinition>,
+        from: &Scope<'a>,
+        var_defs: &Vec<&VariableDefinition>,
         visitor_context: &mut OperationVisitorContext,
         user_context: &mut ValidationErrorContext,
-        visited: &mut HashSet<Scope>,
+        visited: &mut HashSet<Scope<'a>>,
     ) {
         if visited.contains(from) {
             return;
@@ -65,7 +65,7 @@ impl VariablesInAllowedPosition {
 
                     if !visitor_context.schema.is_subtype(&expected_type, var_type) {
                         user_context.report_error(ValidationError {
-                            message: format!("Variable \"${}\" of type \"{}\" used in position expecting type \"{}\".", 
+                            message: format!("Variable \"${}\" of type \"{}\" used in position expecting type \"{}\".",
                                 var_name,
                                 expected_type,
                                 var_type,
@@ -80,7 +80,7 @@ impl VariablesInAllowedPosition {
         if let Some(spreads) = self.spreads.get(from) {
             for spread in spreads {
                 self.collect_incorrect_usages(
-                    &Scope::Fragment(spread.clone()),
+                    &Scope::Fragment(spread),
                     var_defs,
                     visitor_context,
                     user_context,
@@ -92,12 +92,12 @@ impl VariablesInAllowedPosition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Scope {
-    Operation(Option<String>),
-    Fragment(String),
+pub enum Scope<'a> {
+    Operation(Option<&'a str>),
+    Fragment(&'a str),
 }
 
-impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosition {
+impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosition<'a> {
     fn leave_document(
         &mut self,
         visitor_context: &mut OperationVisitorContext<'a>,
@@ -119,16 +119,16 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut ValidationErrorContext,
-        fragment_definition: &crate::static_graphql::query::FragmentDefinition,
+        fragment_definition: &'a crate::static_graphql::query::FragmentDefinition,
     ) {
-        self.current_scope = Some(Scope::Fragment(fragment_definition.name.clone()));
+        self.current_scope = Some(Scope::Fragment(&fragment_definition.name));
     }
 
     fn enter_operation_definition(
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut ValidationErrorContext,
-        operation_definition: &crate::static_graphql::query::OperationDefinition,
+        operation_definition: &'a crate::static_graphql::query::OperationDefinition,
     ) {
         self.current_scope = Some(Scope::Operation(operation_definition.node_name()));
     }
@@ -137,13 +137,13 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut ValidationErrorContext,
-        fragment_spread: &crate::static_graphql::query::FragmentSpread,
+        fragment_spread: &'a crate::static_graphql::query::FragmentSpread,
     ) {
         if let Some(scope) = &self.current_scope {
             self.spreads
                 .entry(scope.clone())
                 .or_insert_with(HashSet::new)
-                .insert(fragment_spread.fragment_name.clone());
+                .insert(&fragment_spread.fragment_name);
         }
     }
 
@@ -151,13 +151,13 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         &mut self,
         _: &mut OperationVisitorContext<'a>,
         _: &mut ValidationErrorContext,
-        variable_definition: &VariableDefinition,
+        variable_definition: &'a VariableDefinition,
     ) {
         if let Some(ref scope) = self.current_scope {
             self.variable_defs
                 .entry(scope.clone())
                 .or_insert_with(Vec::new)
-                .push(variable_definition.clone());
+                .push(&variable_definition);
         }
     }
 
@@ -165,7 +165,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         &mut self,
         visitor_context: &mut OperationVisitorContext<'a>,
         _: &mut ValidationErrorContext,
-        variable_name: &String,
+        variable_name: &'a str,
     ) {
         if let (&Some(ref scope), Some(input_type)) = (
             &self.current_scope,
@@ -174,12 +174,12 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
             self.variable_usages
                 .entry(scope.clone())
                 .or_insert_with(Vec::new)
-                .push((variable_name.clone(), input_type.clone()));
+                .push((variable_name, input_type));
         }
     }
 }
 
-impl ValidationRule for VariablesInAllowedPosition {
+impl<'v> ValidationRule for VariablesInAllowedPosition<'v> {
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,
