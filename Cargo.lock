@@ -45,7 +45,7 @@ dependencies = [
 
 [[package]]
 name = "graphql-tools"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "graphql-parser",
  "lazy_static",
