@@ -39,7 +39,7 @@ impl ValuesOfCorrectType {
 
             if let Some(type_def) = visitor_context.schema.type_by_name(&named_type) {
                 if !type_def.is_leaf_type() {
-                    user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {error_code: self.error_code(),
                         message: format!(
                             "Expected value of type \"{}\", found {}.",
                             named_type, raw_value
@@ -62,7 +62,7 @@ impl ValuesOfCorrectType {
                                 return;
                             }
 
-                            user_context.report_error(ValidationError {
+                            user_context.report_error(ValidationError {error_code: self.error_code(),
                                 message: format!(
                                     "Expected value of type \"{}\", found {}.",
                                     expected, value
@@ -82,7 +82,7 @@ impl ValuesOfCorrectType {
                                 .find(|v| v.name.eq(enum_value))
                                 .is_none()
                             {
-                                user_context.report_error(ValidationError {
+                                user_context.report_error(ValidationError {error_code: self.error_code(),
                                     message: format!(
                                         "Value \"{}\" does not exist in \"{}\" enum.",
                                         enum_value, enum_type_def.name
@@ -91,7 +91,7 @@ impl ValuesOfCorrectType {
                                 })
                             }
                         }
-                        value => user_context.report_error(ValidationError {
+                        value => user_context.report_error(ValidationError {error_code: self.error_code(),
                             message: format!(
                                 "Enum \"{}\" cannot represent non-enum value: {}",
                                 enum_type_def.name, value
@@ -114,7 +114,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
     ) {
         if let Some(input_type) = visitor_context.current_input_type_literal() {
             if input_type.is_non_null() {
-                user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {error_code: self.error_code(),
                     message: format!("Expected value of type \"{}\", found null", input_type),
                     locations: vec![],
                 })
@@ -133,7 +133,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
         {
             input_object_def.fields.iter().for_each(|field| {
                 if field.is_required() && !object_value.contains_key(&field.name) {
-                    user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {error_code: self.error_code(),
                         message: format!(
                             "Field \"{}.{}\" of required type \"{}\" was not provided.",
                             input_object_def.name, field.name, field.value_type
@@ -150,7 +150,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
                     .find(|f| f.name.eq(field_name)))
                 .is_none()
                 {
-                    user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {error_code: self.error_code(),
                         message: format!(
                             "Field \"{}\" is not defined by type \"{}\".",
                             field_name, input_object_def.name
@@ -182,6 +182,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
 }
 
 impl ValidationRule for ValuesOfCorrectType {
+    fn error_code<'a>(&self) -> &'a str {
+        "ValuesOfCorrectType"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

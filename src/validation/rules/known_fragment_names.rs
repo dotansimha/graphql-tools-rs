@@ -28,7 +28,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownFragmentNames {
             .known_fragments
             .get(fragment_spread.fragment_name.as_str())
         {
-            None => user_context.report_error(ValidationError {
+            None => user_context.report_error(ValidationError {error_code: self.error_code(),
                 locations: vec![fragment_spread.position],
                 message: format!("Unknown fragment \"{}\".", fragment_spread.fragment_name),
             }),
@@ -38,6 +38,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownFragmentNames {
 }
 
 impl ValidationRule for KnownFragmentNames {
+    fn error_code<'a>(&self) -> &'a str {
+        "KnownFragmentNames"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

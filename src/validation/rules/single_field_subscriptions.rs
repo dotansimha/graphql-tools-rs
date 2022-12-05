@@ -49,7 +49,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptio
                                 .to_owned(),
                         };
 
-                        user_context.report_error(ValidationError {
+                        user_context.report_error(ValidationError {error_code: self.error_code(),
                             locations: vec![subscription.position],
                             message: error_message,
                         });
@@ -74,7 +74,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptio
                               .to_owned(),
                       };
 
-                      user_context.report_error(ValidationError {
+                      user_context.report_error(ValidationError {error_code: self.error_code(),
                         locations: vec![subscription.position],
                         message: error_message,
                     });
@@ -87,6 +87,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptio
 }
 
 impl ValidationRule for SingleFieldSubscriptions {
+    fn error_code<'a>(&self) -> &'a str {
+        "SingleFieldSubscriptions"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

@@ -41,6 +41,10 @@ impl<'a> UniqueOperationNames<'a> {
 }
 
 impl<'u> ValidationRule for UniqueOperationNames<'u> {
+    fn error_code<'a>(&self) -> &'a str {
+        "UniqueOperationNames"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,
@@ -54,7 +58,7 @@ impl<'u> ValidationRule for UniqueOperationNames<'u> {
             .into_iter()
             .filter(|(_key, value)| *value > 1)
             .for_each(|(key, _value)| {
-                error_collector.report_error(ValidationError {
+                error_collector.report_error(ValidationError {error_code: self.error_code(),
                     message: format!("There can be only one operation named \"{}\".", key),
                     locations: vec![],
                 })

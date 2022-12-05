@@ -32,7 +32,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesAreInputTypes
             .type_by_name(&variable_definition.var_type.inner_type())
         {
             if !var_schema_type.is_input_type() {
-                user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {error_code: self.error_code(),
                     message: format!(
                         "Variable \"${}\" cannot be non-input type \"{}\".",
                         variable_definition.name, variable_definition.var_type
@@ -45,6 +45,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesAreInputTypes
 }
 
 impl ValidationRule for VariablesAreInputTypes {
+    fn error_code<'a>(&self) -> &'a str {
+        "VariablesAreInputTypes"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

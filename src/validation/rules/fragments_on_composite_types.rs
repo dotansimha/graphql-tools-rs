@@ -33,6 +33,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FragmentsOnCompositeTy
                 if !gql_type.is_composite_type() {
                     user_context.report_error(ValidationError {
                         locations: vec![inline_fragment.position],
+                        error_code: self.error_code(),
                         message: format!(
                             "Fragment cannot condition on non composite type \"{}\".",
                             type_condition
@@ -55,6 +56,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FragmentsOnCompositeTy
             if !gql_type.is_composite_type() {
                 user_context.report_error(ValidationError {
                     locations: vec![fragment_definition.position],
+                    error_code: self.error_code(),
                     message: format!(
                         "Fragment \"{}\" cannot condition on non composite type \"{}\".",
                         fragment_definition.name, type_condition
@@ -66,6 +68,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FragmentsOnCompositeTy
 }
 
 impl ValidationRule for FragmentsOnCompositeTypes {
+    fn error_code<'a>(&self) -> &'a str {
+        "FragmentsOnCompositeTypes"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

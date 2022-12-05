@@ -20,4 +20,5 @@ impl ValidationErrorContext {
 pub struct ValidationError {
     pub locations: Vec<Pos>,
     pub message: String,
+    pub error_code: &'static str,
 }

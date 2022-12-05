@@ -31,7 +31,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
 
         if let None = visitor_context.schema.type_by_name(fragment_type_name) {
             if !fragment_type_name.starts_with("__") {
-                user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {error_code: self.error_code(),
                     locations: vec![fragment_definition.position],
                     message: format!("Unknown type \"{}\".", fragment_type_name),
                 });
@@ -48,7 +48,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
         if let Some(TypeCondition::On(fragment_type_name)) = &inline_fragment.type_condition {
             if let None = visitor_context.schema.type_by_name(fragment_type_name) {
                 if !fragment_type_name.starts_with("__") {
-                    user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {error_code: self.error_code(),
                         locations: vec![inline_fragment.position],
                         message: format!("Unknown type \"{}\".", fragment_type_name),
                     });
@@ -67,7 +67,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
 
         if let None = visitor_context.schema.type_by_name(&base_type) {
             if !base_type.starts_with("__") {
-                user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {error_code: self.error_code(),
                     locations: vec![variable_definition.position],
                     message: format!("Unknown type \"{}\".", base_type),
                 });
@@ -77,6 +77,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
 }
 
 impl ValidationRule for KnownTypeNames {
+    fn error_code<'a>(&self) -> &'a str {
+        "KnownTypeNames"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

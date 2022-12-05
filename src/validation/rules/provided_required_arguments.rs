@@ -34,7 +34,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ProvidedRequiredArgume
                     validate_arguments(&field.arguments, &field_def.arguments);
 
                 for missing in missing_required_args {
-                    user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {error_code: self.error_code(),
               locations: vec![field.position],
               message: format!("Field \"{}\" argument \"{}\" of type \"{}\" is required, but it was not provided.",
               field.name, missing.name, missing.value_type),
@@ -57,7 +57,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ProvidedRequiredArgume
                 validate_arguments(&directive.arguments, &directive_def.arguments);
 
             for missing in missing_required_args {
-                user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {error_code: self.error_code(),
               locations: vec![directive.position],
               message: format!("Directive \"@{}\" argument \"{}\" of type \"{}\" is required, but it was not provided.",
               directive.name, missing.name, missing.value_type),
@@ -89,6 +89,10 @@ fn validate_arguments<'a>(
 }
 
 impl ValidationRule for ProvidedRequiredArguments {
+    fn error_code<'a>(&self) -> &'a str {
+        "ProvidedRequiredArguments"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

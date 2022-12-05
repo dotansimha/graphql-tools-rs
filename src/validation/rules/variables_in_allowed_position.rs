@@ -65,6 +65,7 @@ impl<'a> VariablesInAllowedPosition<'a> {
 
                     if !visitor_context.schema.is_subtype(&expected_type, var_type) {
                         user_context.report_error(ValidationError {
+                          error_code: self.error_code(),
                             message: format!("Variable \"${}\" of type \"{}\" used in position expecting type \"{}\".",
                                 var_name,
                                 expected_type,
@@ -180,6 +181,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
 }
 
 impl<'v> ValidationRule for VariablesInAllowedPosition<'v> {
+    fn error_code<'a>(&self) -> &'a str {
+        "VariablesInAllowedPosition"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

@@ -75,6 +75,7 @@ fn cyclic_fragment_should_never_loop() {
     );
 
     let messages = get_messages(&errors);
+    assert_eq!(errors[0].error_code, "NoFragmentsCycle");
     assert_eq!(messages.len(), 1);
     assert_eq!(
         messages,

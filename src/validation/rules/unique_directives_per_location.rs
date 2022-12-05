@@ -35,7 +35,7 @@ impl UniqueDirectivesPerLocation {
             if let Some(meta_directive) = ctx.directives.get(&directive.name) {
                 if !meta_directive.repeatable {
                     if exists.contains(&directive.name) {
-                        err_context.report_error(ValidationError {
+                        err_context.report_error(ValidationError {error_code: self.error_code(),
                             locations: vec![directive.position],
                             message: format!("Duplicate directive \"{}\"", &directive.name),
                         });
@@ -98,6 +98,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueDirectivesPerLoc
 }
 
 impl ValidationRule for UniqueDirectivesPerLocation {
+    fn error_code<'a>(&self) -> &'a str {
+        "UniqueDirectivesPerLocation"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

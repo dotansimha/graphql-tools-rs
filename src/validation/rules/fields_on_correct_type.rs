@@ -32,6 +32,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
                 if let Selection::Field(field) = selection {
                     if field.name == "__typename" {
                         user_context.report_error(ValidationError {
+                          error_code: self.error_code(),
                           message: "`__typename` may not be included as a root field in a subscription operation".to_string(),
                           locations: vec![subscription.position],
                         });
@@ -57,6 +58,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
 
             if let None = parent_type.field_by_name(field_name) {
                 user_context.report_error(ValidationError {
+                    error_code: self.error_code(),
                     locations: vec![field.position],
                     message: format!(
                         "Cannot query field \"{}\" on type \"{}\".",
@@ -69,6 +71,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
 }
 
 impl ValidationRule for FieldsOnCorrectType {
+    fn error_code<'a>(&self) -> &'a str {
+        "FieldsOnCorrectType"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

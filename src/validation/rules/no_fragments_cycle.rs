@@ -73,7 +73,7 @@ impl NoFragmentsCycle {
                             .collect::<Vec<String>>(),
                     };
 
-                    error_context.report_error(ValidationError {
+                    error_context.report_error(ValidationError {error_code: self.error_code(),
                         locations: cycle_path.iter().map(|f| f.position.clone()).collect(),
                         message: match via_path.len() {
                             0 => {
@@ -117,6 +117,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoFragmentsCycle {
 }
 
 impl ValidationRule for NoFragmentsCycle {
+    fn error_code<'a>(&self) -> &'a str {
+        "NoFragmentsCycle"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

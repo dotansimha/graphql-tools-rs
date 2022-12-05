@@ -75,7 +75,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpread
                     && parent_type.is_composite_type()
                     && !do_types_overlap(&visitor_context.schema, frag_schema_type, &parent_type)
                 {
-                    user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {error_code: self.error_code(),
                       locations: vec![],
                       message: format!("Fragment cannot be spread here as objects of type \"{}\" can never be of type \"{}\".", parent_type.name(), frag_schema_type.name()),
                     })
@@ -102,7 +102,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpread
                         && parent_type.is_composite_type()
                         && !do_types_overlap(&visitor_context.schema, &fragment_type, &parent_type)
                     {
-                        user_context.report_error(ValidationError {
+                        user_context.report_error(ValidationError {error_code: self.error_code(),
                         locations: vec![],
                         message: format!("Fragment \"{}\" cannot be spread here as objects of type \"{}\" can never be of type \"{}\".", actual_fragment.name, parent_type.name(), fragment_type_name),
                       })
@@ -114,6 +114,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpread
 }
 
 impl ValidationRule for PossibleFragmentSpreads {
+    fn error_code<'a>(&self) -> &'a str {
+        "PossibleFragmentSpreads"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

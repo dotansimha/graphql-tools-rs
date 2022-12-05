@@ -97,6 +97,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownArgumentNames<'a>
                 match arg_position {
                     ArgumentParent::Field(field_name, type_name) => {
                         user_context.report_error(ValidationError {
+                          error_code: self.error_code(),  
                             message: format!(
                                 "Unknown argument \"{}\" on field \"{}.{}\".",
                                 argument_name,
@@ -108,6 +109,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownArgumentNames<'a>
                     }
                     ArgumentParent::Directive(directive_name) => {
                         user_context.report_error(ValidationError {
+                          error_code: self.error_code(),
                             message: format!(
                                 "Unknown argument \"{}\" on directive \"@{}\".",
                                 argument_name, directive_name
@@ -122,6 +124,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownArgumentNames<'a>
 }
 
 impl<'k> ValidationRule for KnownArgumentNames<'k> {
+    fn error_code<'a>(&self) -> &'a str {
+        "KnownArgumentNames"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

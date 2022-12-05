@@ -6,4 +6,6 @@ pub trait ValidationRule: Send + Sync {
         _ctx: &mut OperationVisitorContext<'a>,
         _error_collector: &mut ValidationErrorContext,
     ) -> ();
+
+    fn error_code<'a>(&self) -> &'a str;
 }

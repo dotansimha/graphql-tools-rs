@@ -150,7 +150,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> 
                 .iter()
                 .filter(|var| !used.contains(*var))
                 .for_each(|var| {
-                    user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {error_code: self.error_code(),
                         message: error_message(var, op_name),
                         locations: vec![],
                     })
@@ -171,6 +171,10 @@ fn error_message(var_name: &str, op_name: &Option<&str>) -> String {
 }
 
 impl<'n> ValidationRule for NoUnusedVariables<'n> {
+    fn error_code<'a>(&self) -> &'a str {
+        "NoUnusedVariables"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

@@ -32,7 +32,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LeafFieldSelections {
 
             if field_type.is_leaf_type() {
                 if field_selection_count > 0 {
-                    user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {error_code: self.error_code(),
                         locations: vec![field.position],
                         message: format!(
                   "Field \"{}\" must not have a selection since type \"{}\" has no subfields.",
@@ -43,7 +43,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LeafFieldSelections {
                 }
             } else {
                 if field_selection_count == 0 {
-                    user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {error_code: self.error_code(),
               locations: vec![field.position],
               message: format!(
                   "Field \"{}\" of type \"{}\" must have a selection of subfields. Did you mean \"{} {{ ... }}\"?",
@@ -59,6 +59,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LeafFieldSelections {
 }
 
 impl ValidationRule for LeafFieldSelections {
+    fn error_code<'a>(&self) -> &'a str {
+        "LeafFieldSelections"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

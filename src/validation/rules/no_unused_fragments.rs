@@ -41,7 +41,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedFragments<'a> 
                 }
             })
             .for_each(|unused_fragment_name| {
-                user_context.report_error(ValidationError {
+                user_context.report_error(ValidationError {error_code: self.error_code(),
                     locations: vec![],
                     message: format!("Fragment \"{}\" is never used.", unused_fragment_name),
                 });
@@ -58,6 +58,10 @@ impl<'a> NoUnusedFragments<'a> {
 }
 
 impl<'n> ValidationRule for NoUnusedFragments<'n> {
+    fn error_code<'a>(&self) -> &'a str {
+        "NoUnusedFragments"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,

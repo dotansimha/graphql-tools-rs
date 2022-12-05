@@ -133,7 +133,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownDirectives {
                     .iter()
                     .any(|l| l == current_location)
                 {
-                    user_context.report_error(ValidationError {
+                    user_context.report_error(ValidationError {error_code: self.error_code(),
                         locations: vec![directive.position],
                         message: format!(
                             "Directive \"@{}\" may not be used on {}",
@@ -144,7 +144,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownDirectives {
                 }
             }
         } else {
-            user_context.report_error(ValidationError {
+            user_context.report_error(ValidationError {error_code: self.error_code(),
                 locations: vec![directive.position],
                 message: format!("Unknown directive \"@{}\".", directive.name),
             });
@@ -153,6 +153,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownDirectives {
 }
 
 impl ValidationRule for KnownDirectives {
+    fn error_code<'a>(&self) -> &'a str {
+        "KnownDirectives"
+    }
+
     fn validate<'a>(
         &self,
         ctx: &'a mut OperationVisitorContext,
