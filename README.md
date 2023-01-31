@@ -32,7 +32,7 @@ graphql-tools = { version = "...", features = "graphql_parser_fork", default-fea
 
 #### Validation Rules
 
-> This comparison is based on `graphql-js` refernece implementation.
+> This comparison is based on `graphql-js` reference implementation.
 
 - [x] ExecutableDefinitions (not actually needed)
 - [x] UniqueOperationNames
