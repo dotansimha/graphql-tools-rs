@@ -1,6 +1,6 @@
 [package]
 name = "graphql-tools"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 description = "Tools for working with GraphQL in Rust, based on graphql-parser Document."
 license = "MIT/Apache-2.0"
@@ -15,6 +15,7 @@ graphql-parser = "^0.4.0"
 lazy_static = "1.4.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_with = "2.2.0"
 
 [dev-dependencies]
 graphql-parser = "0.4.0"
