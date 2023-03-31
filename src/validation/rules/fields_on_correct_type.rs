@@ -115,6 +115,9 @@ pub static FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA: &str = "
   type Mutation {
     deletePetByName(name: String): Pet
   }
+  type Subscription {
+    onNewPet: Pet
+  }
 ";
 
 #[test]
@@ -255,6 +258,27 @@ fn unknown_mutation_field() {
     assert_eq!(
         messages,
         vec!["Cannot query field \"unknownField\" on type \"Mutation\"."]
+    );
+}
+
+#[test]
+fn unknown_subscription_field() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(FieldsOnCorrectType {}));
+    let errors = test_operation_with_schema(
+        "subscription test {
+          unknownField
+        }",
+        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(
+        messages,
+        vec!["Cannot query field \"unknownField\" on type \"Subscription\"."]
     );
 }
 
