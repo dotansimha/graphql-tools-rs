@@ -184,7 +184,26 @@ fn visit_definitions<'a, Visitor, UserContext>(
                     })
                 }
                 OperationDefinition::Subscription(_) => {
-                    context.schema.subscription_type().map(|t| &t.name)
+                    context
+                        .schema
+                        .subscription_type()
+                        .map(|t| &t.name)
+                        .or_else(|| {
+                            // Awkward hack but enables me to move forward
+                            // Somehow the `subscription_type()` gives None, even though `Subscription` type is defined in the schema.
+                            if let Some(type_definition) =
+                                context.schema.type_by_name("Subscription")
+                            {
+                                return match type_definition {
+                                    graphql_parser::schema::TypeDefinition::Object(object_type) => {
+                                        Some(&object_type.name)
+                                    }
+                                    _ => None,
+                                };
+                            }
+
+                            None
+                        })
                 }
             },
         };
