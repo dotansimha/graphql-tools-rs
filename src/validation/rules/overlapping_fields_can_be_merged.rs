@@ -942,6 +942,42 @@ fn identical_fields() {
 }
 
 #[test]
+fn identical_fields_with_identical_variables() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged::new()));
+    let errors = test_operation_with_schema(
+        r#"fragment mergeIdenticalFieldsWithIdenticalArgs on Dog {
+          doesKnowCommand(dogCommand: $dogCommand)
+          doesKnowCommand(dogCommand: $dogCommand)
+        }"#,
+        TEST_SCHEMA,
+        &mut plan,
+    );
+
+    assert_eq!(get_messages(&errors).len(), 0);
+}
+
+#[test]
+fn identical_fields_with_different_variables() {
+    use crate::validation::test_utils::*;
+
+    let mut plan = create_plan_from_rule(Box::new(OverlappingFieldsCanBeMerged::new()));
+    let errors = test_operation_with_schema(
+        r#"fragment mergeIdenticalFieldsWithIdenticalArgs on Dog {
+          doesKnowCommand(dogCommand: $catCommand)
+          doesKnowCommand(dogCommand: $dogCommand)
+        }"#,
+        TEST_SCHEMA,
+        &mut plan,
+    );
+
+    let messages = get_messages(&errors);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages, vec!["Fields \"doesKnowCommand\" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional."]);
+}
+
+#[test]
 fn identical_fields_and_identical_args() {
     use crate::validation::test_utils::*;
 

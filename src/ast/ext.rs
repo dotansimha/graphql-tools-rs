@@ -325,6 +325,7 @@ impl ValueExtension for Value {
             (Value::Object(a), Value::Object(b)) => {
                 a.iter().zip(b.iter()).all(|(a, b)| a.1.compare(b.1))
             }
+            (Value::Variable(a), Value::Variable(b)) => a.eq(b),
             _ => false,
         }
     }
