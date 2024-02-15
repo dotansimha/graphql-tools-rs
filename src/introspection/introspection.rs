@@ -1,7 +1,7 @@
 use std::io;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Result;
+use serde_json::{Result, Value};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IntrospectionQuery {
@@ -21,7 +21,7 @@ pub struct IntrospectionInputValue {
     pub name: String,
     pub description: Option<String>,
     #[serde(rename = "defaultValue")]
-    pub default_value: Option<String>,
+    pub default_value: Option<Value>,
     #[serde(rename = "isDeprecated")]
     pub is_deprecated: Option<bool>,
     #[serde(rename = "deprecationReason")]
