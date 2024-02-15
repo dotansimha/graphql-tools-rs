@@ -167,11 +167,11 @@ pub enum IntrospectionOutputTypeRef {
 pub enum IntrospectionInputTypeRef {
     LIST {
         #[serde(rename = "ofType")]
-        of_type: Option<Box<IntrospectionOutputTypeRef>>,
+        of_type: Option<Box<IntrospectionInputTypeRef>>,
     },
     NON_NULL {
         #[serde(rename = "ofType")]
-        of_type: Option<Box<IntrospectionOutputTypeRef>>,
+        of_type: Option<Box<IntrospectionInputTypeRef>>,
     },
     SCALAR(IntrospectionNamedTypeRef),
     ENUM(IntrospectionNamedTypeRef),
