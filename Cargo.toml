@@ -11,11 +11,13 @@ documentation = "https://github.com/dotansimha/graphql-tools-rs"
 authors = ["Dotan Simha <dotansimha@gmail.com>"]
 
 [dependencies]
-graphql-parser = "^0.4.0"
+# Until they release https://github.com/graphql-rust/graphql-parser/commit/0d93ac9310c2894a029d0eb912c3463875a535f9
+graphql-parser = { git = "https://github.com/graphql-rust/graphql-parser.git", rev = "8d76425d83c40670570cc325f57c730262f07456" }
 lazy_static = "1.4.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_with = "2.2.0"
 
 [dev-dependencies]
-graphql-parser = "0.4.0"
+# Until they release https://github.com/graphql-rust/graphql-parser/commit/0d93ac9310c2894a029d0eb912c3463875a535f9
+graphql-parser = { git = "https://github.com/graphql-rust/graphql-parser.git", rev = "8d76425d83c40670570cc325f57c730262f07456" }
