@@ -582,8 +582,8 @@ mod tests {
 
             fn transform_field(
                 &mut self,
-                field: &graphql_parser::query::Field<'a, T>,
-            ) -> Transformed<graphql_parser::query::Selection<'a, T>> {
+                field: &crate::parser::query::Field<'a, T>,
+            ) -> Transformed<crate::parser::query::Selection<'a, T>> {
                 let selection_set = self.transform_selection_set(&field.selection_set);
                 let arguments = self.transform_arguments(&field.arguments);
                 let directives = self.transform_directives(&field.directives);

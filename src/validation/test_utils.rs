@@ -249,7 +249,7 @@ pub fn test_operation_without_schema<'a>(
     operation: &'a str,
     plan: &'a mut ValidationPlan,
 ) -> Vec<ValidationError> {
-    let schema_ast = graphql_parser::parse_schema(
+    let schema_ast = crate::parser::parse_schema(
         "
 type Query {
   dummy: String
@@ -258,9 +258,7 @@ type Query {
     )
     .expect("Failed to parse schema");
 
-    let operation_ast = graphql_parser::parse_query(operation)
-        .unwrap()
-        .into_static();
+    let operation_ast = crate::parser::parse_query(operation).unwrap().into_static();
 
     validate(&schema_ast, &operation_ast, plan)
 }
@@ -277,11 +275,9 @@ pub fn test_operation_with_schema<'a>(
     plan: &'a ValidationPlan,
 ) -> Vec<ValidationError> {
     let schema_clone = string_to_static_str(schema.to_string() + INTROSPECTION_SCHEMA);
-    let schema_ast = graphql_parser::parse_schema(schema_clone).expect("Failed to parse schema");
+    let schema_ast = crate::parser::parse_schema(schema_clone).expect("Failed to parse schema");
 
-    let operation_ast = graphql_parser::parse_query(operation)
-        .unwrap()
-        .into_static();
+    let operation_ast = crate::parser::parse_query(operation).unwrap().into_static();
 
     validate(&schema_ast, &operation_ast, plan)
 }
