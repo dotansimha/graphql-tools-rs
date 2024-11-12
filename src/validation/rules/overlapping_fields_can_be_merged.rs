@@ -794,9 +794,8 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
                         .push(AstAndDef(parent_type, field, field_def));
                 }
                 Selection::FragmentSpread(fragment_spread) => {
-                    if fragment_names
-                        .iter()
-                        .find(|n| (*n).eq(&fragment_spread.fragment_name)).is_none()
+                    if !fragment_names
+                        .iter().any(|n| (*n).eq(&fragment_spread.fragment_name))
                     {
                         fragment_names.push(&fragment_spread.fragment_name);
                     }

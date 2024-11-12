@@ -211,7 +211,7 @@ fn boolean_to_boolean() {
             booleanArgField(booleanArg: $booleanArg)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -233,7 +233,7 @@ fn boolean_to_boolean_within_fragment() {
             ...booleanArgFrag
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -249,7 +249,7 @@ fn boolean_to_boolean_within_fragment() {
       fragment booleanArgFrag on ComplicatedArgs {
         booleanArgField(booleanArg: $booleanArg)
       }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -268,7 +268,7 @@ fn boolean_nonnull_to_boolean() {
             booleanArgField(booleanArg: $nonNullBooleanArg)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -287,7 +287,7 @@ fn string_list_to_string_list() {
             stringListArgField(stringListArg: $stringListVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -306,7 +306,7 @@ fn string_list_nonnull_to_string_list() {
             stringListArgField(stringListArg: $stringListVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -325,7 +325,7 @@ fn string_to_string_list_in_item_position() {
             stringListArgField(stringListArg: [$stringVar])
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -344,7 +344,7 @@ fn string_nonnull_to_string_list_in_item_position() {
             stringListArgField(stringListArg: [$stringVar])
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -363,7 +363,7 @@ fn complexinput_to_complexinput() {
             complexArgField(complexArg: $complexVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -382,7 +382,7 @@ fn complexinput_to_complexinput_in_field_position() {
             complexArgField(complexArg: { requiredArg: $boolVar })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -400,7 +400,7 @@ fn boolean_nonnull_to_boolean_nonnull_in_directive() {
         {
           dog @include(if: $boolVar)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -418,7 +418,7 @@ fn int_to_int_nonnull() {
             nonNullIntArgField(nonNullIntArg: $intArg)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -444,7 +444,7 @@ fn int_to_int_nonnull_within_fragment() {
             ...nonNullIntArgFieldFrag
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -473,7 +473,7 @@ fn int_to_int_nonnull_within_nested_fragment() {
             ...outerFrag
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -496,7 +496,7 @@ fn string_over_boolean() {
             booleanArgField(booleanArg: $stringVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -521,7 +521,7 @@ fn string_over_string_list() {
             stringListArgField(stringListArg: $stringVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -544,7 +544,7 @@ fn boolean_to_boolean_nonnull_in_directive() {
         "query Query($boolVar: Boolean) {
           dog @include(if: $boolVar)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -567,7 +567,7 @@ fn string_to_boolean_nonnull_in_directive() {
         "query Query($stringVar: String) {
           dog @include(if: $stringVar)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -593,7 +593,7 @@ fn string_list_to_string_nonnull_list() {
             stringListNonNullArgField(stringListNonNullArg: $stringListVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -615,7 +615,7 @@ fn int_to_int_non_null_with_null_default_value() {
             nonNullIntArgField(nonNullIntArg: $intVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -638,7 +638,7 @@ fn int_to_int_non_null_with_default_value() {
             nonNullIntArgField(nonNullIntArg: $intVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -657,7 +657,7 @@ fn int_to_int_non_null_where_argument_with_default_value() {
             nonNullFieldWithDefault(nonNullIntArg: $intVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -674,7 +674,7 @@ fn boolean_to_boolean_non_null_with_default_value() {
         "query Query($boolVar: Boolean = false) {
           dog @include(if: $boolVar)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 

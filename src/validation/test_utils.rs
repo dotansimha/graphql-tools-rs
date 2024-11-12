@@ -233,9 +233,9 @@ pub fn create_plan_from_rule(rule: Box<dyn ValidationRule>) -> ValidationPlan {
     let mut rules = Vec::new();
     rules.push(rule);
 
-    let plan = ValidationPlan { rules };
+    
 
-    plan
+    ValidationPlan { rules }
 }
 
 #[cfg(test)]
@@ -264,7 +264,7 @@ type Query {
         .unwrap()
         .into_static();
 
-    validate(&schema_ast, &operation_ast, &plan)
+    validate(&schema_ast, &operation_ast, plan)
 }
 
 #[cfg(test)]
@@ -279,11 +279,11 @@ pub fn test_operation_with_schema<'a>(
     plan: &'a ValidationPlan,
 ) -> Vec<ValidationError> {
     let schema_clone = string_to_static_str(schema.to_string() + INTROSPECTION_SCHEMA);
-    let schema_ast = graphql_parser::parse_schema(&schema_clone).expect("Failed to parse schema");
+    let schema_ast = graphql_parser::parse_schema(schema_clone).expect("Failed to parse schema");
 
     let operation_ast = graphql_parser::parse_query(operation)
         .unwrap()
         .into_static();
 
-    validate(&schema_ast, &operation_ast, &plan)
+    validate(&schema_ast, &operation_ast, plan)
 }

@@ -216,7 +216,7 @@ fn valid_int_value() {
             intArgField(intArg: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -236,7 +236,7 @@ fn valid_negative_int_value() {
             intArgField(intArg: -2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -256,7 +256,7 @@ fn valid_boolean_value() {
             booleanArgField(booleanArg: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -276,7 +276,7 @@ fn valid_string_value() {
             stringArgField(stringArg: \"foo\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -296,7 +296,7 @@ fn valid_float_value() {
             floatArgField(floatArg: 1.1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -316,7 +316,7 @@ fn valid_negative_float_value() {
             floatArgField(floatArg: -1.1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -336,7 +336,7 @@ fn valid_int_into_float_value() {
             floatArgField(floatArg: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -356,7 +356,7 @@ fn valid_int_into_id_value() {
             idArgField(idArg: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -376,7 +376,7 @@ fn valid_string_into_id_value() {
             idArgField(idArg: \"someIdString\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -396,7 +396,7 @@ fn valid_enum_value() {
             doesKnowCommand(dogCommand: SIT)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -416,7 +416,7 @@ fn enum_undefined_value() {
             enumArgField(enumArg: UNKNOWN)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -436,7 +436,7 @@ fn enum_null_value() {
             enumArgField(enumArg: NO_FUR)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -456,7 +456,7 @@ fn valid_null_into_nullable() {
             intArgField(intArg: null)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -470,7 +470,7 @@ fn valid_null_into_nullable() {
             name
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -490,7 +490,7 @@ fn invalid_int_into_string() {
             stringArgField(stringArg: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -514,7 +514,7 @@ fn invalid_float_into_string() {
             stringArgField(stringArg: 1.0)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -538,7 +538,7 @@ fn invalid_bool_into_string() {
             stringArgField(stringArg: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -562,7 +562,7 @@ fn unquoted_string_to_string() {
             stringArgField(stringArg: BAR)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -586,7 +586,7 @@ fn invalid_string_into_int() {
             intArgField(intArg: \"3\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -611,7 +611,7 @@ fn bigint_into_int() {
             intArgField(intArg: 829384293849283498239482938)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -635,7 +635,7 @@ fn unquoted_string_into_int() {
             intArgField(intArg: FOO)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -656,7 +656,7 @@ fn simple_float_into_int() {
             intArgField(intArg: 3.0)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -677,7 +677,7 @@ fn float_into_int() {
             intArgField(intArg: 3.333)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -701,7 +701,7 @@ fn string_into_float() {
             floatArgField(floatArg: \"3.333\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -725,7 +725,7 @@ fn boolean_into_float() {
             floatArgField(floatArg: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -749,7 +749,7 @@ fn unquoted_into_float() {
             floatArgField(floatArg: FOO)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -773,7 +773,7 @@ fn int_into_boolean() {
             booleanArgField(booleanArg: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -797,7 +797,7 @@ fn float_into_boolean() {
             booleanArgField(booleanArg: 2.0)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -821,7 +821,7 @@ fn string_into_boolean() {
             booleanArgField(booleanArg: \"true\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -845,7 +845,7 @@ fn unquoted_into_boolean() {
             booleanArgField(booleanArg: TRUE)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -869,7 +869,7 @@ fn float_into_id() {
             idArgField(idArg: 1.0)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -890,7 +890,7 @@ fn bool_into_id() {
             idArgField(idArg: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -911,7 +911,7 @@ fn unquoted_into_id() {
             idArgField(idArg: SOMETHING)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -935,7 +935,7 @@ fn int_into_enum() {
             doesKnowCommand(dogCommand: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -959,7 +959,7 @@ fn float_into_enum() {
             doesKnowCommand(dogCommand: 1.0)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -983,7 +983,7 @@ fn string_into_enum() {
             doesKnowCommand(dogCommand: \"SIT\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1007,7 +1007,7 @@ fn boolean_into_enum() {
             doesKnowCommand(dogCommand: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1031,7 +1031,7 @@ fn unknown_enum_value_into_enum() {
             doesKnowCommand(dogCommand: JUGGLE)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1055,7 +1055,7 @@ fn different_case_enum_value_into_enum() {
             doesKnowCommand(dogCommand: sit)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1079,7 +1079,7 @@ fn valid_list_value() {
             stringListArgField(stringListArg: [\"one\", null, \"two\"])
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1099,7 +1099,7 @@ fn valid_empty_list_value() {
             stringListArgField(stringListArg: [])
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1119,7 +1119,7 @@ fn valid_null_list_value() {
             stringListArgField(stringListArg: null)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1139,7 +1139,7 @@ fn valid_single_value_into_list_value() {
             stringListArgField(stringListArg: \"one\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1159,7 +1159,7 @@ fn incorrect_item_type() {
             stringListArgField(stringListArg: [\"one\", 2])
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1183,7 +1183,7 @@ fn single_value_of_incorrect_type() {
             stringListArgField(stringListArg: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1207,7 +1207,7 @@ fn arg_on_optional_arg() {
             isHouseTrained(atOtherHomes: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1227,7 +1227,7 @@ fn no_arg_on_optional_arg() {
             isHouseTrained
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1247,7 +1247,7 @@ fn multiple_valid_args() {
             multipleReqs(req1: 1, req2: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1267,7 +1267,7 @@ fn multiple_valid_args_reverse_oreder() {
             multipleReqs(req2: 2, req1: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1287,7 +1287,7 @@ fn no_args_multiple_optional() {
             multipleOpts
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1307,7 +1307,7 @@ fn one_arg_multiple_optinals() {
             multipleOpts(opt1: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1327,7 +1327,7 @@ fn second_arg_multiple_optinals() {
             multipleOpts(opt2: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1347,7 +1347,7 @@ fn multiple_required_args_on_mixed_list() {
             multipleOptAndReq(req1: 3, req2: 4)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1367,7 +1367,7 @@ fn multiple_required_args_and_one_optional_on_mixed_list() {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1387,7 +1387,7 @@ fn all_required_and_one_optional() {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5, opt2: 6)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1407,7 +1407,7 @@ fn incorrect_value_type() {
             multipleReqs(req2: \"two\", req1: \"one\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1434,7 +1434,7 @@ fn incorrect_value_and_missing_argument() {
             multipleReqs(req1: \"one\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1458,7 +1458,7 @@ fn null_value() {
             multipleReqs(req1: null)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1482,7 +1482,7 @@ fn optional_arg_despite_required_field_in_type() {
             complexArgField
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1502,7 +1502,7 @@ fn partial_object_only_required() {
             complexArgField(complexArg: { requiredField: true })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1522,7 +1522,7 @@ fn partial_object_required_field_can_be_falsy() {
             complexArgField(complexArg: { requiredField: false })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1542,7 +1542,7 @@ fn partial_object_including_required() {
             complexArgField(complexArg: { requiredField: true, intField: 4 })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1568,7 +1568,7 @@ fn full_object() {
             })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1594,7 +1594,7 @@ fn full_object_with_fields_in_different_order() {
             })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1614,7 +1614,7 @@ fn partial_object_missing_required() {
             complexArgField(complexArg: { intField: 4 })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1643,7 +1643,7 @@ fn partial_object_invalid_field_type() {
             })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1670,7 +1670,7 @@ fn partial_object_null_to_non_null_field() {
             })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1697,7 +1697,7 @@ fn partial_object_unknown_field_arg() {
             })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1751,7 +1751,7 @@ fn with_directives_of_valid_types() {
             name
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1771,7 +1771,7 @@ fn with_directives_of_invalid_types() {
             name @skip(if: ENUM)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1801,7 +1801,7 @@ fn variables_with_valid_default_values() {
         ) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1823,7 +1823,7 @@ fn variables_with_valid_default_null_values() {
         ) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1845,7 +1845,7 @@ fn variables_with_invalid_default_null_values() {
         ) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1875,7 +1875,7 @@ fn variables_with_invalid_default_values() {
         ) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1903,7 +1903,7 @@ fn variables_with_complex_invalid_default_values() {
         ) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1928,7 +1928,7 @@ fn complex_variables_missing_required_field() {
         query MissingRequiredField($a: ComplexInput = {intField: 3}) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1952,7 +1952,7 @@ fn list_variables_with_invalid_item() {
         query InvalidItem($a: [String] = [\"one\", 2]) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 

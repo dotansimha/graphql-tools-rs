@@ -122,7 +122,7 @@ fn ignores_unknown_arguments() {
             isHouseTrained(unknownArgument: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -140,7 +140,7 @@ fn arg_on_optional_arg() {
             isHouseTrained(atOtherHomes: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -158,7 +158,7 @@ fn no_arg_on_optional_arg() {
             isHouseTrained
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -176,7 +176,7 @@ fn multiple_args() {
             multipleReqs(req1: 1, req2: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -194,7 +194,7 @@ fn multiple_args_reverse_order() {
             multipleReqs(req2: 2, req1: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -212,7 +212,7 @@ fn no_args_on_multiple_optional() {
             multipleOpts
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -230,7 +230,7 @@ fn one_arg_on_multiple_optional() {
             multipleOpts(opt1: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -248,7 +248,7 @@ fn second_arg_on_multiple_optional() {
             multipleOpts(opt2: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -266,7 +266,7 @@ fn multiple_required_args_on_mixed_list() {
             multipleOptAndReq(req1: 3, req2: 4)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -284,7 +284,7 @@ fn multiple_required_and_one_optional_arg_on_mixedlist() {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -302,7 +302,7 @@ fn all_required_and_optional_args_on_mixedlist() {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5, opt2: 6)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -320,7 +320,7 @@ fn missing_one_non_nullable_argument() {
             multipleReqs(req2: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -342,7 +342,7 @@ fn missing_multiple_non_nullable_arguments() {
             multipleReqs
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -365,7 +365,7 @@ fn incorrect_value_and_missing_argument() {
             multipleReqs(req1: \"one\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -385,7 +385,7 @@ fn ignores_unknown_directives() {
         "{
           dog @unknown
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -407,7 +407,7 @@ fn with_directives_of_valid_types() {
             name
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -426,7 +426,7 @@ fn with_directive_with_missing_types() {
             name @skip
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 

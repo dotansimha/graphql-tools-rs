@@ -75,7 +75,7 @@ fn unknown_types_are_ignored() {
         query Foo($a: Unknown, $b: [[Unknown!]]!) {
           field(a: $a, b: $b)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -93,7 +93,7 @@ fn input_types_are_valid() {
         query Foo($a: String, $b: [Boolean!]!, $c: ComplexInput) {
           field(a: $a, b: $b, c: $c)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -111,7 +111,7 @@ fn output_types_are_invalid() {
        query Foo($a: Dog, $b: [[CatOrDog!]]!, $c: Pet) {
         field(a: $a, b: $b, c: $c)
       }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 

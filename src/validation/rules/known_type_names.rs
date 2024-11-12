@@ -69,14 +69,12 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
     ) {
         let base_type = variable_definition.var_type.inner_type();
 
-        if let None = visitor_context.schema.type_by_name(base_type) {
-            if !base_type.starts_with("__") {
-                user_context.report_error(ValidationError {
-                    error_code: self.error_code(),
-                    locations: vec![variable_definition.position],
-                    message: format!("Unknown type \"{}\".", base_type),
-                });
-            }
+        if visitor_context.schema.type_by_name(base_type).is_none() && !base_type.starts_with("__") {
+            user_context.report_error(ValidationError {
+                error_code: self.error_code(),
+                locations: vec![variable_definition.position],
+                message: format!("Unknown type \"{}\".", base_type),
+            });
         }
     }
 }
@@ -119,7 +117,7 @@ fn known_type_names_are_valid() {
         fragment PetFields on Pet {
           name
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -143,7 +141,7 @@ fn unknown_type_names_are_invalid() {
         fragment PetFields on Peat {
           name
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
