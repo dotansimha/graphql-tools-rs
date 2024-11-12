@@ -35,13 +35,14 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedFragments<'a> 
             .iter()
             .filter_map(|(fragment_name, _fragment)| {
                 if !self.fragments_in_use.contains(&fragment_name) {
-                    Some(fragment_name.clone())
+                    Some(fragment_name)
                 } else {
                     None
                 }
             })
             .for_each(|unused_fragment_name| {
-                user_context.report_error(ValidationError {error_code: self.error_code(),
+                user_context.report_error(ValidationError {
+                    error_code: self.error_code(),
                     locations: vec![],
                     message: format!("Fragment \"{}\" is never used.", unused_fragment_name),
                 });

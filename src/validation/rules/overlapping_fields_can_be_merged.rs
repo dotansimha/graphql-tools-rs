@@ -779,7 +779,7 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
                     let out_field_name = field.alias.as_ref().unwrap_or(field_name).as_str();
 
                     if !ast_and_defs.contains_key(out_field_name) {
-                        ast_and_defs.insert(out_field_name.clone(), Vec::new());
+                        ast_and_defs.insert(out_field_name, Vec::new());
                     }
 
                     ast_and_defs
@@ -852,7 +852,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for OverlappingFieldsCanBe
         for Conflict(ConflictReason(reason_name, reason_msg), mut p1, p2) in found_conflicts {
             p1.extend(p2);
 
-            user_context.report_error(ValidationError {error_code: self.error_code(),
+            user_context.report_error(ValidationError {
+                error_code: self.error_code(),
                 message: error_message(&reason_name, &reason_msg),
                 locations: p1,
             });

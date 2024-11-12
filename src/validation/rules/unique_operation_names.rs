@@ -35,8 +35,8 @@ impl<'a> UniqueOperationNames<'a> {
     }
 
     fn store_finding(&mut self, name: &'a str) {
-        let value = *self.findings_counter.entry(name.clone()).or_insert(0);
-        self.findings_counter.insert(name.clone(), value + 1);
+        let value = *self.findings_counter.entry(name).or_insert(0);
+        self.findings_counter.insert(name, value + 1);
     }
 }
 
@@ -58,7 +58,8 @@ impl<'u> ValidationRule for UniqueOperationNames<'u> {
             .into_iter()
             .filter(|(_key, value)| *value > 1)
             .for_each(|(key, _value)| {
-                error_collector.report_error(ValidationError {error_code: self.error_code(),
+                error_collector.report_error(ValidationError {
+                    error_code: self.error_code(),
                     message: format!("There can be only one operation named \"{}\".", key),
                     locations: vec![],
                 })
