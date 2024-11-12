@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use graphql_parser::schema::TypeDefinition;
+use crate::parser::schema::TypeDefinition;
 
 use crate::ast::{
     InputValueHelpers, SchemaDocumentExtension, TypeDefinitionExtension, TypeExtension,

@@ -1,5 +1,5 @@
-use graphql_parser::query::{Definition, TypeCondition};
-use graphql_parser::Pos;
+use crate::parser::query::{Definition, TypeCondition};
+use crate::parser::Pos;
 
 use super::ValidationRule;
 use crate::ast::ext::TypeDefinitionExtension;

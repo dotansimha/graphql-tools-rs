@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use graphql_parser::query::TypeCondition;
+use crate::parser::query::TypeCondition;
 
 use crate::static_graphql::{
     query::{self, *},
@@ -278,7 +278,8 @@ fn visit_input_value<'a, Visitor, UserContext>(
                 let input_type = context
                     .current_input_type_literal()
                     .and_then(|v| context.schema.type_by_name(v.inner_type()))
-                    .and_then(|v| v.input_field_by_name(sub_key)).map(|v| &v.value_type);
+                    .and_then(|v| v.input_field_by_name(sub_key))
+                    .map(|v| &v.value_type);
 
                 context.with_input_type(input_type, |context| {
                     let param = &(sub_key.clone(), sub_value.clone());

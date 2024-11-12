@@ -1,4 +1,4 @@
-use graphql_parser::query::*;
+use crate::parser::query::*;
 
 #[derive(Clone, Debug)]
 pub enum Transformed<T> {

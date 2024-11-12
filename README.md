@@ -2,8 +2,6 @@
 
 [Documentation](https://docs.rs/graphql-tools) | [Crate](https://crates.io/crates/graphql-tools) | [GitHub](https://github.com/dotansimha/graphql-tools-rs)
 
-> **Note: this crate is still under development (see roadmap below)**
-
 The [`graphql_tools` crate](https://crates.io/crates/graphql-tools) implements tooling around GraphQL for Rust libraries. Most of the tools are based on `trait`s and `struct`s implemented in [`graphql_parser` crate](https://crates.io/crates/graphql-parser).
 
 The goal of this library is to create a common layer of tools that has similar/improved APIs to [`graphql-js` reference implementation](https://github.com/graphql/graphql-js) and [`graphql-tools` from the JS/TS ecosystem](https://github.com/ardatan/graphql-tools).
@@ -25,23 +23,16 @@ Or, if you are using [`cargo-edit`](https://github.com/killercup/cargo-edit):
 cargo add graphql-tools
 ```
 
-### Roadmap and progress
+By default, this crate is using the [`graphql-parser`](https://github.com/graphql-rust/graphql-parser) library for parsing. If you wish to use an alternative implementation such as [`graphql-hive/graphql-parser-hive-fork`](https://github.com/graphql-hive/graphql-parser-hive-fork), use the following `features` setup:
 
-- [ ] Better documentation 
-- [x] AST Visitor for GraphQL schema (`graphql_parser::schema::Document`)
-- [x] AST Visitor for GraphQL operations (`graphql_parser::operation::Document`) 
-- [x] AST Visitor with TypeInfo
-- [x] AST tools (ongoing)
-- [x] `struct` extensions
-- [x] GraphQL Validation engine
-- [x] Validation rules
-- [x] GraphQL operations transformer
-
-> If you have an idea / missing feature, feel free to open an issue / start a GitHub discussion!
+```toml
+[dependencies]
+graphql-tools = { version = "...", features = "graphql_parser_fork", default-features = false }
+```
 
 #### Validation Rules
 
-> This comparison is based on `graphql-js` refernece implementation. 
+> This comparison is based on `graphql-js` refernece implementation.
 
 - [x] ExecutableDefinitions (not actually needed)
 - [x] UniqueOperationNames

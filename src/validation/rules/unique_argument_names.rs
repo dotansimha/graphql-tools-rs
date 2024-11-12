@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use graphql_parser::Pos;
+use crate::parser::Pos;
 
 use super::ValidationRule;
 use crate::ast::{visit_document, OperationVisitor, OperationVisitorContext};

@@ -1,4 +1,4 @@
-use graphql_parser::Pos;
+use crate::parser::Pos;
 use serde::ser::*;
 use serde::{Serialize, Serializer};
 use serde_with::{serde_as, SerializeAs};

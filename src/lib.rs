@@ -11,7 +11,7 @@ pub mod static_graphql {
     macro_rules! static_graphql {
     ($m:ident, $m2:ident, {$($n:ident,)*}) => {
         pub mod $m {
-            use graphql_parser::$m2 as $m;
+            use crate::parser::$m2 as $m;
             pub use $m::*;
             $(
                 pub type $n = $m::$n<'static, String>;
@@ -35,3 +35,8 @@ pub mod static_graphql {
 pub mod introspection;
 
 pub mod validation;
+
+#[cfg(feature = "graphql_parser")]
+pub extern crate graphql_parser as parser;
+#[cfg(feature = "graphql_parser_fork")]
+pub extern crate graphql_parser_hive_fork as parser;

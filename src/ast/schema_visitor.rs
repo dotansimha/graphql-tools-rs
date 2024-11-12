@@ -174,7 +174,7 @@ pub trait SchemaVisitor<T = ()> {
 
 #[test]
 fn visit_schema() {
-    use graphql_parser::schema::parse_schema;
+    use crate::parser::schema::parse_schema;
     let schema_ast = parse_schema(
         r#"
     scalar Date
