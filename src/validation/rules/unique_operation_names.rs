@@ -45,9 +45,9 @@ impl<'u> ValidationRule for UniqueOperationNames<'u> {
         "UniqueOperationNames"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         let mut rule = UniqueOperationNames::new();

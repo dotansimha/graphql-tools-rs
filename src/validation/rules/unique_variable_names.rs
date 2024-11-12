@@ -13,6 +13,7 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// A GraphQL operation is only valid if all its variables are uniquely named.
 ///
 /// See https://spec.graphql.org/draft/#sec-Variable-Uniqueness
+#[derive(Default)]
 pub struct UniqueVariableNames<'a> {
     found_records: HashMap<&'a str, Pos>,
 }

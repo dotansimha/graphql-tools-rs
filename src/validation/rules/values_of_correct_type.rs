@@ -143,11 +143,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
             });
 
             object_value.keys().for_each(|field_name| {
-                if (input_object_def
+                if input_object_def
                     .fields
                     .iter()
-                    .find(|f| f.name.eq(field_name)))
-                .is_none()
+                    .any(|f| f.name.eq(field_name))
                 {
                     user_context.report_error(ValidationError {
                         error_code: self.error_code(),
