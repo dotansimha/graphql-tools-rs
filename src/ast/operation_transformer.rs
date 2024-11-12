@@ -370,7 +370,7 @@ pub trait OperationTransformer<'a, T: Text<'a> + Clone> {
 
     fn transform_directives(
         &mut self,
-        directives: &Vec<Directive<'a, T>>,
+        directives: &[Directive<'a, T>],
     ) -> TransformedValue<Vec<Directive<'a, T>>> {
         self.transform_list(directives, Self::transform_directive)
     }
@@ -452,7 +452,7 @@ pub trait OperationTransformer<'a, T: Text<'a> + Clone> {
 
     fn default_transform_variable_definitions(
         &mut self,
-        variable_definitions: &Vec<VariableDefinition<'a, T>>,
+        variable_definitions: &[VariableDefinition<'a, T>],
     ) -> TransformedValue<Vec<VariableDefinition<'a, T>>> {
         self.transform_list(
             variable_definitions,

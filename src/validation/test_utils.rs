@@ -233,13 +233,11 @@ pub fn create_plan_from_rule(rule: Box<dyn ValidationRule>) -> ValidationPlan {
     let mut rules = Vec::new();
     rules.push(rule);
 
-    
-
     ValidationPlan { rules }
 }
 
 #[cfg(test)]
-pub fn get_messages(validation_errors: &Vec<ValidationError>) -> Vec<&String> {
+pub fn get_messages(validation_errors: &[ValidationError]) -> Vec<&String> {
     validation_errors
         .iter()
         .map(|m| &m.message)

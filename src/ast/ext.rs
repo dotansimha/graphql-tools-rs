@@ -621,31 +621,19 @@ impl TypeDefinitionExtension for schema::TypeDefinition {
     }
 
     fn is_object_type(&self) -> bool {
-        match self {
-            schema::TypeDefinition::Object(_o) => true,
-            _ => false,
-        }
+        matches!(self, schema::TypeDefinition::Object(_o))
     }
 
     fn is_union_type(&self) -> bool {
-        match self {
-            schema::TypeDefinition::Union(_o) => true,
-            _ => false,
-        }
+        matches!(self, schema::TypeDefinition::Union(_o))
     }
 
     fn is_enum_type(&self) -> bool {
-        match self {
-            schema::TypeDefinition::Enum(_o) => true,
-            _ => false,
-        }
+        matches!(self, schema::TypeDefinition::Enum(_o))
     }
 
     fn is_scalar_type(&self) -> bool {
-        match self {
-            schema::TypeDefinition::Scalar(_o) => true,
-            _ => false,
-        }
+        matches!(self, schema::TypeDefinition::Scalar(_o))
     }
 }
 

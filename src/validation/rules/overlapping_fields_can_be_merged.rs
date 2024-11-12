@@ -194,15 +194,9 @@ impl<'a> PairSet<'a> {
     }
 
     pub fn insert(&mut self, a: &'a str, b: &'a str, mutex: bool) {
-        self.data
-            .entry(a)
-            .or_default()
-            .insert(b, mutex);
+        self.data.entry(a).or_default().insert(b, mutex);
 
-        self.data
-            .entry(b)
-            .or_default()
-            .insert(a, mutex);
+        self.data.entry(b).or_default().insert(a, mutex);
     }
 }
 
@@ -303,11 +297,7 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
         }
     }
 
-    fn is_same_arguments(
-        &self,
-        f1_args: &Vec<(String, Value)>,
-        f2_args: &Vec<(String, Value)>,
-    ) -> bool {
+    fn is_same_arguments(&self, f1_args: &[(String, Value)], f2_args: &[(String, Value)]) -> bool {
         if f1_args.len() != f2_args.len() {
             return false;
         }
@@ -324,10 +314,10 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
     // Two types conflict if both types could not apply to a value simultaneously.
     // Composite types are ignored as their individual field types will be compared
     // later recursively. However List and Non-Null types must match.
-    fn is_type_conflict(&self, schema: &SchemaDocument, t1: &Type, t2: &Type) -> bool {
+    fn is_type_conflict(schema: &SchemaDocument, t1: &Type, t2: &Type) -> bool {
         if let Type::ListType(t1) = t1 {
             if let Type::ListType(t2) = t2 {
-                return self.is_type_conflict(schema, t1, t2);
+                return Self::is_type_conflict(schema, t1, t2);
             } else {
                 return true;
             }
@@ -339,7 +329,7 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
 
         if let Type::NonNullType(t1) = t1 {
             if let Type::NonNullType(t2) = t2 {
-                return self.is_type_conflict(schema, t1, t2);
+                return Self::is_type_conflict(schema, t1, t2);
             } else {
                 return true;
             }
@@ -422,7 +412,7 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
         let t2 = field2_def.as_ref().map(|def| &def.field_type);
 
         if let (Some(t1), Some(t2)) = (t1, t2) {
-            if self.is_type_conflict(schema, t1, t2) {
+            if Self::is_type_conflict(schema, t1, t2) {
                 return Some(Conflict(
                     ConflictReason(
                         out_field_name.to_owned(),
@@ -464,7 +454,7 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
 
     fn subfield_conflicts(
         &self,
-        conflicts: &Vec<Conflict>,
+        conflicts: &[Conflict],
         out_field_name: &str,
         f1_pos: Pos,
         f2_pos: Pos,
@@ -492,6 +482,7 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
     // Find all conflicts found between two selection sets, including those found
     // via spreading in fragments. Called when determining if conflicts exist
     // between the sub-fields of two overlapping fields.
+    #[allow(clippy::too_many_arguments)]
     fn find_conflicts_between_sub_selection_sets(
         &mut self,
         schema: &'a SchemaDocument,
@@ -758,7 +749,7 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
         let mut ast_and_defs = OrderedMap::new();
         let mut fragment_names = Vec::new();
 
-        self.collect_fields_and_fragment_names(
+        Self::collect_fields_and_fragment_names(
             schema,
             parent_type,
             selection_set,
@@ -770,7 +761,6 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
     }
 
     fn collect_fields_and_fragment_names(
-        &self,
         schema: &'a SchemaDocument,
         parent_type: Option<&'a TypeDefinition>,
         selection_set: &'a SelectionSet,
@@ -795,7 +785,8 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
                 }
                 Selection::FragmentSpread(fragment_spread) => {
                     if !fragment_names
-                        .iter().any(|n| (*n).eq(&fragment_spread.fragment_name))
+                        .iter()
+                        .any(|n| (*n).eq(&fragment_spread.fragment_name))
                     {
                         fragment_names.push(&fragment_spread.fragment_name);
                     }
@@ -811,7 +802,7 @@ impl<'a> OverlappingFieldsCanBeMerged<'a> {
                         })
                         .or(parent_type);
 
-                    self.collect_fields_and_fragment_names(
+                    Self::collect_fields_and_fragment_names(
                         schema,
                         fragment_type,
                         &inline_fragment.selection_set,

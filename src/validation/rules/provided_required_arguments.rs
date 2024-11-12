@@ -73,16 +73,17 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ProvidedRequiredArgume
     }
 }
 
-fn validate_arguments<'a>(
-    arguments_used: &Vec<(String, Value)>,
-    arguments_defined: &Vec<InputValue>,
+fn validate_arguments(
+    arguments_used: &[(String, Value)],
+    arguments_defined: &[InputValue],
 ) -> Vec<InputValue> {
     arguments_defined
         .iter()
         .filter_map(|field_arg_def| {
             if field_arg_def.is_required()
                 && !arguments_used
-                    .iter().any(|(name, _value)| name.eq(&field_arg_def.name))
+                    .iter()
+                    .any(|(name, _value)| name.eq(&field_arg_def.name))
             {
                 Some(field_arg_def.clone())
             } else {

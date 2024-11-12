@@ -30,13 +30,16 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownFragmentNames {
         user_context: &mut ValidationErrorContext,
         fragment_spread: &FragmentSpread,
     ) {
-        if visitor_context
+        if !visitor_context
             .known_fragments
-            .get(fragment_spread.fragment_name.as_str()).is_none() { user_context.report_error(ValidationError {
-            error_code: self.error_code(),
-            locations: vec![fragment_spread.position],
-            message: format!("Unknown fragment \"{}\".", fragment_spread.fragment_name),
-        }) }
+            .contains_key(fragment_spread.fragment_name.as_str())
+        {
+            user_context.report_error(ValidationError {
+                error_code: self.error_code(),
+                locations: vec![fragment_spread.position],
+                message: format!("Unknown fragment \"{}\".", fragment_spread.fragment_name),
+            })
+        }
     }
 }
 
