@@ -18,6 +18,12 @@ use crate::{
 /// See  https://spec.graphql.org/draft/#sec-Directives-Are-Unique-Per-Location
 pub struct UniqueDirectivesPerLocation {}
 
+impl Default for UniqueDirectivesPerLocation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UniqueDirectivesPerLocation {
     pub fn new() -> Self {
         UniqueDirectivesPerLocation {}
@@ -103,14 +109,14 @@ impl ValidationRule for UniqueDirectivesPerLocation {
         "UniqueDirectivesPerLocation"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut UniqueDirectivesPerLocation::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

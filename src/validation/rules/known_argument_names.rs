@@ -24,6 +24,12 @@ enum ArgumentParent<'a> {
     Directive(&'a str),
 }
 
+impl<'a> Default for KnownArgumentNames<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> KnownArgumentNames<'a> {
     pub fn new() -> Self {
         KnownArgumentNames {
@@ -128,14 +134,14 @@ impl<'k> ValidationRule for KnownArgumentNames<'k> {
         "KnownArgumentNames"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut KnownArgumentNames::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

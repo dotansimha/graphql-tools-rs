@@ -34,7 +34,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedFragments<'a> 
             .known_fragments
             .iter()
             .filter_map(|(fragment_name, _fragment)| {
-                if !self.fragments_in_use.contains(&fragment_name) {
+                if !self.fragments_in_use.contains(fragment_name) {
                     Some(fragment_name)
                 } else {
                     None
@@ -47,6 +47,12 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedFragments<'a> 
                     message: format!("Fragment \"{}\" is never used.", unused_fragment_name),
                 });
             });
+    }
+}
+
+impl<'a> Default for NoUnusedFragments<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -63,14 +69,14 @@ impl<'n> ValidationRule for NoUnusedFragments<'n> {
         "NoUnusedFragments"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut NoUnusedFragments::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

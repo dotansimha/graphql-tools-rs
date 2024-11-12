@@ -14,6 +14,12 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Fragment-Spread-Type-Existence
 pub struct KnownTypeNames;
 
+impl Default for KnownTypeNames {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KnownTypeNames {
     pub fn new() -> Self {
         KnownTypeNames
@@ -29,14 +35,12 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
     ) {
         let TypeCondition::On(fragment_type_name) = &fragment_definition.type_condition;
 
-        if let None = visitor_context.schema.type_by_name(fragment_type_name) {
-            if !fragment_type_name.starts_with("__") {
-                user_context.report_error(ValidationError {
-                    error_code: self.error_code(),
-                    locations: vec![fragment_definition.position],
-                    message: format!("Unknown type \"{}\".", fragment_type_name),
-                });
-            }
+        if visitor_context.schema.type_by_name(fragment_type_name).is_none() && !fragment_type_name.starts_with("__") {
+            user_context.report_error(ValidationError {
+                error_code: self.error_code(),
+                locations: vec![fragment_definition.position],
+                message: format!("Unknown type \"{}\".", fragment_type_name),
+            });
         }
     }
 
@@ -47,14 +51,12 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
         inline_fragment: &crate::static_graphql::query::InlineFragment,
     ) {
         if let Some(TypeCondition::On(fragment_type_name)) = &inline_fragment.type_condition {
-            if let None = visitor_context.schema.type_by_name(fragment_type_name) {
-                if !fragment_type_name.starts_with("__") {
-                    user_context.report_error(ValidationError {
-                        error_code: self.error_code(),
-                        locations: vec![inline_fragment.position],
-                        message: format!("Unknown type \"{}\".", fragment_type_name),
-                    });
-                }
+            if visitor_context.schema.type_by_name(fragment_type_name).is_none() && !fragment_type_name.starts_with("__") {
+                user_context.report_error(ValidationError {
+                    error_code: self.error_code(),
+                    locations: vec![inline_fragment.position],
+                    message: format!("Unknown type \"{}\".", fragment_type_name),
+                });
             }
         }
     }
@@ -67,7 +69,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownTypeNames {
     ) {
         let base_type = variable_definition.var_type.inner_type();
 
-        if let None = visitor_context.schema.type_by_name(&base_type) {
+        if let None = visitor_context.schema.type_by_name(base_type) {
             if !base_type.starts_with("__") {
                 user_context.report_error(ValidationError {
                     error_code: self.error_code(),
@@ -84,14 +86,14 @@ impl ValidationRule for KnownTypeNames {
         "KnownTypeNames"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut KnownTypeNames::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

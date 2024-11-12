@@ -11,6 +11,12 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// https://spec.graphql.org/draft/#sec-Lone-Anonymous-Operation
 pub struct LoneAnonymousOperation;
 
+impl Default for LoneAnonymousOperation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LoneAnonymousOperation {
     pub fn new() -> Self {
         LoneAnonymousOperation
@@ -49,32 +55,32 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation
                     }
                 }
                 Definition::Operation(OperationDefinition::Query(query)) => {
-                    if query.name == None && operations_count > 1 {
+                    if query.name.is_none() && operations_count > 1 {
                         user_context.report_error(ValidationError {
                             error_code: self.error_code(),
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
-                            locations: vec![query.position.clone()],
+                            locations: vec![query.position],
                         })
                     }
                 }
                 Definition::Operation(OperationDefinition::Mutation(mutation)) => {
-                    if mutation.name == None && operations_count > 1 {
+                    if mutation.name.is_none() && operations_count > 1 {
                         user_context.report_error(ValidationError {
                             error_code: self.error_code(),
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
-                            locations: vec![mutation.position.clone()],
+                            locations: vec![mutation.position],
                         })
                     }
                 }
                 Definition::Operation(OperationDefinition::Subscription(subscription)) => {
-                    if subscription.name == None && operations_count > 1 {
+                    if subscription.name.is_none() && operations_count > 1 {
                         user_context.report_error(ValidationError {
                             error_code: self.error_code(),
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
-                            locations: vec![subscription.position.clone()],
+                            locations: vec![subscription.position],
                         })
                     }
                 }
@@ -89,14 +95,14 @@ impl ValidationRule for LoneAnonymousOperation {
         "LoneAnonymousOperation"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut LoneAnonymousOperation::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

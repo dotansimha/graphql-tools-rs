@@ -11,6 +11,12 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Fragment-spread-target-defined
 pub struct KnownFragmentNames;
 
+impl Default for KnownFragmentNames {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KnownFragmentNames {
     pub fn new() -> Self {
         KnownFragmentNames
@@ -24,17 +30,13 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownFragmentNames {
         user_context: &mut ValidationErrorContext,
         fragment_spread: &FragmentSpread,
     ) {
-        match visitor_context
+        if visitor_context
             .known_fragments
-            .get(fragment_spread.fragment_name.as_str())
-        {
-            None => user_context.report_error(ValidationError {
-                error_code: self.error_code(),
-                locations: vec![fragment_spread.position],
-                message: format!("Unknown fragment \"{}\".", fragment_spread.fragment_name),
-            }),
-            _ => {}
-        }
+            .get(fragment_spread.fragment_name.as_str()) == None { user_context.report_error(ValidationError {
+            error_code: self.error_code(),
+            locations: vec![fragment_spread.position],
+            message: format!("Unknown fragment \"{}\".", fragment_spread.fragment_name),
+        }) }
     }
 }
 
@@ -43,14 +45,14 @@ impl ValidationRule for KnownFragmentNames {
         "KnownFragmentNames"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut KnownFragmentNames::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

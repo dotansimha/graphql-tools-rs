@@ -19,6 +19,12 @@ pub struct NoUndefinedVariables<'a> {
     spreads: HashMap<NoUndefinedVariablesScope<'a>, Vec<&'a str>>,
 }
 
+impl<'a> Default for NoUndefinedVariables<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> NoUndefinedVariables<'a> {
     pub fn new() -> Self {
         Self {
@@ -103,7 +109,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables<'
         if let Some(scope) = &self.current_scope {
             self.spreads
                 .entry(scope.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(&fragment_spread.fragment_name);
         }
     }
@@ -130,7 +136,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables<'
         if let Some(ref scope) = self.current_scope {
             self.used_variables
                 .entry(scope.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .append(&mut arg_value.variables_in_use());
         }
     }
@@ -146,7 +152,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables<'
             let mut visited = HashSet::new();
 
             self.find_undefined_vars(
-                &NoUndefinedVariablesScope::Operation(op_name.clone()),
+                &NoUndefinedVariablesScope::Operation(*op_name),
                 def_vars,
                 &mut unused,
                 &mut visited,
@@ -155,7 +161,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUndefinedVariables<'
             unused.iter().for_each(|var| {
                 user_context.report_error(ValidationError {
                     error_code: self.error_code(),
-                    message: error_message(&var, op_name),
+                    message: error_message(var, op_name),
                     locations: vec![],
                 })
             })
@@ -179,14 +185,14 @@ impl<'n> ValidationRule for NoUndefinedVariables<'n> {
         "NoUndefinedVariables"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut NoUndefinedVariables::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

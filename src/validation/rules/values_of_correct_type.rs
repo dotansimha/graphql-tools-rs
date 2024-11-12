@@ -16,6 +16,12 @@ use super::ValidationRule;
 
 pub struct ValuesOfCorrectType {}
 
+impl Default for ValuesOfCorrectType {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ValuesOfCorrectType {
     pub fn new() -> Self {
         Self {}
@@ -37,7 +43,7 @@ impl ValuesOfCorrectType {
         if let Some(input_type) = visitor_context.current_input_type_literal() {
             let named_type = input_type.inner_type();
 
-            if let Some(type_def) = visitor_context.schema.type_by_name(&named_type) {
+            if let Some(type_def) = visitor_context.schema.type_by_name(named_type) {
                 if !type_def.is_leaf_type() {
                     user_context.report_error(ValidationError {
                         error_code: self.error_code(),
@@ -78,11 +84,9 @@ impl ValuesOfCorrectType {
                 if let TypeDefinition::Enum(enum_type_def) = &type_def {
                     match raw_value {
                         Value::Enum(enum_value) => {
-                            if enum_type_def
+                            if !enum_type_def
                                 .values
-                                .iter()
-                                .find(|v| v.name.eq(enum_value))
-                                .is_none()
+                                .iter().any(|v| v.name.eq(enum_value))
                             {
                                 user_context.report_error(ValidationError {
                                     error_code: self.error_code(),
@@ -150,11 +154,9 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
             });
 
             object_value.keys().for_each(|field_name| {
-                if (input_object_def
+                if !input_object_def
                     .fields
-                    .iter()
-                    .find(|f| f.name.eq(field_name)))
-                .is_none()
+                    .iter().any(|f| f.name.eq(field_name))
                 {
                     user_context.report_error(ValidationError {
                         error_code: self.error_code(),

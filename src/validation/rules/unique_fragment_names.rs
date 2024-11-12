@@ -22,8 +22,14 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueFragmentNames<'a
         fragment: &'a FragmentDefinition,
     ) {
         if let Some(name) = fragment.node_name() {
-            self.store_finding(&name);
+            self.store_finding(name);
         }
+    }
+}
+
+impl<'a> Default for UniqueFragmentNames<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -45,14 +51,14 @@ impl<'u> ValidationRule for UniqueFragmentNames<'u> {
         "UniqueFragmentNames"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         let mut rule = UniqueFragmentNames::new();
 
-        visit_document(&mut rule, &ctx.operation, ctx, error_collector);
+        visit_document(&mut rule, ctx.operation, ctx, error_collector);
 
         rule.findings_counter
             .into_iter()

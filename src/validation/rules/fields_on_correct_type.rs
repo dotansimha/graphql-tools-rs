@@ -13,6 +13,12 @@ use super::ValidationRule;
 /// See https://spec.graphql.org/draft/#sec-Field-Selections
 pub struct FieldsOnCorrectType;
 
+impl Default for FieldsOnCorrectType {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FieldsOnCorrectType {
     pub fn new() -> Self {
         FieldsOnCorrectType
@@ -56,7 +62,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
                 return;
             }
 
-            if let None = parent_type.field_by_name(field_name) {
+            if parent_type.field_by_name(field_name).is_none() {
                 user_context.report_error(ValidationError {
                     error_code: self.error_code(),
                     locations: vec![field.position],
@@ -75,14 +81,14 @@ impl ValidationRule for FieldsOnCorrectType {
         "FieldsOnCorrectType"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut FieldsOnCorrectType::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

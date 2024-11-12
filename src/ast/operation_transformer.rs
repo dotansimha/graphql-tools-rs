@@ -31,9 +31,9 @@ impl<T> TransformedValue<T> {
     }
 }
 
-impl<T> Into<Transformed<T>> for TransformedValue<T> {
-    fn into(self) -> Transformed<T> {
-        match self {
+impl<T> From<TransformedValue<T>> for Transformed<T> {
+    fn from(val: TransformedValue<T>) -> Self {
+        match val {
             TransformedValue::Keep => Transformed::Keep,
             TransformedValue::Replace(replacement) => Transformed::Replace(replacement),
         }
@@ -417,7 +417,7 @@ pub trait OperationTransformer<'a, T: Text<'a> + Clone> {
     ) -> Transformed<(T::Value, Value<'a, T>)> {
         let (name, value) = argument;
 
-        match self.transform_value(&value) {
+        match self.transform_value(value) {
             TransformedValue::Keep => Transformed::Keep,
             TransformedValue::Replace(replacement) => {
                 Transformed::Replace((name.clone(), replacement))
@@ -486,7 +486,7 @@ pub trait OperationTransformer<'a, T: Text<'a> + Clone> {
             }
         }
 
-        return TransformedValue::Keep;
+        TransformedValue::Keep
     }
 
     fn transform_list<I, F, R>(&mut self, list: &[I], f: F) -> TransformedValue<Vec<I>>

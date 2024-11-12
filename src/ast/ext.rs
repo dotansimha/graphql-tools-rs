@@ -57,7 +57,7 @@ impl OperationDefinitionExtension for OperationDefinition {
     fn selection_set(&self) -> &SelectionSet {
         match self {
             OperationDefinition::Query(query) => &query.selection_set,
-            OperationDefinition::SelectionSet(selection_set) => &selection_set,
+            OperationDefinition::SelectionSet(selection_set) => selection_set,
             OperationDefinition::Mutation(mutation) => &mutation.selection_set,
             OperationDefinition::Subscription(subscription) => &subscription.selection_set,
         }
@@ -156,7 +156,7 @@ impl SchemaDocumentExtension for schema::Document {
         self.schema_definition()
             .subscription
             .as_ref()
-            .and_then(|name| self.object_type_by_name(&name))
+            .and_then(|name| self.object_type_by_name(name))
     }
 
     fn object_type_by_name(&self, name: &str) -> Option<&ObjectType> {
@@ -185,7 +185,7 @@ impl SchemaDocumentExtension for schema::Document {
             self.type_by_name(sub_type_name),
             self.type_by_name(super_type_name),
         ) {
-            super_type.is_abstract_type() && self.is_possible_type(&super_type, &sub_type)
+            super_type.is_abstract_type() && self.is_possible_type(super_type, sub_type)
         } else {
             false
         }
@@ -206,7 +206,7 @@ impl SchemaDocumentExtension for schema::Document {
             TypeDefinition::Interface(interface_typedef) => {
                 let implementes_interfaces = possible_type.interfaces();
 
-                return implementes_interfaces.contains(&interface_typedef.name);
+                implementes_interfaces.contains(&interface_typedef.name)
             }
             _ => false,
         }
@@ -248,12 +248,12 @@ impl SchemaDocumentExtension for schema::Document {
         // If superType type is an abstract type, check if it is super type of maybeSubType.
         // Otherwise, the child type is not a valid subtype of the parent type.
         if let (Some(sub_type), Some(super_type)) = (
-            self.type_by_name(&sub_type.inner_type()),
-            self.type_by_name(&super_type.inner_type()),
+            self.type_by_name(sub_type.inner_type()),
+            self.type_by_name(super_type.inner_type()),
         ) {
             return super_type.is_abstract_type()
                 && (sub_type.is_interface_type() || sub_type.is_object_type())
-                && self.is_possible_type(&super_type, &sub_type);
+                && self.is_possible_type(super_type, sub_type);
         }
 
         false
@@ -350,7 +350,7 @@ pub trait InputValueHelpers {
 impl InputValueHelpers for InputValue {
     fn is_required(&self) -> bool {
         if let Type::NonNullType(_inner_type) = &self.value_type {
-            if let None = &self.default_value {
+            if self.default_value.is_none() {
                 return true;
             }
         }
@@ -394,22 +394,20 @@ impl ImplementingInterfaceExtension for TypeDefinition {
     fn has_sub_type(&self, other_type: &TypeDefinition) -> bool {
         match self {
             TypeDefinition::Interface(interface_type) => {
-                return interface_type.is_implemented_by(other_type)
+                interface_type.is_implemented_by(other_type)
             }
             TypeDefinition::Union(union_type) => return union_type.has_sub_type(other_type.name()),
-            _ => return false,
+            _ => false,
         }
     }
 
     fn has_concrete_sub_type(&self, concrete_type: &ObjectType) -> bool {
         match self {
             TypeDefinition::Interface(interface_type) => {
-                return interface_type.is_implemented_by(concrete_type)
+                interface_type.is_implemented_by(concrete_type)
             }
-            TypeDefinition::Union(union_type) => {
-                return union_type.has_sub_type(&concrete_type.name)
-            }
-            _ => return false,
+            TypeDefinition::Union(union_type) => union_type.has_sub_type(&concrete_type.name),
+            _ => false,
         }
     }
 }
@@ -487,17 +485,13 @@ pub trait SubTypeExtension {
 
 impl SubTypeExtension for UnionType {
     fn has_sub_type(&self, other_type_name: &str) -> bool {
-        self.types.iter().find(|v| other_type_name.eq(*v)).is_some()
+        self.types.iter().any(|v| other_type_name.eq(v))
     }
 }
 
 impl AbstractTypeDefinitionExtension for InterfaceType {
     fn is_implemented_by(&self, other_type: &dyn ImplementingInterfaceExtension) -> bool {
-        other_type
-            .interfaces()
-            .iter()
-            .find(|v| self.name.eq(*v))
-            .is_some()
+        other_type.interfaces().iter().any(|v| self.name.eq(v))
     }
 }
 

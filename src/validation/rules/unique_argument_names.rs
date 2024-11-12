@@ -15,6 +15,12 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Argument-Names
 pub struct UniqueArgumentNames;
 
+impl Default for UniqueArgumentNames {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UniqueArgumentNames {
     pub fn new() -> Self {
         UniqueArgumentNames
@@ -70,7 +76,7 @@ fn collect_from_arguments(
     for (arg_name, _arg_value) in arguments {
         found_args
             .entry(arg_name.clone())
-            .or_insert(vec![])
+            .or_default()
             .push(reported_position);
     }
 
@@ -82,14 +88,14 @@ impl ValidationRule for UniqueArgumentNames {
         "UniqueArgumentNames"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut UniqueArgumentNames::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

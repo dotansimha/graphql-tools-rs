@@ -20,6 +20,12 @@ pub struct NoUnusedVariables<'a> {
     spreads: HashMap<NoUnusedVariablesScope<'a>, Vec<&'a str>>,
 }
 
+impl<'a> Default for NoUnusedVariables<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> NoUnusedVariables<'a> {
     pub fn new() -> Self {
         Self {
@@ -102,7 +108,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> 
         if let Some(scope) = &self.current_scope {
             self.spreads
                 .entry(scope.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(&fragment_spread.fragment_name);
         }
     }
@@ -129,7 +135,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> 
         if let Some(ref scope) = self.current_scope {
             self.used_variables
                 .entry(scope.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .append(&mut arg_value.variables_in_use());
         }
     }
@@ -145,8 +151,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> 
             let mut visited = HashSet::new();
 
             self.find_used_vars(
-                &NoUnusedVariablesScope::Operation(op_name.clone()),
-                &def_vars,
+                &NoUnusedVariablesScope::Operation(*op_name),
+                def_vars,
                 &mut used,
                 &mut visited,
             );
@@ -181,14 +187,14 @@ impl<'n> ValidationRule for NoUnusedVariables<'n> {
         "NoUnusedVariables"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut NoUnusedVariables::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

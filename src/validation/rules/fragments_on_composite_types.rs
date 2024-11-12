@@ -15,6 +15,12 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// https://spec.graphql.org/draft/#sec-Fragments-On-Composite-Types
 pub struct FragmentsOnCompositeTypes;
 
+impl Default for FragmentsOnCompositeTypes {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FragmentsOnCompositeTypes {
     pub fn new() -> Self {
         FragmentsOnCompositeTypes
@@ -72,14 +78,14 @@ impl ValidationRule for FragmentsOnCompositeTypes {
         "FragmentsOnCompositeTypes"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut FragmentsOnCompositeTypes::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

@@ -15,6 +15,12 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Required-Arguments
 pub struct ProvidedRequiredArguments;
 
+impl Default for ProvidedRequiredArguments {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProvidedRequiredArguments {
     pub fn new() -> Self {
         ProvidedRequiredArguments
@@ -72,13 +78,11 @@ fn validate_arguments<'a>(
     arguments_defined: &Vec<InputValue>,
 ) -> Vec<InputValue> {
     arguments_defined
-        .into_iter()
+        .iter()
         .filter_map(|field_arg_def| {
             if field_arg_def.is_required()
-                && arguments_used
-                    .iter()
-                    .find(|(name, _value)| name.eq(&field_arg_def.name))
-                    .is_none()
+                && !arguments_used
+                    .iter().any(|(name, _value)| name.eq(&field_arg_def.name))
             {
                 Some(field_arg_def.clone())
             } else {
@@ -93,14 +97,14 @@ impl ValidationRule for ProvidedRequiredArguments {
         "ProvidedRequiredArguments"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut ProvidedRequiredArguments::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

@@ -11,6 +11,12 @@ use crate::{
 /// https://spec.graphql.org/draft/#sec-Leaf-Field-Selections
 pub struct LeafFieldSelections;
 
+impl Default for LeafFieldSelections {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LeafFieldSelections {
     pub fn new() -> Self {
         LeafFieldSelections
@@ -42,19 +48,17 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LeafFieldSelections {
               ),
                     });
                 }
-            } else {
-                if field_selection_count == 0 {
-                    user_context.report_error(ValidationError {error_code: self.error_code(),
-              locations: vec![field.position],
-              message: format!(
-                  "Field \"{}\" of type \"{}\" must have a selection of subfields. Did you mean \"{} {{ ... }}\"?",
-                  field.name,
-                  field_type_literal,
-                  field.name
-              ),
-          });
-                }
-            }
+            } else if field_selection_count == 0 {
+                      user_context.report_error(ValidationError {error_code: self.error_code(),
+                locations: vec![field.position],
+                message: format!(
+                    "Field \"{}\" of type \"{}\" must have a selection of subfields. Did you mean \"{} {{ ... }}\"?",
+                    field.name,
+                    field_type_literal,
+                    field.name
+                ),
+            });
+                  }
         }
     }
 }
@@ -64,14 +68,14 @@ impl ValidationRule for LeafFieldSelections {
         "LeafFieldSelections"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut LeafFieldSelections::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

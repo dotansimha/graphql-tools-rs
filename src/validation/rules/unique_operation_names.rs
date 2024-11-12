@@ -27,6 +27,12 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueOperationNames<'
     }
 }
 
+impl<'a> Default for UniqueOperationNames<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> UniqueOperationNames<'a> {
     pub fn new() -> Self {
         Self {
@@ -52,7 +58,7 @@ impl<'u> ValidationRule for UniqueOperationNames<'u> {
     ) {
         let mut rule = UniqueOperationNames::new();
 
-        visit_document(&mut rule, &ctx.operation, ctx, error_collector);
+        visit_document(&mut rule, ctx.operation, ctx, error_collector);
 
         rule.findings_counter
             .into_iter()
