@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Cache Rust
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
 
       - name: Test Rust
         run: |
