@@ -32,7 +32,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueArgumentNames {
 
         found_args.iter().for_each(|(arg_name, positions)| {
             if positions.len() > 1 {
-                user_context.report_error(ValidationError {error_code: self.error_code(),
+                user_context.report_error(ValidationError {
+                    error_code: self.error_code(),
                     message: format!("There can be only one argument named \"{}\".", arg_name),
                     locations: positions.clone(),
                 })
@@ -50,7 +51,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueArgumentNames {
 
         found_args.iter().for_each(|(arg_name, positions)| {
             if positions.len() > 1 {
-                user_context.report_error(ValidationError {error_code: self.error_code(),
+                user_context.report_error(ValidationError {
+                    error_code: self.error_code(),
                     message: format!("There can be only one argument named \"{}\".", arg_name),
                     locations: positions.clone(),
                 })

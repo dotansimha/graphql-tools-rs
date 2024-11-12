@@ -157,7 +157,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         if let Some(ref scope) = self.current_scope {
             self.variable_defs
                 .entry(scope.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(&variable_definition);
         }
     }

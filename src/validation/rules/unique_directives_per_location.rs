@@ -35,7 +35,8 @@ impl UniqueDirectivesPerLocation {
             if let Some(meta_directive) = ctx.directives.get(&directive.name) {
                 if !meta_directive.repeatable {
                     if exists.contains(&directive.name) {
-                        err_context.report_error(ValidationError {error_code: self.error_code(),
+                        err_context.report_error(ValidationError {
+                            error_code: self.error_code(),
                             locations: vec![directive.position],
                             message: format!("Duplicate directive \"{}\"", &directive.name),
                         });

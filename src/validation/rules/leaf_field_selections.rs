@@ -32,7 +32,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LeafFieldSelections {
 
             if field_type.is_leaf_type() {
                 if field_selection_count > 0 {
-                    user_context.report_error(ValidationError {error_code: self.error_code(),
+                    user_context.report_error(ValidationError {
+                        error_code: self.error_code(),
                         locations: vec![field.position],
                         message: format!(
                   "Field \"{}\" must not have a selection since type \"{}\" has no subfields.",

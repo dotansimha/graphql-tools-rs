@@ -73,7 +73,8 @@ impl NoFragmentsCycle {
                             .collect::<Vec<String>>(),
                     };
 
-                    error_context.report_error(ValidationError {error_code: self.error_code(),
+                    error_context.report_error(ValidationError {
+                        error_code: self.error_code(),
                         locations: cycle_path.iter().map(|f| f.position.clone()).collect(),
                         message: match via_path.len() {
                             0 => {

@@ -14,10 +14,10 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 ///
 /// See https://spec.graphql.org/draft/#sec-All-Variables-Used
 pub struct NoUnusedVariables<'a> {
-    current_scope: Option<Scope<'a>>,
+    current_scope: Option<NoUnusedVariablesScope<'a>>,
     defined_variables: HashMap<Option<&'a str>, HashSet<&'a str>>,
-    used_variables: HashMap<Scope<'a>, Vec<&'a str>>,
-    spreads: HashMap<Scope<'a>, Vec<&'a str>>,
+    used_variables: HashMap<NoUnusedVariablesScope<'a>, Vec<&'a str>>,
+    spreads: HashMap<NoUnusedVariablesScope<'a>, Vec<&'a str>>,
 }
 
 impl<'a> NoUnusedVariables<'a> {
@@ -34,10 +34,10 @@ impl<'a> NoUnusedVariables<'a> {
 impl<'a> NoUnusedVariables<'a> {
     fn find_used_vars(
         &self,
-        from: &Scope<'a>,
+        from: &NoUnusedVariablesScope<'a>,
         defined: &HashSet<&str>,
         used: &mut HashSet<&'a str>,
-        visited: &mut HashSet<Scope<'a>>,
+        visited: &mut HashSet<NoUnusedVariablesScope<'a>>,
     ) {
         if visited.contains(from) {
             return;
@@ -55,14 +55,19 @@ impl<'a> NoUnusedVariables<'a> {
 
         if let Some(spreads) = self.spreads.get(from) {
             for spread in spreads {
-                self.find_used_vars(&Scope::Fragment(spread), defined, used, visited);
+                self.find_used_vars(
+                    &NoUnusedVariablesScope::Fragment(spread),
+                    defined,
+                    used,
+                    visited,
+                );
             }
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Scope<'a> {
+pub enum NoUnusedVariablesScope<'a> {
     Operation(Option<&'a str>),
     Fragment(&'a str),
 }
@@ -75,7 +80,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> 
         operation_definition: &'a OperationDefinition,
     ) {
         let op_name = operation_definition.node_name();
-        self.current_scope = Some(Scope::Operation(op_name));
+        self.current_scope = Some(NoUnusedVariablesScope::Operation(op_name));
         self.defined_variables.insert(op_name, HashSet::new());
     }
 
@@ -85,7 +90,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> 
         _: &mut ValidationErrorContext,
         fragment_definition: &'a query::FragmentDefinition,
     ) {
-        self.current_scope = Some(Scope::Fragment(&fragment_definition.name));
+        self.current_scope = Some(NoUnusedVariablesScope::Fragment(&fragment_definition.name));
     }
 
     fn enter_fragment_spread(
@@ -108,7 +113,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> 
         _: &mut ValidationErrorContext,
         variable_definition: &'a query::VariableDefinition,
     ) {
-        if let Some(Scope::Operation(ref name)) = self.current_scope {
+        if let Some(NoUnusedVariablesScope::Operation(ref name)) = self.current_scope {
             if let Some(vars) = self.defined_variables.get_mut(name) {
                 vars.insert(&variable_definition.name);
             }
@@ -140,7 +145,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> 
             let mut visited = HashSet::new();
 
             self.find_used_vars(
-                &Scope::Operation(op_name.clone()),
+                &NoUnusedVariablesScope::Operation(op_name.clone()),
                 &def_vars,
                 &mut used,
                 &mut visited,
@@ -150,7 +155,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for NoUnusedVariables<'a> 
                 .iter()
                 .filter(|var| !used.contains(*var))
                 .for_each(|var| {
-                    user_context.report_error(ValidationError {error_code: self.error_code(),
+                    user_context.report_error(ValidationError {
+                        error_code: self.error_code(),
                         message: error_message(var, op_name),
                         locations: vec![],
                     })

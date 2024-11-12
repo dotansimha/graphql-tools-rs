@@ -41,10 +41,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueVariableNames<'a
         user_context: &mut ValidationErrorContext,
         variable_definition: &'a VariableDefinition,
     ) {
-      let error_code = self.error_code();
+        let error_code = self.error_code();
         match self.found_records.entry(&variable_definition.name) {
             Entry::Occupied(entry) => user_context.report_error(ValidationError {
-              error_code,
+                error_code,
                 locations: vec![*entry.get(), variable_definition.position],
                 message: format!(
                     "There can only be one variable named \"${}\".",

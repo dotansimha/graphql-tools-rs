@@ -49,7 +49,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptio
                                 .to_owned(),
                         };
 
-                        user_context.report_error(ValidationError {error_code: self.error_code(),
+                        user_context.report_error(ValidationError {
+                            error_code: self.error_code(),
                             locations: vec![subscription.position],
                             message: error_message,
                         });

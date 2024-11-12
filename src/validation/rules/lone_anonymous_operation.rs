@@ -40,7 +40,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation
             match definition {
                 Definition::Operation(OperationDefinition::SelectionSet(_)) => {
                     if operations_count > 1 {
-                        user_context.report_error(ValidationError {error_code: self.error_code(),
+                        user_context.report_error(ValidationError {
+                            error_code: self.error_code(),
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![],
@@ -49,7 +50,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation
                 }
                 Definition::Operation(OperationDefinition::Query(query)) => {
                     if query.name == None && operations_count > 1 {
-                        user_context.report_error(ValidationError {error_code: self.error_code(),
+                        user_context.report_error(ValidationError {
+                            error_code: self.error_code(),
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![query.position.clone()],
@@ -58,7 +60,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation
                 }
                 Definition::Operation(OperationDefinition::Mutation(mutation)) => {
                     if mutation.name == None && operations_count > 1 {
-                        user_context.report_error(ValidationError {error_code: self.error_code(),
+                        user_context.report_error(ValidationError {
+                            error_code: self.error_code(),
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![mutation.position.clone()],
@@ -67,7 +70,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for LoneAnonymousOperation
                 }
                 Definition::Operation(OperationDefinition::Subscription(subscription)) => {
                     if subscription.name == None && operations_count > 1 {
-                        user_context.report_error(ValidationError {error_code: self.error_code(),
+                        user_context.report_error(ValidationError {
+                            error_code: self.error_code(),
                             message: "This anonymous operation must be the only defined operation."
                                 .to_string(),
                             locations: vec![subscription.position.clone()],
