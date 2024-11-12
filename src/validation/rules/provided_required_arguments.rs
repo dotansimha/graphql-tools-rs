@@ -15,6 +15,12 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Required-Arguments
 pub struct ProvidedRequiredArguments;
 
+impl Default for ProvidedRequiredArguments {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProvidedRequiredArguments {
     pub fn new() -> Self {
         ProvidedRequiredArguments
@@ -67,18 +73,17 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ProvidedRequiredArgume
     }
 }
 
-fn validate_arguments<'a>(
-    arguments_used: &Vec<(String, Value)>,
-    arguments_defined: &Vec<InputValue>,
+fn validate_arguments(
+    arguments_used: &[(String, Value)],
+    arguments_defined: &[InputValue],
 ) -> Vec<InputValue> {
     arguments_defined
-        .into_iter()
+        .iter()
         .filter_map(|field_arg_def| {
             if field_arg_def.is_required()
-                && arguments_used
+                && !arguments_used
                     .iter()
-                    .find(|(name, _value)| name.eq(&field_arg_def.name))
-                    .is_none()
+                    .any(|(name, _value)| name.eq(&field_arg_def.name))
             {
                 Some(field_arg_def.clone())
             } else {
@@ -93,14 +98,14 @@ impl ValidationRule for ProvidedRequiredArguments {
         "ProvidedRequiredArguments"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut ProvidedRequiredArguments::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );
@@ -118,7 +123,7 @@ fn ignores_unknown_arguments() {
             isHouseTrained(unknownArgument: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -136,7 +141,7 @@ fn arg_on_optional_arg() {
             isHouseTrained(atOtherHomes: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -154,7 +159,7 @@ fn no_arg_on_optional_arg() {
             isHouseTrained
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -172,7 +177,7 @@ fn multiple_args() {
             multipleReqs(req1: 1, req2: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -190,7 +195,7 @@ fn multiple_args_reverse_order() {
             multipleReqs(req2: 2, req1: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -208,7 +213,7 @@ fn no_args_on_multiple_optional() {
             multipleOpts
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -226,7 +231,7 @@ fn one_arg_on_multiple_optional() {
             multipleOpts(opt1: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -244,7 +249,7 @@ fn second_arg_on_multiple_optional() {
             multipleOpts(opt2: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -262,7 +267,7 @@ fn multiple_required_args_on_mixed_list() {
             multipleOptAndReq(req1: 3, req2: 4)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -280,7 +285,7 @@ fn multiple_required_and_one_optional_arg_on_mixedlist() {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -298,7 +303,7 @@ fn all_required_and_optional_args_on_mixedlist() {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5, opt2: 6)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -316,7 +321,7 @@ fn missing_one_non_nullable_argument() {
             multipleReqs(req2: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -338,7 +343,7 @@ fn missing_multiple_non_nullable_arguments() {
             multipleReqs
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -361,7 +366,7 @@ fn incorrect_value_and_missing_argument() {
             multipleReqs(req1: \"one\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -381,7 +386,7 @@ fn ignores_unknown_directives() {
         "{
           dog @unknown
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -403,7 +408,7 @@ fn with_directives_of_valid_types() {
             name
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -422,7 +427,7 @@ fn with_directive_with_missing_types() {
             name @skip
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 

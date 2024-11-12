@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use graphql_parser::schema::TypeDefinition;
+use crate::parser::schema::TypeDefinition;
 
 use crate::ast::{
     InputValueHelpers, SchemaDocumentExtension, TypeDefinitionExtension, TypeExtension,
@@ -16,16 +16,19 @@ use super::ValidationRule;
 
 pub struct ValuesOfCorrectType {}
 
+impl Default for ValuesOfCorrectType {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ValuesOfCorrectType {
     pub fn new() -> Self {
         Self {}
     }
 
     pub fn is_custom_scalar(&self, type_name: &str) -> bool {
-        match type_name {
-            "String" | "Int" | "Float" | "Boolean" | "ID" => false,
-            _ => true,
-        }
+        !matches!(type_name, "String" | "Int" | "Float" | "Boolean" | "ID")
     }
 
     pub fn validate_value(
@@ -37,9 +40,10 @@ impl ValuesOfCorrectType {
         if let Some(input_type) = visitor_context.current_input_type_literal() {
             let named_type = input_type.inner_type();
 
-            if let Some(type_def) = visitor_context.schema.type_by_name(&named_type) {
+            if let Some(type_def) = visitor_context.schema.type_by_name(named_type) {
                 if !type_def.is_leaf_type() {
-                    user_context.report_error(ValidationError {error_code: self.error_code(),
+                    user_context.report_error(ValidationError {
+                        error_code: self.error_code(),
                         message: format!(
                             "Expected value of type \"{}\", found {}.",
                             named_type, raw_value
@@ -62,7 +66,8 @@ impl ValuesOfCorrectType {
                                 return;
                             }
 
-                            user_context.report_error(ValidationError {error_code: self.error_code(),
+                            user_context.report_error(ValidationError {
+                                error_code: self.error_code(),
                                 message: format!(
                                     "Expected value of type \"{}\", found {}.",
                                     expected, value
@@ -76,13 +81,9 @@ impl ValuesOfCorrectType {
                 if let TypeDefinition::Enum(enum_type_def) = &type_def {
                     match raw_value {
                         Value::Enum(enum_value) => {
-                            if enum_type_def
-                                .values
-                                .iter()
-                                .find(|v| v.name.eq(enum_value))
-                                .is_none()
-                            {
-                                user_context.report_error(ValidationError {error_code: self.error_code(),
+                            if !enum_type_def.values.iter().any(|v| v.name.eq(enum_value)) {
+                                user_context.report_error(ValidationError {
+                                    error_code: self.error_code(),
                                     message: format!(
                                         "Value \"{}\" does not exist in \"{}\" enum.",
                                         enum_value, enum_type_def.name
@@ -91,7 +92,8 @@ impl ValuesOfCorrectType {
                                 })
                             }
                         }
-                        value => user_context.report_error(ValidationError {error_code: self.error_code(),
+                        value => user_context.report_error(ValidationError {
+                            error_code: self.error_code(),
                             message: format!(
                                 "Enum \"{}\" cannot represent non-enum value: {}",
                                 enum_type_def.name, value
@@ -114,7 +116,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
     ) {
         if let Some(input_type) = visitor_context.current_input_type_literal() {
             if input_type.is_non_null() {
-                user_context.report_error(ValidationError {error_code: self.error_code(),
+                user_context.report_error(ValidationError {
+                    error_code: self.error_code(),
                     message: format!("Expected value of type \"{}\", found null", input_type),
                     locations: vec![],
                 })
@@ -133,7 +136,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
         {
             input_object_def.fields.iter().for_each(|field| {
                 if field.is_required() && !object_value.contains_key(&field.name) {
-                    user_context.report_error(ValidationError {error_code: self.error_code(),
+                    user_context.report_error(ValidationError {
+                        error_code: self.error_code(),
                         message: format!(
                             "Field \"{}.{}\" of required type \"{}\" was not provided.",
                             input_object_def.name, field.name, field.value_type
@@ -144,13 +148,13 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
             });
 
             object_value.keys().for_each(|field_name| {
-                if (input_object_def
+                if !input_object_def
                     .fields
                     .iter()
-                    .find(|f| f.name.eq(field_name)))
-                .is_none()
+                    .any(|f| f.name.eq(field_name))
                 {
-                    user_context.report_error(ValidationError {error_code: self.error_code(),
+                    user_context.report_error(ValidationError {
+                        error_code: self.error_code(),
                         message: format!(
                             "Field \"{}\" is not defined by type \"{}\".",
                             field_name, input_object_def.name
@@ -186,14 +190,14 @@ impl ValidationRule for ValuesOfCorrectType {
         "ValuesOfCorrectType"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut ValuesOfCorrectType::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );
@@ -212,7 +216,7 @@ fn valid_int_value() {
             intArgField(intArg: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -232,7 +236,7 @@ fn valid_negative_int_value() {
             intArgField(intArg: -2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -252,7 +256,7 @@ fn valid_boolean_value() {
             booleanArgField(booleanArg: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -272,7 +276,7 @@ fn valid_string_value() {
             stringArgField(stringArg: \"foo\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -292,7 +296,7 @@ fn valid_float_value() {
             floatArgField(floatArg: 1.1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -312,7 +316,7 @@ fn valid_negative_float_value() {
             floatArgField(floatArg: -1.1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -332,7 +336,7 @@ fn valid_int_into_float_value() {
             floatArgField(floatArg: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -352,7 +356,7 @@ fn valid_int_into_id_value() {
             idArgField(idArg: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -372,7 +376,7 @@ fn valid_string_into_id_value() {
             idArgField(idArg: \"someIdString\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -392,7 +396,7 @@ fn valid_enum_value() {
             doesKnowCommand(dogCommand: SIT)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -412,7 +416,7 @@ fn enum_undefined_value() {
             enumArgField(enumArg: UNKNOWN)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -432,7 +436,7 @@ fn enum_null_value() {
             enumArgField(enumArg: NO_FUR)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -452,7 +456,7 @@ fn valid_null_into_nullable() {
             intArgField(intArg: null)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -466,7 +470,7 @@ fn valid_null_into_nullable() {
             name
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -486,7 +490,7 @@ fn invalid_int_into_string() {
             stringArgField(stringArg: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -510,7 +514,7 @@ fn invalid_float_into_string() {
             stringArgField(stringArg: 1.0)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -534,7 +538,7 @@ fn invalid_bool_into_string() {
             stringArgField(stringArg: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -558,7 +562,7 @@ fn unquoted_string_to_string() {
             stringArgField(stringArg: BAR)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -582,7 +586,7 @@ fn invalid_string_into_int() {
             intArgField(intArg: \"3\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -607,7 +611,7 @@ fn bigint_into_int() {
             intArgField(intArg: 829384293849283498239482938)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -631,7 +635,7 @@ fn unquoted_string_into_int() {
             intArgField(intArg: FOO)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -652,7 +656,7 @@ fn simple_float_into_int() {
             intArgField(intArg: 3.0)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -673,7 +677,7 @@ fn float_into_int() {
             intArgField(intArg: 3.333)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -697,7 +701,7 @@ fn string_into_float() {
             floatArgField(floatArg: \"3.333\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -721,7 +725,7 @@ fn boolean_into_float() {
             floatArgField(floatArg: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -745,7 +749,7 @@ fn unquoted_into_float() {
             floatArgField(floatArg: FOO)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -769,7 +773,7 @@ fn int_into_boolean() {
             booleanArgField(booleanArg: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -793,7 +797,7 @@ fn float_into_boolean() {
             booleanArgField(booleanArg: 2.0)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -817,7 +821,7 @@ fn string_into_boolean() {
             booleanArgField(booleanArg: \"true\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -841,7 +845,7 @@ fn unquoted_into_boolean() {
             booleanArgField(booleanArg: TRUE)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -865,7 +869,7 @@ fn float_into_id() {
             idArgField(idArg: 1.0)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -886,7 +890,7 @@ fn bool_into_id() {
             idArgField(idArg: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -907,7 +911,7 @@ fn unquoted_into_id() {
             idArgField(idArg: SOMETHING)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -931,7 +935,7 @@ fn int_into_enum() {
             doesKnowCommand(dogCommand: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -955,7 +959,7 @@ fn float_into_enum() {
             doesKnowCommand(dogCommand: 1.0)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -979,7 +983,7 @@ fn string_into_enum() {
             doesKnowCommand(dogCommand: \"SIT\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1003,7 +1007,7 @@ fn boolean_into_enum() {
             doesKnowCommand(dogCommand: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1027,7 +1031,7 @@ fn unknown_enum_value_into_enum() {
             doesKnowCommand(dogCommand: JUGGLE)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1051,7 +1055,7 @@ fn different_case_enum_value_into_enum() {
             doesKnowCommand(dogCommand: sit)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1075,7 +1079,7 @@ fn valid_list_value() {
             stringListArgField(stringListArg: [\"one\", null, \"two\"])
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1095,7 +1099,7 @@ fn valid_empty_list_value() {
             stringListArgField(stringListArg: [])
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1115,7 +1119,7 @@ fn valid_null_list_value() {
             stringListArgField(stringListArg: null)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1135,7 +1139,7 @@ fn valid_single_value_into_list_value() {
             stringListArgField(stringListArg: \"one\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1155,7 +1159,7 @@ fn incorrect_item_type() {
             stringListArgField(stringListArg: [\"one\", 2])
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1179,7 +1183,7 @@ fn single_value_of_incorrect_type() {
             stringListArgField(stringListArg: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1203,7 +1207,7 @@ fn arg_on_optional_arg() {
             isHouseTrained(atOtherHomes: true)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1223,7 +1227,7 @@ fn no_arg_on_optional_arg() {
             isHouseTrained
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1243,7 +1247,7 @@ fn multiple_valid_args() {
             multipleReqs(req1: 1, req2: 2)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1263,7 +1267,7 @@ fn multiple_valid_args_reverse_oreder() {
             multipleReqs(req2: 2, req1: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1283,7 +1287,7 @@ fn no_args_multiple_optional() {
             multipleOpts
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1303,7 +1307,7 @@ fn one_arg_multiple_optinals() {
             multipleOpts(opt1: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1323,7 +1327,7 @@ fn second_arg_multiple_optinals() {
             multipleOpts(opt2: 1)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1343,7 +1347,7 @@ fn multiple_required_args_on_mixed_list() {
             multipleOptAndReq(req1: 3, req2: 4)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1363,7 +1367,7 @@ fn multiple_required_args_and_one_optional_on_mixed_list() {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1383,7 +1387,7 @@ fn all_required_and_one_optional() {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5, opt2: 6)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1403,7 +1407,7 @@ fn incorrect_value_type() {
             multipleReqs(req2: \"two\", req1: \"one\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1430,7 +1434,7 @@ fn incorrect_value_and_missing_argument() {
             multipleReqs(req1: \"one\")
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1454,7 +1458,7 @@ fn null_value() {
             multipleReqs(req1: null)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1478,7 +1482,7 @@ fn optional_arg_despite_required_field_in_type() {
             complexArgField
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1498,7 +1502,7 @@ fn partial_object_only_required() {
             complexArgField(complexArg: { requiredField: true })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1518,7 +1522,7 @@ fn partial_object_required_field_can_be_falsy() {
             complexArgField(complexArg: { requiredField: false })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1538,7 +1542,7 @@ fn partial_object_including_required() {
             complexArgField(complexArg: { requiredField: true, intField: 4 })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1564,7 +1568,7 @@ fn full_object() {
             })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1590,7 +1594,7 @@ fn full_object_with_fields_in_different_order() {
             })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1610,7 +1614,7 @@ fn partial_object_missing_required() {
             complexArgField(complexArg: { intField: 4 })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1639,7 +1643,7 @@ fn partial_object_invalid_field_type() {
             })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1666,7 +1670,7 @@ fn partial_object_null_to_non_null_field() {
             })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1693,7 +1697,7 @@ fn partial_object_unknown_field_arg() {
             })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1747,7 +1751,7 @@ fn with_directives_of_valid_types() {
             name
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1767,7 +1771,7 @@ fn with_directives_of_invalid_types() {
             name @skip(if: ENUM)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1797,7 +1801,7 @@ fn variables_with_valid_default_values() {
         ) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1819,7 +1823,7 @@ fn variables_with_valid_default_null_values() {
         ) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1841,7 +1845,7 @@ fn variables_with_invalid_default_null_values() {
         ) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1871,7 +1875,7 @@ fn variables_with_invalid_default_values() {
         ) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1899,7 +1903,7 @@ fn variables_with_complex_invalid_default_values() {
         ) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1924,7 +1928,7 @@ fn complex_variables_missing_required_field() {
         query MissingRequiredField($a: ComplexInput = {intField: 3}) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -1948,7 +1952,7 @@ fn list_variables_with_invalid_item() {
         query InvalidItem($a: [String] = [\"one\", 2]) {
           dog { name }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 

@@ -13,6 +13,12 @@ use super::ValidationRule;
 /// See https://spec.graphql.org/draft/#sec-Field-Selections
 pub struct FieldsOnCorrectType;
 
+impl Default for FieldsOnCorrectType {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FieldsOnCorrectType {
     pub fn new() -> Self {
         FieldsOnCorrectType
@@ -56,7 +62,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for FieldsOnCorrectType {
                 return;
             }
 
-            if let None = parent_type.field_by_name(field_name) {
+            if parent_type.field_by_name(field_name).is_none() {
                 user_context.report_error(ValidationError {
                     error_code: self.error_code(),
                     locations: vec![field.position],
@@ -75,14 +81,14 @@ impl ValidationRule for FieldsOnCorrectType {
         "FieldsOnCorrectType"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut FieldsOnCorrectType::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );
@@ -124,7 +130,7 @@ fn object_field_selection() {
           __typename
           name
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -141,7 +147,7 @@ fn aliased_object_field_selection() {
           tn : __typename
           otherName : name
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -158,7 +164,7 @@ fn interface_field_selection() {
           __typename
           name
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -174,7 +180,7 @@ fn aliased_interface_field_selection() {
         "fragment interfaceFieldSelection on Pet {
           otherName : name
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -190,7 +196,7 @@ fn lying_alias_selection() {
         "fragment lyingAliasSelection on Dog {
           name : nickname
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -206,7 +212,7 @@ fn ignores_fields_on_unknown_type() {
         "fragment unknownSelection on UnknownType {
           unknownField
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -226,7 +232,7 @@ fn reports_errors_when_type_is_known_again() {
             }
           }
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -250,7 +256,7 @@ fn field_not_defined_on_fragment() {
         "fragment fieldNotDefined on Dog {
           meowVolume
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -273,7 +279,7 @@ fn ignores_deeply_unknown_field() {
             deeper_unknown_field
           }
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -296,7 +302,7 @@ fn sub_field_not_defined() {
             unknown_field
           }
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -319,7 +325,7 @@ fn field_not_defined_on_inline_fragment() {
             meowVolume
           }
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -340,7 +346,7 @@ fn aliased_field_target_not_defined() {
         "fragment aliasedFieldTargetNotDefined on Dog {
           volume : mooVolume
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -361,7 +367,7 @@ fn aliased_lying_field_target_not_defined() {
         "fragment aliasedLyingFieldTargetNotDefined on Dog {
           barkVolume : kawVolume
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -382,7 +388,7 @@ fn not_defined_on_interface() {
         "fragment notDefinedOnInterface on Pet {
           tailLength
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -403,7 +409,7 @@ fn defined_on_implementors_but_not_on_interface() {
         "fragment definedOnImplementorsButNotInterface on Pet {
           nickname
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -424,7 +430,7 @@ fn direct_field_selection_on_union() {
         "fragment directFieldSelectionOnUnion on CatOrDog {
           directField
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -445,7 +451,7 @@ fn defined_on_implementors_queried_on_union() {
         "fragment definedOnImplementorsQueriedOnUnion on CatOrDog {
           name
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -466,7 +472,7 @@ fn meta_field_selection_on_union() {
         "fragment directFieldSelectionOnUnion on CatOrDog {
           __typename
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -488,7 +494,7 @@ fn valid_field_in_inline_fragment() {
             name
           }
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 
@@ -505,7 +511,7 @@ fn forbidden_typename_on_subscription_type() {
         "subscription {
           __typename 
         }",
-        &FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
+        FIELDS_ON_CORRECT_TYPE_TEST_SCHEMA,
         &mut plan,
     );
 

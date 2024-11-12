@@ -27,6 +27,12 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueOperationNames<'
     }
 }
 
+impl<'a> Default for UniqueOperationNames<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> UniqueOperationNames<'a> {
     pub fn new() -> Self {
         Self {
@@ -35,8 +41,8 @@ impl<'a> UniqueOperationNames<'a> {
     }
 
     fn store_finding(&mut self, name: &'a str) {
-        let value = *self.findings_counter.entry(name.clone()).or_insert(0);
-        self.findings_counter.insert(name.clone(), value + 1);
+        let value = *self.findings_counter.entry(name).or_insert(0);
+        self.findings_counter.insert(name, value + 1);
     }
 }
 
@@ -45,20 +51,21 @@ impl<'u> ValidationRule for UniqueOperationNames<'u> {
         "UniqueOperationNames"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         let mut rule = UniqueOperationNames::new();
 
-        visit_document(&mut rule, &ctx.operation, ctx, error_collector);
+        visit_document(&mut rule, ctx.operation, ctx, error_collector);
 
         rule.findings_counter
             .into_iter()
             .filter(|(_key, value)| *value > 1)
             .for_each(|(key, _value)| {
-                error_collector.report_error(ValidationError {error_code: self.error_code(),
+                error_collector.report_error(ValidationError {
+                    error_code: self.error_code(),
                     message: format!("There can be only one operation named \"{}\".", key),
                     locations: vec![],
                 })

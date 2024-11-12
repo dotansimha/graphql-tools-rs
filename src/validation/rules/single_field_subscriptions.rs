@@ -14,6 +14,12 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// See https://spec.graphql.org/draft/#sec-Operation-Name-Uniqueness
 pub struct SingleFieldSubscriptions;
 
+impl Default for SingleFieldSubscriptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SingleFieldSubscriptions {
     pub fn new() -> Self {
         Self
@@ -27,61 +33,59 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for SingleFieldSubscriptio
         user_context: &mut ValidationErrorContext,
         operation: &OperationDefinition,
     ) {
-        match operation {
-            OperationDefinition::Subscription(subscription) => {
-                if let Some(subscription_type) = visitor_context.schema.subscription_type() {
-                    let operation_name = subscription.name.as_ref();
+        if let OperationDefinition::Subscription(subscription) = operation {
+            if let Some(subscription_type) = visitor_context.schema.subscription_type() {
+                let operation_name = subscription.name.as_ref();
 
-                    let selection_set_fields = collect_fields(
-                        &subscription.selection_set,
-                        &TypeDefinition::Object(subscription_type.clone()),
-                        &visitor_context.known_fragments,
-                        visitor_context,
-                    );
+                let selection_set_fields = collect_fields(
+                    &subscription.selection_set,
+                    &TypeDefinition::Object(subscription_type.clone()),
+                    &visitor_context.known_fragments,
+                    visitor_context,
+                );
 
-                    if selection_set_fields.len() > 1 {
-                        let error_message = match operation_name {
-                            Some(operation_name) => format!(
-                                "Subscription \"{}\" must select only one top level field.",
-                                operation_name
-                            ),
-                            None => "Anonymous Subscription must select only one top level field."
-                                .to_owned(),
-                        };
+                if selection_set_fields.len() > 1 {
+                    let error_message = match operation_name {
+                        Some(operation_name) => format!(
+                            "Subscription \"{}\" must select only one top level field.",
+                            operation_name
+                        ),
+                        None => "Anonymous Subscription must select only one top level field."
+                            .to_owned(),
+                    };
 
-                        user_context.report_error(ValidationError {error_code: self.error_code(),
-                            locations: vec![subscription.position],
-                            message: error_message,
-                        });
-                    }
-
-                    selection_set_fields
-                  .into_iter()
-                  .filter_map(|(field_name, fields_records)| {
-                      if field_name.starts_with("__") {
-                          return Some((field_name, fields_records));
-                      }
-
-                      None
-                  })
-                  .for_each(|(_field_name, _fields_records)| {
-                      let error_message = match operation_name {
-                          Some(operation_name) => format!(
-                              "Subscription \"{}\" must not select an introspection top level field.",
-                              operation_name
-                          ),
-                          None => "Anonymous Subscription must not select an introspection top level field."
-                              .to_owned(),
-                      };
-
-                      user_context.report_error(ValidationError {error_code: self.error_code(),
+                    user_context.report_error(ValidationError {
+                        error_code: self.error_code(),
                         locations: vec![subscription.position],
                         message: error_message,
                     });
-                  })
                 }
+
+                selection_set_fields
+              .into_iter()
+              .filter_map(|(field_name, fields_records)| {
+                  if field_name.starts_with("__") {
+                      return Some((field_name, fields_records));
+                  }
+
+                  None
+              })
+              .for_each(|(_field_name, _fields_records)| {
+                  let error_message = match operation_name {
+                      Some(operation_name) => format!(
+                          "Subscription \"{}\" must not select an introspection top level field.",
+                          operation_name
+                      ),
+                      None => "Anonymous Subscription must not select an introspection top level field."
+                          .to_owned(),
+                  };
+
+                  user_context.report_error(ValidationError {error_code: self.error_code(),
+                    locations: vec![subscription.position],
+                    message: error_message,
+                });
+              })
             }
-            _ => {}
         }
     }
 }
@@ -91,14 +95,14 @@ impl ValidationRule for SingleFieldSubscriptions {
         "SingleFieldSubscriptions"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut SingleFieldSubscriptions::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

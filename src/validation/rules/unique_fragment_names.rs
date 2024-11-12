@@ -22,8 +22,14 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueFragmentNames<'a
         fragment: &'a FragmentDefinition,
     ) {
         if let Some(name) = fragment.node_name() {
-            self.store_finding(&name);
+            self.store_finding(name);
         }
+    }
+}
+
+impl<'a> Default for UniqueFragmentNames<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -36,7 +42,7 @@ impl<'a> UniqueFragmentNames<'a> {
 
     fn store_finding(&mut self, name: &'a str) {
         let value = *self.findings_counter.entry(name).or_insert(0);
-        self.findings_counter.insert(name.clone(), value + 1);
+        self.findings_counter.insert(name, value + 1);
     }
 }
 
@@ -45,20 +51,21 @@ impl<'u> ValidationRule for UniqueFragmentNames<'u> {
         "UniqueFragmentNames"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         let mut rule = UniqueFragmentNames::new();
 
-        visit_document(&mut rule, &ctx.operation, ctx, error_collector);
+        visit_document(&mut rule, ctx.operation, ctx, error_collector);
 
         rule.findings_counter
             .into_iter()
             .filter(|(_key, value)| *value > 1)
             .for_each(|(key, _value)| {
-                error_collector.report_error(ValidationError {error_code: self.error_code(),
+                error_collector.report_error(ValidationError {
+                    error_code: self.error_code(),
                     message: format!("There can be only one fragment named \"{}\".", key),
                     locations: vec![],
                 })

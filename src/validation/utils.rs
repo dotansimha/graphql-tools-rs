@@ -1,10 +1,10 @@
-use graphql_parser::Pos;
+use crate::parser::Pos;
 use serde::ser::*;
 use serde::{Serialize, Serializer};
 use serde_with::{serde_as, SerializeAs};
 use std::fmt::Debug;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ValidationErrorContext {
     pub errors: Vec<ValidationError>,
 }

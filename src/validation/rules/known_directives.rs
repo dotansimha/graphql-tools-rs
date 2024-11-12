@@ -16,6 +16,12 @@ pub struct KnownDirectives {
     recent_location: Option<DirectiveLocation>,
 }
 
+impl Default for KnownDirectives {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KnownDirectives {
     pub fn new() -> Self {
         KnownDirectives {
@@ -133,7 +139,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownDirectives {
                     .iter()
                     .any(|l| l == current_location)
                 {
-                    user_context.report_error(ValidationError {error_code: self.error_code(),
+                    user_context.report_error(ValidationError {
+                        error_code: self.error_code(),
                         locations: vec![directive.position],
                         message: format!(
                             "Directive \"@{}\" may not be used on {}",
@@ -144,7 +151,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownDirectives {
                 }
             }
         } else {
-            user_context.report_error(ValidationError {error_code: self.error_code(),
+            user_context.report_error(ValidationError {
+                error_code: self.error_code(),
                 locations: vec![directive.position],
                 message: format!("Unknown directive \"@{}\".", directive.name),
             });
@@ -157,14 +165,14 @@ impl ValidationRule for KnownDirectives {
         "KnownDirectives"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut KnownDirectives::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

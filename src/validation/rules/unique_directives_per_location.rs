@@ -18,6 +18,12 @@ use crate::{
 /// See  https://spec.graphql.org/draft/#sec-Directives-Are-Unique-Per-Location
 pub struct UniqueDirectivesPerLocation {}
 
+impl Default for UniqueDirectivesPerLocation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UniqueDirectivesPerLocation {
     pub fn new() -> Self {
         UniqueDirectivesPerLocation {}
@@ -35,7 +41,8 @@ impl UniqueDirectivesPerLocation {
             if let Some(meta_directive) = ctx.directives.get(&directive.name) {
                 if !meta_directive.repeatable {
                     if exists.contains(&directive.name) {
-                        err_context.report_error(ValidationError {error_code: self.error_code(),
+                        err_context.report_error(ValidationError {
+                            error_code: self.error_code(),
                             locations: vec![directive.position],
                             message: format!("Duplicate directive \"{}\"", &directive.name),
                         });
@@ -102,14 +109,14 @@ impl ValidationRule for UniqueDirectivesPerLocation {
         "UniqueDirectivesPerLocation"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut UniqueDirectivesPerLocation::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );
@@ -125,7 +132,7 @@ fn no_directives() {
         "fragment Test on Type {
             field
           }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -141,7 +148,7 @@ fn unique_directives_in_different_locations() {
         "fragment Test on Type @directiveA {
             field @directiveB
           }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -157,7 +164,7 @@ fn unique_directives_in_same_location() {
         "fragment Test on Type @directiveA @directiveB {
             field @directiveA @directiveB
           }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -173,7 +180,7 @@ fn same_directives_in_different_locations() {
         "fragment Test on Type @directiveA {
             field @directiveA
           }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -190,7 +197,7 @@ fn same_directives_in_similar_locations() {
             field @directive
             field @directive
           }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -206,7 +213,7 @@ fn repeatable_directives_in_same_location() {
         "fragment Test on Type @repeatable @repeatable {
             field @repeatable @repeatable
           }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -222,7 +229,7 @@ fn unknown_directives_must_be_ignored() {
         "fragment Test on Type @repeatable @repeatable {
             field @repeatable @repeatable
           }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -238,7 +245,7 @@ fn duplicate_directives_in_one_location() {
         "fragment Test on Type {
             field @onField @onField
           }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
     let messages = get_messages(&errors);
@@ -255,7 +262,7 @@ fn many_duplicate_directives_in_one_location() {
         "fragment Test on Type {
             field @onField @onField @onField
           }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
     let messages = get_messages(&errors);
@@ -278,7 +285,7 @@ fn different_duplicate_directives_in_one_location() {
         "fragment Test on Type {
             field @onField @testDirective @onField @testDirective
           }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
     let messages = get_messages(&errors);
@@ -301,7 +308,7 @@ fn duplicate_directives_in_many_location() {
         "fragment Test on Type @onFragmentDefinition @onFragmentDefinition {
             field @onField @onField
           }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
     let messages = get_messages(&errors);

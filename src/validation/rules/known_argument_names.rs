@@ -24,6 +24,12 @@ enum ArgumentParent<'a> {
     Directive(&'a str),
 }
 
+impl<'a> Default for KnownArgumentNames<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> KnownArgumentNames<'a> {
     pub fn new() -> Self {
         KnownArgumentNames {
@@ -97,7 +103,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownArgumentNames<'a>
                 match arg_position {
                     ArgumentParent::Field(field_name, type_name) => {
                         user_context.report_error(ValidationError {
-                          error_code: self.error_code(),  
+                            error_code: self.error_code(),
                             message: format!(
                                 "Unknown argument \"{}\" on field \"{}.{}\".",
                                 argument_name,
@@ -109,7 +115,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for KnownArgumentNames<'a>
                     }
                     ArgumentParent::Directive(directive_name) => {
                         user_context.report_error(ValidationError {
-                          error_code: self.error_code(),
+                            error_code: self.error_code(),
                             message: format!(
                                 "Unknown argument \"{}\" on directive \"@{}\".",
                                 argument_name, directive_name
@@ -128,14 +134,14 @@ impl<'k> ValidationRule for KnownArgumentNames<'k> {
         "KnownArgumentNames"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut KnownArgumentNames::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );
@@ -151,7 +157,7 @@ fn single_arg_is_known() {
         "fragment argOnRequiredArg on Dog {
           doesKnowCommand(dogCommand: SIT)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -167,7 +173,7 @@ fn multple_args_are_known() {
         "fragment multipleArgs on ComplicatedArgs {
           multipleReqs(req1: 1, req2: 2)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -183,7 +189,7 @@ fn ignores_args_of_unknown_fields() {
         "fragment argOnUnknownField on Dog {
           unknownField(unknownArg: SIT)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -199,7 +205,7 @@ fn multiple_args_in_reverse_order_are_known() {
         "fragment multipleArgsReverseOrder on ComplicatedArgs {
           multipleReqs(req2: 2, req1: 1)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -215,7 +221,7 @@ fn no_args_on_optional_arg() {
         "fragment noArgOnOptionalArg on Dog {
           isHouseTrained
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -240,7 +246,7 @@ fn args_are_known_deeply() {
             }
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -256,7 +262,7 @@ fn directive_args_are_known() {
         "{
           dog @skip(if: true)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -272,7 +278,7 @@ fn field_args_are_invalid() {
         "{
           dog @skip(unless: true)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -293,7 +299,7 @@ fn directive_without_args_is_valid() {
         " {
           dog @onField
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -310,7 +316,7 @@ fn arg_passed_to_directive_without_arg_is_reported() {
         " {
           dog @onField(if: true)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -332,7 +338,7 @@ fn misspelled_directive_args_are_reported() {
         "{
           dog @skip(iff: true)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -353,7 +359,7 @@ fn invalid_arg_name() {
         "fragment invalidArgName on Dog {
           doesKnowCommand(unknown: true)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -375,7 +381,7 @@ fn misspelled_arg_name_is_reported() {
         "fragment invalidArgName on Dog {
           doesKnowCommand(DogCommand: true)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -396,7 +402,7 @@ fn unknown_args_amongst_known_args() {
         "fragment oneGoodArgOneInvalidArg on Dog {
           doesKnowCommand(whoKnows: 1, dogCommand: SIT, unknown: true)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -429,7 +435,7 @@ fn unknown_args_deeply() {
             }
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 

@@ -16,6 +16,7 @@ use super::ValidationRule;
 /// Variable usages must be compatible with the arguments they are passed to.
 ///
 /// See https://spec.graphql.org/draft/#sec-All-Variable-Usages-are-Allowed
+#[derive(Default)]
 pub struct VariablesInAllowedPosition<'a> {
     spreads: HashMap<Scope<'a>, HashSet<&'a str>>,
     variable_usages: HashMap<Scope<'a>, Vec<(&'a str, &'a Type)>>,
@@ -49,8 +50,7 @@ impl<'a> VariablesInAllowedPosition<'a> {
 
         if let Some(usages) = self.variable_usages.get(from) {
             for (var_name, var_type) in usages {
-                if let Some(ref var_def) = var_defs.iter().find(|var_def| var_def.name == *var_name)
-                {
+                if let Some(var_def) = var_defs.iter().find(|var_def| var_def.name == *var_name) {
                     let expected_type = match (&var_def.default_value, &var_def.var_type) {
                         (Some(_), Type::ListType(inner)) => Type::NonNullType(inner.clone()),
                         (Some(default_value), Type::NamedType(_)) => {
@@ -143,7 +143,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         if let Some(scope) = &self.current_scope {
             self.spreads
                 .entry(scope.clone())
-                .or_insert_with(HashSet::new)
+                .or_default()
                 .insert(&fragment_spread.fragment_name);
         }
     }
@@ -157,8 +157,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         if let Some(ref scope) = self.current_scope {
             self.variable_defs
                 .entry(scope.clone())
-                .or_insert_with(Vec::new)
-                .push(&variable_definition);
+                .or_default()
+                .push(variable_definition);
         }
     }
 
@@ -168,13 +168,13 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         _: &mut ValidationErrorContext,
         variable_name: &'a str,
     ) {
-        if let (&Some(ref scope), Some(input_type)) = (
+        if let (Some(scope), Some(input_type)) = (
             &self.current_scope,
             visitor_context.current_input_type_literal(),
         ) {
             self.variable_usages
                 .entry(scope.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push((variable_name, input_type));
         }
     }
@@ -185,14 +185,14 @@ impl<'v> ValidationRule for VariablesInAllowedPosition<'v> {
         "VariablesInAllowedPosition"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut VariablesInAllowedPosition::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );
@@ -211,7 +211,7 @@ fn boolean_to_boolean() {
             booleanArgField(booleanArg: $booleanArg)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -233,7 +233,7 @@ fn boolean_to_boolean_within_fragment() {
             ...booleanArgFrag
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -249,7 +249,7 @@ fn boolean_to_boolean_within_fragment() {
       fragment booleanArgFrag on ComplicatedArgs {
         booleanArgField(booleanArg: $booleanArg)
       }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -268,7 +268,7 @@ fn boolean_nonnull_to_boolean() {
             booleanArgField(booleanArg: $nonNullBooleanArg)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -287,7 +287,7 @@ fn string_list_to_string_list() {
             stringListArgField(stringListArg: $stringListVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -306,7 +306,7 @@ fn string_list_nonnull_to_string_list() {
             stringListArgField(stringListArg: $stringListVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -325,7 +325,7 @@ fn string_to_string_list_in_item_position() {
             stringListArgField(stringListArg: [$stringVar])
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -344,7 +344,7 @@ fn string_nonnull_to_string_list_in_item_position() {
             stringListArgField(stringListArg: [$stringVar])
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -363,7 +363,7 @@ fn complexinput_to_complexinput() {
             complexArgField(complexArg: $complexVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -382,7 +382,7 @@ fn complexinput_to_complexinput_in_field_position() {
             complexArgField(complexArg: { requiredArg: $boolVar })
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -400,7 +400,7 @@ fn boolean_nonnull_to_boolean_nonnull_in_directive() {
         {
           dog @include(if: $boolVar)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -418,7 +418,7 @@ fn int_to_int_nonnull() {
             nonNullIntArgField(nonNullIntArg: $intArg)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -444,7 +444,7 @@ fn int_to_int_nonnull_within_fragment() {
             ...nonNullIntArgFieldFrag
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -473,7 +473,7 @@ fn int_to_int_nonnull_within_nested_fragment() {
             ...outerFrag
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -496,7 +496,7 @@ fn string_over_boolean() {
             booleanArgField(booleanArg: $stringVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -521,7 +521,7 @@ fn string_over_string_list() {
             stringListArgField(stringListArg: $stringVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -544,7 +544,7 @@ fn boolean_to_boolean_nonnull_in_directive() {
         "query Query($boolVar: Boolean) {
           dog @include(if: $boolVar)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -567,7 +567,7 @@ fn string_to_boolean_nonnull_in_directive() {
         "query Query($stringVar: String) {
           dog @include(if: $stringVar)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -593,7 +593,7 @@ fn string_list_to_string_nonnull_list() {
             stringListNonNullArgField(stringListNonNullArg: $stringListVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -615,7 +615,7 @@ fn int_to_int_non_null_with_null_default_value() {
             nonNullIntArgField(nonNullIntArg: $intVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -638,7 +638,7 @@ fn int_to_int_non_null_with_default_value() {
             nonNullIntArgField(nonNullIntArg: $intVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -657,7 +657,7 @@ fn int_to_int_non_null_where_argument_with_default_value() {
             nonNullFieldWithDefault(nonNullIntArg: $intVar)
           }
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 
@@ -674,7 +674,7 @@ fn boolean_to_boolean_non_null_with_default_value() {
         "query Query($boolVar: Boolean = false) {
           dog @include(if: $boolVar)
         }",
-        &TEST_SCHEMA,
+        TEST_SCHEMA,
         &mut plan,
     );
 

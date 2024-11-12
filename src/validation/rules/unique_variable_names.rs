@@ -1,7 +1,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
-use graphql_parser::Pos;
+use crate::parser::Pos;
 
 use super::ValidationRule;
 use crate::ast::{visit_document, OperationVisitor, OperationVisitorContext};
@@ -13,6 +13,7 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// A GraphQL operation is only valid if all its variables are uniquely named.
 ///
 /// See https://spec.graphql.org/draft/#sec-Variable-Uniqueness
+#[derive(Default)]
 pub struct UniqueVariableNames<'a> {
     found_records: HashMap<&'a str, Pos>,
 }
@@ -41,10 +42,10 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for UniqueVariableNames<'a
         user_context: &mut ValidationErrorContext,
         variable_definition: &'a VariableDefinition,
     ) {
-      let error_code = self.error_code();
+        let error_code = self.error_code();
         match self.found_records.entry(&variable_definition.name) {
             Entry::Occupied(entry) => user_context.report_error(ValidationError {
-              error_code,
+                error_code,
                 locations: vec![*entry.get(), variable_definition.position],
                 message: format!(
                     "There can only be one variable named \"${}\".",
@@ -63,14 +64,14 @@ impl<'v> ValidationRule for UniqueVariableNames<'v> {
         "UniqueVariableNames"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut UniqueVariableNames::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

@@ -17,6 +17,12 @@ use crate::validation::utils::{ValidationError, ValidationErrorContext};
 /// https://spec.graphql.org/draft/#sec-Fragment-spread-is-possible
 pub struct PossibleFragmentSpreads;
 
+impl Default for PossibleFragmentSpreads {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PossibleFragmentSpreads {
     pub fn new() -> Self {
         Self {}
@@ -73,7 +79,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpread
             if let Some(parent_type) = visitor_context.current_parent_type() {
                 if frag_schema_type.is_composite_type()
                     && parent_type.is_composite_type()
-                    && !do_types_overlap(&visitor_context.schema, frag_schema_type, &parent_type)
+                    && !do_types_overlap(visitor_context.schema, frag_schema_type, parent_type)
                 {
                     user_context.report_error(ValidationError {error_code: self.error_code(),
                       locations: vec![],
@@ -100,7 +106,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for PossibleFragmentSpread
                 if let Some(parent_type) = visitor_context.current_parent_type() {
                     if fragment_type.is_composite_type()
                         && parent_type.is_composite_type()
-                        && !do_types_overlap(&visitor_context.schema, &fragment_type, &parent_type)
+                        && !do_types_overlap(visitor_context.schema, fragment_type, parent_type)
                     {
                         user_context.report_error(ValidationError {error_code: self.error_code(),
                         locations: vec![],
@@ -118,14 +124,14 @@ impl ValidationRule for PossibleFragmentSpreads {
         "PossibleFragmentSpreads"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut PossibleFragmentSpreads::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use graphql_parser::query::TypeCondition;
+use crate::parser::query::TypeCondition;
 
 use crate::static_graphql::{
     query::{self, *},
@@ -55,11 +55,11 @@ impl<'a> OperationVisitorContext<'a> {
 
     pub fn with_type<Func>(&mut self, t: Option<&Type>, func: Func)
     where
-        Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
+        Func: FnOnce(&mut OperationVisitorContext<'a>),
     {
         if let Some(t) = t {
             self.type_stack
-                .push(self.schema.type_by_name(&t.inner_type()));
+                .push(self.schema.type_by_name(t.inner_type()));
         } else {
             self.type_stack.push(None);
         }
@@ -72,17 +72,17 @@ impl<'a> OperationVisitorContext<'a> {
 
     pub fn with_parent_type<Func>(&mut self, func: Func)
     where
-        Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
+        Func: FnOnce(&mut OperationVisitorContext<'a>),
     {
         self.parent_type_stack
-            .push(self.type_stack.last().unwrap_or(&None).clone());
+            .push(*self.type_stack.last().unwrap_or(&None));
         func(self);
         self.parent_type_stack.pop();
     }
 
     pub fn with_field<'f, Func>(&mut self, f: Option<&'f schema::Field>, func: Func)
     where
-        Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
+        Func: FnOnce(&mut OperationVisitorContext<'a>),
         'f: 'a,
     {
         if let Some(f) = f {
@@ -97,11 +97,11 @@ impl<'a> OperationVisitorContext<'a> {
 
     pub fn with_input_type<Func>(&mut self, t: Option<&'a Type>, func: Func)
     where
-        Func: FnOnce(&mut OperationVisitorContext<'a>) -> (),
+        Func: FnOnce(&mut OperationVisitorContext<'a>),
     {
-        if let Some(ref t) = t {
+        if let Some(t) = t {
             self.input_type_stack
-                .push(self.schema.type_by_name(&t.inner_type()));
+                .push(self.schema.type_by_name(t.inner_type()));
         } else {
             self.input_type_stack.push(None);
         }
@@ -277,9 +277,9 @@ fn visit_input_value<'a, Visitor, UserContext>(
             for (sub_key, sub_value) in v.iter() {
                 let input_type = context
                     .current_input_type_literal()
-                    .and_then(|v| context.schema.type_by_name(&v.inner_type()))
-                    .and_then(|v| v.input_field_by_name(&sub_key))
-                    .and_then(|v| Some(&v.value_type));
+                    .and_then(|v| context.schema.type_by_name(v.inner_type()))
+                    .and_then(|v| v.input_field_by_name(sub_key))
+                    .map(|v| &v.value_type);
 
                 context.with_input_type(input_type, |context| {
                     let param = &(sub_key.clone(), sub_value.clone());
@@ -311,7 +311,7 @@ fn visit_variable_definitions<'a, Visitor, UserContext>(
             visitor.enter_variable_definition(context, user_context, variable);
 
             if let Some(default_value) = &variable.default_value {
-                visit_input_value(visitor, &default_value, context, user_context);
+                visit_input_value(visitor, default_value, context, user_context);
             }
 
             // DOTAN: We should visit the directives as well here, but it's extracted in graphql_parser.
@@ -335,7 +335,7 @@ fn visit_selection<'a, Visitor, UserContext>(
                 .current_parent_type()
                 .and_then(|t| t.field_by_name(&field.name));
 
-            let field_type = parent_type_def.clone().map(|f| &f.field_type);
+            let field_type = parent_type_def.map(|f| &f.field_type);
             let field_args = parent_type_def.map(|f| &f.arguments);
 
             context.with_type(field_type, |context| {

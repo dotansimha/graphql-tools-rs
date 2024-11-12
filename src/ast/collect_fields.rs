@@ -47,7 +47,7 @@ fn does_fragment_condition_match<'a>(
                         return interface_type.is_implemented_by(current_selection_set_type)
                     }
                     TypeDefinition::Union(union_type) => {
-                        return union_type.has_sub_type(&current_selection_set_type.name())
+                        return union_type.has_sub_type(current_selection_set_type.name())
                     }
                     _ => return false,
                 }
@@ -70,14 +70,14 @@ fn collect_fields_inner<'a>(
 ) {
     selection_set.items.iter().for_each(|item| match item {
         Selection::Field(f) => {
-            let existing = result_arr.entry(f.name.clone()).or_insert(vec![]);
+            let existing = result_arr.entry(f.name.clone()).or_default();
             existing.push(f.clone());
         }
         Selection::InlineFragment(f) => {
             if does_fragment_condition_match(&f.type_condition, parent_type, context) {
                 collect_fields_inner(
                     &f.selection_set,
-                    &parent_type,
+                    parent_type,
                     known_fragments,
                     context,
                     result_arr,
@@ -86,22 +86,21 @@ fn collect_fields_inner<'a>(
             }
         }
         Selection::FragmentSpread(f) => {
-            if visited_fragments_names
+            if !visited_fragments_names
                 .iter()
-                .find(|name| f.fragment_name.eq(*name))
-                .is_none()
+                .any(|name| f.fragment_name.eq(name))
             {
                 visited_fragments_names.push(f.fragment_name.clone());
 
                 if let Some(fragment) = known_fragments.get(f.fragment_name.as_str()) {
                     if does_fragment_condition_match(
                         &Some(fragment.type_condition.clone()),
-                        &parent_type,
+                        parent_type,
                         context,
                     ) {
                         collect_fields_inner(
                             &fragment.selection_set,
-                            &parent_type,
+                            parent_type,
                             known_fragments,
                             context,
                             result_arr,

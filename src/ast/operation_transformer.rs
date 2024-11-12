@@ -1,4 +1,4 @@
-use graphql_parser::query::*;
+use crate::parser::query::*;
 
 #[derive(Clone, Debug)]
 pub enum Transformed<T> {
@@ -31,9 +31,9 @@ impl<T> TransformedValue<T> {
     }
 }
 
-impl<T> Into<Transformed<T>> for TransformedValue<T> {
-    fn into(self) -> Transformed<T> {
-        match self {
+impl<T> From<TransformedValue<T>> for Transformed<T> {
+    fn from(val: TransformedValue<T>) -> Self {
+        match val {
             TransformedValue::Keep => Transformed::Keep,
             TransformedValue::Replace(replacement) => Transformed::Replace(replacement),
         }
@@ -370,7 +370,7 @@ pub trait OperationTransformer<'a, T: Text<'a> + Clone> {
 
     fn transform_directives(
         &mut self,
-        directives: &Vec<Directive<'a, T>>,
+        directives: &[Directive<'a, T>],
     ) -> TransformedValue<Vec<Directive<'a, T>>> {
         self.transform_list(directives, Self::transform_directive)
     }
@@ -417,7 +417,7 @@ pub trait OperationTransformer<'a, T: Text<'a> + Clone> {
     ) -> Transformed<(T::Value, Value<'a, T>)> {
         let (name, value) = argument;
 
-        match self.transform_value(&value) {
+        match self.transform_value(value) {
             TransformedValue::Keep => Transformed::Keep,
             TransformedValue::Replace(replacement) => {
                 Transformed::Replace((name.clone(), replacement))
@@ -452,7 +452,7 @@ pub trait OperationTransformer<'a, T: Text<'a> + Clone> {
 
     fn default_transform_variable_definitions(
         &mut self,
-        variable_definitions: &Vec<VariableDefinition<'a, T>>,
+        variable_definitions: &[VariableDefinition<'a, T>],
     ) -> TransformedValue<Vec<VariableDefinition<'a, T>>> {
         self.transform_list(
             variable_definitions,
@@ -486,7 +486,7 @@ pub trait OperationTransformer<'a, T: Text<'a> + Clone> {
             }
         }
 
-        return TransformedValue::Keep;
+        TransformedValue::Keep
     }
 
     fn transform_list<I, F, R>(&mut self, list: &[I], f: F) -> TransformedValue<Vec<I>>
@@ -582,8 +582,8 @@ mod tests {
 
             fn transform_field(
                 &mut self,
-                field: &graphql_parser::query::Field<'a, T>,
-            ) -> Transformed<graphql_parser::query::Selection<'a, T>> {
+                field: &crate::parser::query::Field<'a, T>,
+            ) -> Transformed<crate::parser::query::Selection<'a, T>> {
                 let selection_set = self.transform_selection_set(&field.selection_set);
                 let arguments = self.transform_arguments(&field.arguments);
                 let directives = self.transform_directives(&field.directives);

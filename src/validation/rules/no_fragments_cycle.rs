@@ -15,6 +15,12 @@ pub struct NoFragmentsCycle {
     visited_fragments: HashSet<String>,
 }
 
+impl Default for NoFragmentsCycle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NoFragmentsCycle {
     pub fn new() -> Self {
         Self {
@@ -41,7 +47,7 @@ impl NoFragmentsCycle {
 
         let spread_nodes = fragment.selection_set.get_recursive_fragment_spreads();
 
-        if spread_nodes.len() == 0 {
+        if spread_nodes.is_empty() {
             return;
         }
 
@@ -64,7 +70,7 @@ impl NoFragmentsCycle {
                     }
                 }
                 Some(cycle_index) => {
-                    let cycle_path = &spread_paths[cycle_index.clone()..];
+                    let cycle_path = &spread_paths[*cycle_index..];
                     let via_path = match cycle_path.len() {
                         0 => vec![],
                         _ => cycle_path[0..cycle_path.len() - 1]
@@ -73,8 +79,9 @@ impl NoFragmentsCycle {
                             .collect::<Vec<String>>(),
                     };
 
-                    error_context.report_error(ValidationError {error_code: self.error_code(),
-                        locations: cycle_path.iter().map(|f| f.position.clone()).collect(),
+                    error_context.report_error(ValidationError {
+                        error_code: self.error_code(),
+                        locations: cycle_path.iter().map(|f| f.position).collect(),
                         message: match via_path.len() {
                             0 => {
                                 format!("Cannot spread fragment \"{}\" within itself.", spread_name)
@@ -121,14 +128,14 @@ impl ValidationRule for NoFragmentsCycle {
         "NoFragmentsCycle"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut NoFragmentsCycle::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );
