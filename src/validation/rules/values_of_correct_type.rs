@@ -28,10 +28,7 @@ impl ValuesOfCorrectType {
     }
 
     pub fn is_custom_scalar(&self, type_name: &str) -> bool {
-        match type_name {
-            "String" | "Int" | "Float" | "Boolean" | "ID" => false,
-            _ => true,
-        }
+        !matches!(type_name, "String" | "Int" | "Float" | "Boolean" | "ID")
     }
 
     pub fn validate_value(
@@ -84,10 +81,7 @@ impl ValuesOfCorrectType {
                 if let TypeDefinition::Enum(enum_type_def) = &type_def {
                     match raw_value {
                         Value::Enum(enum_value) => {
-                            if !enum_type_def
-                                .values
-                                .iter().any(|v| v.name.eq(enum_value))
-                            {
+                            if !enum_type_def.values.iter().any(|v| v.name.eq(enum_value)) {
                                 user_context.report_error(ValidationError {
                                     error_code: self.error_code(),
                                     message: format!(
@@ -156,7 +150,8 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for ValuesOfCorrectType {
             object_value.keys().for_each(|field_name| {
                 if !input_object_def
                     .fields
-                    .iter().any(|f| f.name.eq(field_name))
+                    .iter()
+                    .any(|f| f.name.eq(field_name))
                 {
                     user_context.report_error(ValidationError {
                         error_code: self.error_code(),
