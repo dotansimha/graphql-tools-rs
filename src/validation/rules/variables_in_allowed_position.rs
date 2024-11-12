@@ -16,6 +16,7 @@ use super::ValidationRule;
 /// Variable usages must be compatible with the arguments they are passed to.
 ///
 /// See https://spec.graphql.org/draft/#sec-All-Variable-Usages-are-Allowed
+#[derive(Default)]
 pub struct VariablesInAllowedPosition<'a> {
     spreads: HashMap<Scope<'a>, HashSet<&'a str>>,
     variable_usages: HashMap<Scope<'a>, Vec<(&'a str, &'a Type)>>,
@@ -49,8 +50,7 @@ impl<'a> VariablesInAllowedPosition<'a> {
 
         if let Some(usages) = self.variable_usages.get(from) {
             for (var_name, var_type) in usages {
-                if let Some(ref var_def) = var_defs.iter().find(|var_def| var_def.name == *var_name)
-                {
+                if let Some(var_def) = var_defs.iter().find(|var_def| var_def.name == *var_name) {
                     let expected_type = match (&var_def.default_value, &var_def.var_type) {
                         (Some(_), Type::ListType(inner)) => Type::NonNullType(inner.clone()),
                         (Some(default_value), Type::NamedType(_)) => {
@@ -143,7 +143,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         if let Some(scope) = &self.current_scope {
             self.spreads
                 .entry(scope.clone())
-                .or_insert_with(HashSet::new)
+                .or_default()
                 .insert(&fragment_spread.fragment_name);
         }
     }
@@ -158,7 +158,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
             self.variable_defs
                 .entry(scope.clone())
                 .or_default()
-                .push(&variable_definition);
+                .push(variable_definition);
         }
     }
 
@@ -168,13 +168,13 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesInAllowedPosi
         _: &mut ValidationErrorContext,
         variable_name: &'a str,
     ) {
-        if let (&Some(ref scope), Some(input_type)) = (
+        if let (Some(scope), Some(input_type)) = (
             &self.current_scope,
             visitor_context.current_input_type_literal(),
         ) {
             self.variable_usages
                 .entry(scope.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push((variable_name, input_type));
         }
     }
@@ -185,14 +185,14 @@ impl<'v> ValidationRule for VariablesInAllowedPosition<'v> {
         "VariablesInAllowedPosition"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut VariablesInAllowedPosition::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

@@ -63,14 +63,14 @@ impl<'v> ValidationRule for UniqueVariableNames<'v> {
         "UniqueVariableNames"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut UniqueVariableNames::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

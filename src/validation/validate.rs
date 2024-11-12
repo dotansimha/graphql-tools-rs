@@ -26,6 +26,12 @@ impl ValidationPlan {
     }
 }
 
+impl Default for ValidationPlan {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn validate<'a>(
     schema: &'a schema::Document,
     operation: &'a query::Document,

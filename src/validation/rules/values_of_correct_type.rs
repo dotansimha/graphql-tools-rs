@@ -14,6 +14,7 @@ use crate::{
 
 use super::ValidationRule;
 
+#[derive(Default)]
 pub struct ValuesOfCorrectType {}
 
 impl ValuesOfCorrectType {
@@ -22,10 +23,7 @@ impl ValuesOfCorrectType {
     }
 
     pub fn is_custom_scalar(&self, type_name: &str) -> bool {
-        match type_name {
-            "String" | "Int" | "Float" | "Boolean" | "ID" => false,
-            _ => true,
-        }
+        !matches!(type_name, "String" | "Int" | "Float" | "Boolean" | "ID")
     }
 
     pub fn validate_value(
@@ -37,7 +35,7 @@ impl ValuesOfCorrectType {
         if let Some(input_type) = visitor_context.current_input_type_literal() {
             let named_type = input_type.inner_type();
 
-            if let Some(type_def) = visitor_context.schema.type_by_name(&named_type) {
+            if let Some(type_def) = visitor_context.schema.type_by_name(named_type) {
                 if !type_def.is_leaf_type() {
                     user_context.report_error(ValidationError {
                         error_code: self.error_code(),
@@ -78,12 +76,7 @@ impl ValuesOfCorrectType {
                 if let TypeDefinition::Enum(enum_type_def) = &type_def {
                     match raw_value {
                         Value::Enum(enum_value) => {
-                            if enum_type_def
-                                .values
-                                .iter()
-                                .find(|v| v.name.eq(enum_value))
-                                .is_none()
-                            {
+                            if enum_type_def.values.iter().any(|v| v.name.eq(enum_value)) {
                                 user_context.report_error(ValidationError {
                                     error_code: self.error_code(),
                                     message: format!(
@@ -193,14 +186,14 @@ impl ValidationRule for ValuesOfCorrectType {
         "ValuesOfCorrectType"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut ValuesOfCorrectType::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );

@@ -12,6 +12,7 @@ use crate::validation::utils::ValidationErrorContext;
 /// input types (scalar, enum, or input object).
 ///
 /// See https://spec.graphql.org/draft/#sec-Variables-Are-Input-Types
+#[derive(Default)]
 pub struct VariablesAreInputTypes;
 
 impl VariablesAreInputTypes {
@@ -29,7 +30,7 @@ impl<'a> OperationVisitor<'a, ValidationErrorContext> for VariablesAreInputTypes
     ) {
         if let Some(var_schema_type) = context
             .schema
-            .type_by_name(&variable_definition.var_type.inner_type())
+            .type_by_name(variable_definition.var_type.inner_type())
         {
             if !var_schema_type.is_input_type() {
                 user_context.report_error(ValidationError {
@@ -50,14 +51,14 @@ impl ValidationRule for VariablesAreInputTypes {
         "VariablesAreInputTypes"
     }
 
-    fn validate<'a>(
+    fn validate(
         &self,
-        ctx: &'a mut OperationVisitorContext,
+        ctx: &mut OperationVisitorContext,
         error_collector: &mut ValidationErrorContext,
     ) {
         visit_document(
             &mut VariablesAreInputTypes::new(),
-            &ctx.operation,
+            ctx.operation,
             ctx,
             error_collector,
         );
