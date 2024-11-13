@@ -167,9 +167,43 @@ fn visit_definitions<'a, Visitor, UserContext>(
             Definition::Operation(operation) => match operation {
                 OperationDefinition::Query(_) => Some(&context.schema.query_type().name),
                 OperationDefinition::SelectionSet(_) => Some(&context.schema.query_type().name),
-                OperationDefinition::Mutation(_) => context.schema.mutation_type().map(|t| &t.name),
+                OperationDefinition::Mutation(_) => {
+                    context.schema.mutation_type().map(|t| &t.name).or_else(|| {
+                        // Awkward hack but enables me to move forward
+                        // Somehow the `mutation_type()` gives None, even though `Mutation` type is defined in the schema.
+                        if let Some(type_definition) = context.schema.type_by_name("Mutation") {
+                            return match type_definition {
+                                crate::parser::schema::TypeDefinition::Object(object_type) => {
+                                    Some(&object_type.name)
+                                }
+                                _ => None,
+                            };
+                        }
+
+                        None
+                    })
+                }
                 OperationDefinition::Subscription(_) => {
-                    context.schema.subscription_type().map(|t| &t.name)
+                    context
+                        .schema
+                        .subscription_type()
+                        .map(|t| &t.name)
+                        .or_else(|| {
+                            // Awkward hack but enables me to move forward
+                            // Somehow the `subscription_type()` gives None, even though `Subscription` type is defined in the schema.
+                            if let Some(type_definition) =
+                                context.schema.type_by_name("Subscription")
+                            {
+                                return match type_definition {
+                                    crate::parser::schema::TypeDefinition::Object(object_type) => {
+                                        Some(&object_type.name)
+                                    }
+                                    _ => None,
+                                };
+                            }
+
+                            None
+                        })
                 }
             },
         };
